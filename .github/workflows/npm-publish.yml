@@ -1,19 +1,17 @@
 name: Publish
 
 on:
+  push:
+    tags: ['v*']
   workflow_dispatch:
     inputs:
       dry_run:
         description: Run checks and package publish dry-run without publishing
         type: boolean
         default: true
-      skip_publish:
-        description: Tag only — never publish to the registry (safe tag test / backfill)
-        type: boolean
-        default: false
 
 permissions:
-  contents: write
+  contents: read
   id-token: write
 
 concurrency:
@@ -50,7 +48,6 @@ jobs:
       - name: Publish if version is new
         env:
           DRY_RUN: ${{ inputs.dry_run }}
-          SKIP_PUBLISH: ${{ inputs.skip_publish }}
         run: |
           set -euo pipefail
 
@@ -72,35 +69,9 @@ jobs:
             exit 0
           fi
 
-          # Tag-only mode: exercise the Tag release step without ever touching
-          # the registry, for any version regardless of publish state.
-          if [ "${SKIP_PUBLISH}" = "true" ]; then
-            echo "skip_publish=true, not publishing ${NAME}@${VERSION}"
-            exit 0
-          fi
-
           if [ "${PUBLISHED}" = "true" ]; then
             echo "${NAME}@${VERSION} already published, skipping"
             exit 0
           fi
 
           npm publish --access public
-
-      - name: Tag release
-        if: ${{ inputs.dry_run == false }}
-        run: |
-          set -euo pipefail
-
-          # Tag the exact published commit, at publish time. Immutable: only
-          # push when the tag is new (backfills a missing tag on re-run).
-          VERSION=$(node -p 'require("./package.json").version')
-          tag="v${VERSION}"
-          if git ls-remote --tags origin "refs/tags/${tag}" | awk '{print $2}' | grep -qxF "refs/tags/${tag}"; then
-            echo "tag ${tag} already exists, skipping"
-            exit 0
-          fi
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag -a "${tag}" -m "${tag}"
-          # Tolerate a concurrent run that pushed the same tag first.
-          git push origin "refs/tags/${tag}" 2>/dev/null || git ls-remote --exit-code --tags origin "refs/tags/${tag}" >/dev/null 2>&1
