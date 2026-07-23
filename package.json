@@ -1,0 +1,43 @@
+{
+  "name": "@tenkicloud/sandbox",
+  "version": "0.5.0",
+  "description": "TypeScript SDK for Tenki Sandbox",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup && tsc --emitDeclarationOnly --declarationMap false",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@bufbuild/protobuf": "2.12.1",
+    "@connectrpc/connect": "2.1.2",
+    "@connectrpc/connect-node": "2.1.2",
+    "ws": "8.21.1"
+  },
+  "devDependencies": {
+    "@types/node": "24.10.9",
+    "@types/ws": "8.18.1",
+    "@typescript/native": "npm:typescript@7.0.2",
+    "tsup": "8.5.1",
+    "typescript": "npm:@typescript/typescript6@6.0.2",
+    "vitest": "4.1.10"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "MIT"
+}
