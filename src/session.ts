@@ -166,6 +166,7 @@ export class Session implements SessionHandle, AsyncDisposable {
   private cookieName: string;
   private sshOptions?: SSHConnectOptions;
   private dataPlaneEndpoint = "";
+  private dataPlaneWarmStarted = false;
   private dataPlaneCredential?: DataPlaneCredentialManager;
   private dataPlaneClient?: Client<typeof SandboxSessionDataPlaneService>;
   private dataPlaneVerifiedClient?: Client<typeof SandboxSessionDataPlaneService>;
@@ -313,6 +314,7 @@ export class Session implements SessionHandle, AsyncDisposable {
     this.dataPlaneCredential = undefined;
     this.dataPlaneClient = undefined;
     this.dataPlaneVerifiedClient = undefined;
+    this.dataPlaneWarmStarted = false;
   }
 
   private applyDataPlaneResponse(
@@ -324,7 +326,28 @@ export class Session implements SessionHandle, AsyncDisposable {
     this.configureDataPlane({ endpoint, credential });
     if (routeStatus === DataPlaneRouteStatus.VERIFIED && this.dataPlaneClient) {
       this.dataPlaneVerifiedClient = this.dataPlaneClient;
+      return;
     }
+    this.startDataPlaneWarm();
+  }
+
+  // Open the connection once an endpoint is known so the first call skips the handshake. The request may be
+  // rejected (no credential yet); the pooled connection is the point, so this must not mark the client verified.
+  private startDataPlaneWarm(): void {
+    if (this.dataPlaneWarmStarted || !this.dataPlaneClient) return;
+    this.dataPlaneWarmStarted = true;
+    const client = this.dataPlaneClient;
+    void (async () => {
+      try {
+        await client.stat(
+          create(SandboxSessionDataPlaneServiceStatRequestSchema, {
+            request: create(StatRequestSchema, { sessionId: this.id, path: "/home/tenki" }),
+          }),
+        );
+      } catch {
+        // Any outcome means the connection was established, which is all the warm needs.
+      }
+    })();
   }
 
   async renewDataPlaneCredential(): Promise<boolean> {
