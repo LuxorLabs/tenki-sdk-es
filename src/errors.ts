@@ -153,6 +153,19 @@ export class TemplateRuntimeFailedError extends SandboxError {
   }
 }
 
+/** A readiness wait failed after the server admitted the session. */
+export class WaitReadyFailedError extends SandboxError {
+  name = "WaitReadyFailedError";
+
+  constructor(
+    message: string,
+    public readonly session: import("./session.js").Session,
+    options?: ErrorOptions,
+  ) {
+    super(message, options);
+  }
+}
+
 export class CapabilityUnavailableError extends SandboxError {
   name = "CapabilityUnavailableError";
 

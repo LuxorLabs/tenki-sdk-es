@@ -2,12 +2,14 @@ import { create, toBinary } from "@bufbuild/protobuf";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { TenkiSandbox } from "../src/client.js";
-import { InvalidResourceConfigError } from "../src/errors.js";
+import { InvalidResourceConfigError, WaitReadyFailedError } from "../src/errors.js";
 import {
   CreateSessionRequestSchema,
   CreateSessionResponseSchema,
   SandboxSessionSchema,
   SessionState,
+  TerminateSessionResponseSchema,
+  WaitSessionResponseSchema,
 } from "../src/internal/proto/tenki/sandbox/v1/sandbox_pb.js";
 
 const connectMock = vi.hoisted(() => ({
@@ -54,6 +56,95 @@ describe("TenkiSandbox client TLS options", () => {
     await expect(client.create({ diskSizeGb: 3 })).rejects.toThrow(InvalidResourceConfigError);
 
     expect(createSession).not.toHaveBeenCalled();
+  });
+
+  it("returns a closable session when readiness waiting fails", async () => {
+    const sessionProto = () =>
+      create(SandboxSessionSchema, {
+        id: "session-1",
+        state: SessionState.CREATING,
+        ownerType: "SERVICE",
+        ownerId: "self",
+      });
+    const rpcClient = {
+      createSession: vi.fn(async () => create(CreateSessionResponseSchema, { session: sessionProto() })),
+      waitSession: vi.fn(() =>
+        (async function* () {
+          yield create(WaitSessionResponseSchema, { session: sessionProto() });
+        })(),
+      ),
+      terminateSession: vi.fn(async () =>
+        create(TerminateSessionResponseSchema, {
+          session: create(SandboxSessionSchema, { id: "session-1", state: SessionState.TERMINATED }),
+        }),
+      ),
+    };
+    connectMock.createClient.mockReturnValue(rpcClient);
+    const client = new TenkiSandbox({ authToken: "tk_test" });
+
+    const err: unknown = await client.create({ waitTimeoutMs: 50 }).catch((error: unknown) => error);
+
+    expect(err).toBeInstanceOf(WaitReadyFailedError);
+    if (!(err instanceof WaitReadyFailedError)) throw err;
+    expect(err.session.id).toBe("session-1");
+    await err.session.close();
+    expect(rpcClient.terminateSession).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not wrap terminal readiness failures", async () => {
+    const terminalSession = create(SandboxSessionSchema, {
+      id: "session-1",
+      state: SessionState.TERMINATED,
+      ownerType: "SERVICE",
+      ownerId: "self",
+      terminalError: "sandbox provisioned but readiness check failed",
+    });
+    connectMock.createClient.mockReturnValue({
+      createSession: vi.fn(async () =>
+        create(CreateSessionResponseSchema, {
+          session: create(SandboxSessionSchema, {
+            id: "session-1",
+            state: SessionState.CREATING,
+            ownerType: "SERVICE",
+            ownerId: "self",
+          }),
+        }),
+      ),
+      waitSession: vi.fn(() =>
+        (async function* () {
+          yield create(WaitSessionResponseSchema, { session: terminalSession });
+        })(),
+      ),
+    });
+    const client = new TenkiSandbox({ authToken: "tk_test" });
+
+    const err: unknown = await client.create().catch((error: unknown) => error);
+
+    expect(err).not.toBeInstanceOf(WaitReadyFailedError);
+    expect(err).toHaveProperty("message", expect.stringContaining("sandbox provisioned but readiness check failed"));
+  });
+
+  it("preserves template-spec wait defaults when readiness waiting fails", async () => {
+    const sessionProto = create(SandboxSessionSchema, {
+      id: "session-1",
+      state: SessionState.CREATING,
+      ownerType: "SERVICE",
+      ownerId: "self",
+    });
+    const waitSession = vi.fn(() =>
+      (async function* () {
+        yield create(WaitSessionResponseSchema, { session: sessionProto });
+      })(),
+    );
+    connectMock.createClient.mockReturnValue({
+      createSession: vi.fn(async () => create(CreateSessionResponseSchema, { session: sessionProto })),
+      waitSession,
+    });
+    const client = new TenkiSandbox({ authToken: "tk_test" });
+
+    await expect(client.create({ fromTemplateSpec: "template-1" })).rejects.toThrow(WaitReadyFailedError);
+
+    expect(waitSession).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ timeoutMs: 7_200_000 }));
   });
 
   it("preserves no-argument create compatibility", async () => {

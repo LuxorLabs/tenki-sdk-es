@@ -29,6 +29,7 @@ import {
   TemplateBuildFailedError,
   TemplateRuntimeFailedError,
   VolumeSyncPendingError,
+  WaitReadyFailedError,
 } from "./errors.js";
 import {
   DeleteRegistryImageRequestSchema,
@@ -300,12 +301,20 @@ export class TenkiSandbox implements AsyncDisposable {
         const suffix = session.terminalError ? `: ${session.terminalError}` : "";
         throw new Error(`session entered terminal state: ${session.state}${suffix}`);
       }
-      await session.waitReady(
-        options?.waitTimeoutMs ??
-          (templateSpecId ? DEFAULT_TEMPLATE_SPEC_CREATE_TIMEOUT_MS : DEFAULT_SESSION_CREATE_TIMEOUT_MS),
-      );
+      try {
+        await session.waitReady(
+          options?.waitTimeoutMs ??
+            (templateSpecId ? DEFAULT_TEMPLATE_SPEC_CREATE_TIMEOUT_MS : DEFAULT_SESSION_CREATE_TIMEOUT_MS),
+        );
+      } catch (waitErr) {
+        if (isTerminal(session.state)) throw waitErr;
+        throw new WaitReadyFailedError(`session ${session.id} created but not ready within wait budget`, session, {
+          cause: waitErr instanceof Error ? waitErr : undefined,
+        });
+      }
       return session;
     } catch (err) {
+      if (err instanceof WaitReadyFailedError) throw err;
       const runtimeFailure = ConnectError.from(err).findDetails(TemplateRuntimeFailureSchema)[0];
       if (runtimeFailure?.session) {
         const session = new Session(
@@ -327,13 +336,24 @@ export class TenkiSandbox implements AsyncDisposable {
 
   async createAndWait(options?: CreateOptions & { timeoutMs?: number }): Promise<Session> {
     // Compatibility wrapper: create() already waits by default.
+    const waitTimeoutMs =
+      options?.timeoutMs ??
+      options?.waitTimeoutMs ??
+      (options?.fromTemplateSpec ? DEFAULT_TEMPLATE_SPEC_CREATE_TIMEOUT_MS : DEFAULT_SESSION_CREATE_TIMEOUT_MS);
     const session = await this.create({
       ...options,
       waitReady: true,
-      waitTimeoutMs: options?.timeoutMs ?? options?.waitTimeoutMs,
+      waitTimeoutMs,
     });
     if (session.state !== "RUNNING") {
-      await session.waitReady(options?.timeoutMs ?? DEFAULT_SESSION_CREATE_TIMEOUT_MS);
+      try {
+        await session.waitReady(waitTimeoutMs);
+      } catch (waitErr) {
+        if (isTerminal(session.state)) throw waitErr;
+        throw new WaitReadyFailedError(`session ${session.id} created but not ready within wait budget`, session, {
+          cause: waitErr instanceof Error ? waitErr : undefined,
+        });
+      }
     }
     return session;
   }

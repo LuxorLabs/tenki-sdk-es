@@ -154,6 +154,7 @@ export {
   TemplateBuildFailedError,
   TemplateBuildInProgressError,
   TemplateRuntimeFailedError,
+  WaitReadyFailedError,
   CapabilityUnavailableError,
   DataPlaneNotReadyError,
   PrimitiveTimeoutError,
