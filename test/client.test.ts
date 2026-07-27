@@ -233,6 +233,18 @@ describe("TenkiSandbox client TLS options", () => {
     expect(listWorkspaceSnapshots).toHaveBeenCalledWith(expect.objectContaining({ workspaceId: "workspace-1" }));
   });
 
+  it("omits terminated sessions by default and forwards includeTerminated when requested", async () => {
+    const listWorkspaceSandboxes = vi.fn(async () => ({ sessions: [] }));
+    connectMock.createClient.mockReturnValue({ listWorkspaceSandboxes });
+    const client = new TenkiSandbox({ authToken: "tk_test" });
+
+    await client.list();
+    expect(listWorkspaceSandboxes.mock.calls[0][0].includeTerminated).toBe(false);
+
+    await client.list({ includeTerminated: true });
+    expect(listWorkspaceSandboxes.mock.calls[1][0].includeTerminated).toBe(true);
+  });
+
   it("rejects invalid template resources before RPC", async () => {
     const createTemplate = vi.fn();
     connectMock.createClient.mockReturnValue({ createTemplate });

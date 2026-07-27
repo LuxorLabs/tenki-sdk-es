@@ -385,6 +385,7 @@ export class TenkiSandbox implements AsyncDisposable {
           pageSize: automaticPageSize(),
           pageToken,
           tags: normalizeTags(options?.tags ?? []),
+          includeTerminated: options?.includeTerminated ?? false,
         });
         if (options?.sticky !== undefined) req.sticky = options.sticky;
         const resp = await this.rpcClient.listWorkspaceSandboxes(req);

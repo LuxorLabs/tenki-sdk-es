@@ -164,6 +164,8 @@ export interface ListOptions {
   workspaceId?: string;
   tags?: string[];
   sticky?: boolean;
+  /** Include terminated sessions in results; the server omits them by default. */
+  includeTerminated?: boolean;
 }
 
 export interface WorkspaceScopeOptions {
