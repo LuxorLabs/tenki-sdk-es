@@ -343,6 +343,7 @@ export class Session implements SessionHandle, AsyncDisposable {
           create(SandboxSessionDataPlaneServiceStatRequestSchema, {
             request: create(StatRequestSchema, { sessionId: this.id, path: "/home/tenki" }),
           }),
+          { headers: { "X-Tenki-Dataplane-Probe": "warmup" } },
         );
       } catch {
         // Any outcome means the connection was established, which is all the warm needs.
