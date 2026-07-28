@@ -243,8 +243,10 @@ export class TenkiSandbox implements AsyncDisposable {
       req.sticky = true;
     }
     const waitReady = options?.waitReady !== false;
-    req.waitReady = waitReady;
-    req.waitForRuntime = options?.waitForRuntime ?? false;
+    const waitForRuntime = options?.waitForRuntime ?? false;
+    // Wait client-side so WaitSession can expose the endpoint and prewarm the data plane during provision.
+    req.waitReady = waitReady && waitForRuntime;
+    req.waitForRuntime = waitForRuntime;
 
     if (image) {
       req.registryRef = image;

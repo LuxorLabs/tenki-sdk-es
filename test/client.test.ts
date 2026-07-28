@@ -87,6 +87,7 @@ describe("TenkiSandbox client TLS options", () => {
     expect(err).toBeInstanceOf(WaitReadyFailedError);
     if (!(err instanceof WaitReadyFailedError)) throw err;
     expect(err.session.id).toBe("session-1");
+    expect(rpcClient.createSession).toHaveBeenCalledWith(expect.objectContaining({ waitReady: false }));
     await err.session.close();
     expect(rpcClient.terminateSession).toHaveBeenCalledTimes(1);
   });

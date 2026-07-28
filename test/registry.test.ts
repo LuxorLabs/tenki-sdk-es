@@ -73,7 +73,7 @@ describe("TenkiSandbox registry APIs", () => {
 
     const request = rpcClient.createSession.mock.calls[0]?.[0];
     expect(request).toEqual(expect.objectContaining({ registryRef: "pub/polyglot:prod" }));
-    expect(request.waitReady).toBe(true);
+    expect(request.waitReady).toBe(false);
     expect(request.cpuCores).toBeUndefined();
     expect(request.memoryMb).toBeUndefined();
     expect(request.diskSizeGb).toBeUndefined();
@@ -165,6 +165,7 @@ describe("TenkiSandbox registry APIs", () => {
     });
 
     const request = rpcClient.createSession.mock.calls[0]?.[0];
+    expect(request.waitReady).toBe(true);
     expect(request.waitForRuntime).toBe(true);
   });
 
