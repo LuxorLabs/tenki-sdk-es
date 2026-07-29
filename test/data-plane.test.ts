@@ -1,12 +1,23 @@
+import { Http2SessionManager } from "@connectrpc/connect-node";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { DataPlaneCredentialManager } from "../src/data-plane.js";
+import { closeDataPlaneConnection, createDataPlaneClient, DataPlaneCredentialManager } from "../src/data-plane.js";
 import { InvalidStateError } from "../src/errors.js";
 
 describe("DataPlaneCredentialManager", () => {
   afterEach(() => {
     vi.useRealTimers();
     vi.restoreAllMocks();
+  });
+
+  it("closes the session manager with the data-plane client", () => {
+    const abort = vi.spyOn(Http2SessionManager.prototype, "abort");
+    const client = createDataPlaneClient("https://sandbox.example.com", { current: () => "credential" } as never);
+
+    closeDataPlaneConnection(client);
+    closeDataPlaneConnection(client);
+
+    expect(abort).toHaveBeenCalledOnce();
   });
 
   it("backs off when credential renewal returns false", async () => {

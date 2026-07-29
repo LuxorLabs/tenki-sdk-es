@@ -1,6 +1,6 @@
 import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { createClient, type Client, type Interceptor } from "@connectrpc/connect";
-import { createGrpcTransport } from "@connectrpc/connect-node";
+import { createGrpcTransport, Http2SessionManager } from "@connectrpc/connect-node";
 
 import { pollBackoffMs } from "./constants.js";
 import { DataPlaneNotReadyError, InvalidStateError, isPausedSessionStateError } from "./errors.js";
@@ -13,6 +13,8 @@ import { refusedStreamRetry } from "./refused-stream.js";
 import type { Session } from "./session.js";
 
 export const dataPlaneCredentialHeader = "x-tenki-session-cert";
+
+const dataPlaneSessionManagers = new WeakMap<object, Http2SessionManager>();
 
 export interface DataPlaneConfig {
   endpoint?: string;
@@ -91,9 +93,23 @@ export function createDataPlaneClient(
   };
   // refusedStreamRetry is outermost so a retried attempt re-runs the credential
   // interceptor (fresh connection re-applies auth).
+  const sessionManager = new Http2SessionManager(endpoint);
   const transport = createGrpcTransport({
     baseUrl: endpoint,
     interceptors: [refusedStreamRetry, credentialInterceptor],
+    sessionManager,
   });
-  return createClient(SandboxSessionDataPlaneService, transport);
+  const client = createClient(SandboxSessionDataPlaneService, transport);
+  dataPlaneSessionManagers.set(client, sessionManager);
+  return client;
+}
+
+export async function warmDataPlaneConnection(client: Client<typeof SandboxSessionDataPlaneService>) {
+  await dataPlaneSessionManagers.get(client)?.connect();
+}
+
+export function closeDataPlaneConnection(client?: Client<typeof SandboxSessionDataPlaneService>) {
+  if (!client) return;
+  dataPlaneSessionManagers.get(client)?.abort();
+  dataPlaneSessionManagers.delete(client);
 }

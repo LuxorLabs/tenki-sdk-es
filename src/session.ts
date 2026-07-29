@@ -3,7 +3,13 @@ import { durationFromMs, timestampDate, timestampFromDate } from "@bufbuild/prot
 import { Code, ConnectError, type Client } from "@connectrpc/connect";
 
 import { DEFAULT_VOLUME_DETACH_TIMEOUT_MS, pollBackoffMs } from "./constants.js";
-import { createDataPlaneClient, DataPlaneCredentialManager, type DataPlaneConfig } from "./data-plane.js";
+import {
+  closeDataPlaneConnection,
+  createDataPlaneClient,
+  DataPlaneCredentialManager,
+  warmDataPlaneConnection,
+  type DataPlaneConfig,
+} from "./data-plane.js";
 import { dial, type DialOptions, type DialStream } from "./dial.js";
 import {
   DataPlaneNotReadyError,
@@ -303,6 +309,7 @@ export class Session implements SessionHandle, AsyncDisposable {
       return;
     }
     this.dataPlaneCredential?.stop();
+    closeDataPlaneConnection(this.dataPlaneClient);
     this.dataPlaneEndpoint = endpoint;
     this.dataPlaneCredential = new DataPlaneCredentialManager(this, dataPlane?.credential);
     this.dataPlaneClient = createDataPlaneClient(endpoint, this.dataPlaneCredential);
@@ -310,6 +317,7 @@ export class Session implements SessionHandle, AsyncDisposable {
 
   private resetDataPlane(): void {
     this.dataPlaneCredential?.stop();
+    closeDataPlaneConnection(this.dataPlaneClient);
     this.dataPlaneEndpoint = "";
     this.dataPlaneCredential = undefined;
     this.dataPlaneClient = undefined;
@@ -324,31 +332,17 @@ export class Session implements SessionHandle, AsyncDisposable {
   ): void {
     if (routeStatus === DataPlaneRouteStatus.FAILED) return;
     this.configureDataPlane({ endpoint, credential });
+    this.startDataPlaneWarm();
     if (routeStatus === DataPlaneRouteStatus.VERIFIED && this.dataPlaneClient) {
       this.dataPlaneVerifiedClient = this.dataPlaneClient;
-      return;
     }
-    this.startDataPlaneWarm();
   }
 
-  // Open the connection once an endpoint is known so the first call skips the handshake. The request may be
-  // rejected (no credential yet); the pooled connection is the point, so this must not mark the client verified.
+  // Open the connection once an endpoint is known so the first call skips the handshake.
   private startDataPlaneWarm(): void {
     if (this.dataPlaneWarmStarted || !this.dataPlaneClient) return;
     this.dataPlaneWarmStarted = true;
-    const client = this.dataPlaneClient;
-    void (async () => {
-      try {
-        await client.stat(
-          create(SandboxSessionDataPlaneServiceStatRequestSchema, {
-            request: create(StatRequestSchema, { sessionId: this.id, path: "/home/tenki" }),
-          }),
-          { headers: { "X-Tenki-Dataplane-Probe": "warmup" } },
-        );
-      } catch {
-        // Any outcome means the connection was established, which is all the warm needs.
-      }
-    })();
+    void warmDataPlaneConnection(this.dataPlaneClient).catch(() => {});
   }
 
   async renewDataPlaneCredential(): Promise<boolean> {
@@ -649,17 +643,21 @@ export class Session implements SessionHandle, AsyncDisposable {
   }
 
   async close(): Promise<void> {
-    this.dataPlaneCredential?.stop();
     try {
       const resp = await this.rpcClient.terminateSession(create(TerminateSessionRequestSchema, { sessionId: this.id }));
       if (resp.session) this.applyProto(resp.session);
     } catch (err) {
       throw mapError(err);
+    } finally {
+      this.resetDataPlane();
     }
   }
 
   async closeIfOpen(): Promise<void> {
-    if (isTerminal(this.state)) return;
+    if (isTerminal(this.state)) {
+      this.resetDataPlane();
+      return;
+    }
     await this.close();
   }
 

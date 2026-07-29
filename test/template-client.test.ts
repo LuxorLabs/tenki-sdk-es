@@ -28,6 +28,9 @@ import type { Template, TemplateBuild, TemplateBuildEvent } from "../src/templat
 const connectMock = vi.hoisted(() => ({
   createClient: vi.fn(),
   createGrpcTransport: vi.fn(() => ({ kind: "transport" })),
+  Http2SessionManager: vi.fn(function () {
+    return { connect: vi.fn(async () => "idle") };
+  }),
 }));
 
 vi.mock("@connectrpc/connect", async (importOriginal) => {
@@ -37,6 +40,7 @@ vi.mock("@connectrpc/connect", async (importOriginal) => {
 
 vi.mock("@connectrpc/connect-node", () => ({
   createGrpcTransport: connectMock.createGrpcTransport,
+  Http2SessionManager: connectMock.Http2SessionManager,
 }));
 
 function makeSdk(rpcClient: object): TenkiSandbox {

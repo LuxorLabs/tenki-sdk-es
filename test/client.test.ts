@@ -1,5 +1,5 @@
 import { create, toBinary } from "@bufbuild/protobuf";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { TenkiSandbox } from "../src/client.js";
 import { InvalidResourceConfigError, WaitReadyFailedError } from "../src/errors.js";
@@ -15,6 +15,11 @@ import {
 const connectMock = vi.hoisted(() => ({
   createClient: vi.fn(),
   createGrpcTransport: vi.fn(() => ({ kind: "transport" })),
+  sessionManagerConnect: vi.fn(async () => "idle"),
+  sessionManagerAbort: vi.fn(),
+  Http2SessionManager: vi.fn(function () {
+    return { abort: connectMock.sessionManagerAbort, connect: connectMock.sessionManagerConnect };
+  }),
 }));
 
 vi.mock("@connectrpc/connect", async (importOriginal) => {
@@ -27,23 +32,38 @@ vi.mock("@connectrpc/connect", async (importOriginal) => {
 
 vi.mock("@connectrpc/connect-node", () => ({
   createGrpcTransport: connectMock.createGrpcTransport,
+  Http2SessionManager: connectMock.Http2SessionManager,
 }));
 
 describe("TenkiSandbox client TLS options", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   afterEach(() => {
     vi.clearAllMocks();
   });
 
-  it("passes root certificates to the default gRPC transport", () => {
+  it("passes root certificates to the default HTTP/2 session manager", () => {
     const rootCertificates = "-----BEGIN CERTIFICATE-----\ncorp\n-----END CERTIFICATE-----\n";
 
     new TenkiSandbox({ authToken: "tk_test", rootCertificates });
 
+    expect(connectMock.Http2SessionManager).toHaveBeenCalledWith(expect.any(String), undefined, {
+      ca: rootCertificates,
+    });
     expect(connectMock.createGrpcTransport).toHaveBeenCalledWith(
-      expect.objectContaining({
-        nodeOptions: { ca: rootCertificates },
-      }),
+      expect.objectContaining({ sessionManager: expect.any(Object) }),
     );
+    expect(connectMock.sessionManagerConnect).toHaveBeenCalledOnce();
+  });
+
+  it("closes the control-plane session manager", () => {
+    const client = new TenkiSandbox({ authToken: "tk_test" });
+
+    client.close();
+
+    expect(connectMock.sessionManagerAbort).toHaveBeenCalledOnce();
   });
 
   it("rejects invalid create resources before RPC", async () => {

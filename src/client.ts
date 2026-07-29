@@ -1,7 +1,7 @@
 import { create } from "@bufbuild/protobuf";
 import { durationFromMs, timestampDate, timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { ConnectError, createClient, type Client } from "@connectrpc/connect";
-import { createGrpcTransport } from "@connectrpc/connect-node";
+import { createGrpcTransport, Http2SessionManager } from "@connectrpc/connect-node";
 
 import { createAuthInterceptor } from "./auth.js";
 import {
@@ -156,6 +156,7 @@ export class TenkiSandbox implements AsyncDisposable {
   private cookieName: string;
   private sshOptions?: SSHConnectOptions;
   private dataPlaneReadyTimeoutMs: number;
+  private sessionManager?: Http2SessionManager;
   readonly previewUrls: PreviewUrlClient;
 
   constructor(options?: ClientOptions) {
@@ -177,12 +178,21 @@ export class TenkiSandbox implements AsyncDisposable {
         ? options.dataPlaneReadyTimeoutMs
         : DEFAULT_DATA_PLANE_READY_TIMEOUT_MS;
 
+    const sessionManager = options?.transport
+      ? undefined
+      : new Http2SessionManager(
+          baseUrl,
+          undefined,
+          options?.rootCertificates !== undefined ? { ca: options.rootCertificates } : undefined,
+        );
+    this.sessionManager = sessionManager;
+    void sessionManager?.connect().catch(() => {});
     const transport =
       options?.transport ??
       createGrpcTransport({
         baseUrl,
         interceptors: [createAuthInterceptor(this.authToken, this.cookieName)],
-        ...(options?.rootCertificates !== undefined ? { nodeOptions: { ca: options.rootCertificates } } : {}),
+        sessionManager,
       });
 
     this.rpcClient = createClient(SandboxService, transport);
@@ -1200,7 +1210,8 @@ export class TenkiSandbox implements AsyncDisposable {
   // -- Cleanup --
 
   close(): void {
-    // No persistent connections to close with connect-node transport
+    this.sessionManager?.abort();
+    this.sessionManager = undefined;
   }
 
   async [Symbol.asyncDispose](): Promise<void> {
