@@ -6,7 +6,6 @@ export const ENV_GATEWAY_URL = "TENKI_SANDBOX_GATEWAY_URL";
 
 export const DEFAULT_BASE_URL = "https://api.tenki.cloud";
 export const DEFAULT_TIMEOUT_MS = 30_000;
-export const DEFAULT_COOKIE_NAME = "tenki_session";
 export const DEFAULT_DATA_PLANE_READY_TIMEOUT_MS = 60_000;
 
 export const DEFAULT_SESSION_CREATE_TIMEOUT_MS = 3 * 60_000;

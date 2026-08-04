@@ -35,13 +35,19 @@ try {
 
 ## Authentication
 
-Pass a token explicitly or set `TENKI_AUTH_TOKEN`:
+Pass an API key or service token starting with `tk_` explicitly, or set `TENKI_AUTH_TOKEN` or `TENKI_API_KEY`:
 
 ```typescript
 const sandbox = new TenkiSandbox({ authToken: "tk_..." });
 ```
 
-The API key determines the Workspace automatically; ordinary Sandbox calls do not require a Workspace ID.
+The credential determines the Workspace automatically; ordinary Sandbox calls do not require a Workspace ID.
+
+### Migrating to v0.6.0
+
+Version 0.6.0 removes `ClientOptions.cookieName` and support for Ory session
+tokens and browser cookie values. Pass a `tk_` API key or service token through
+`authToken`; the SDK sends it as an `Authorization: Bearer` credential.
 
 ## Sessions
 

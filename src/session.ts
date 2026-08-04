@@ -169,7 +169,6 @@ export class Session implements SessionHandle, AsyncDisposable {
 
   private authToken: string;
   private gatewayAddress: string;
-  private cookieName: string;
   private sshOptions?: SSHConnectOptions;
   private dataPlaneEndpoint = "";
   private dataPlaneWarmStarted = false;
@@ -182,7 +181,6 @@ export class Session implements SessionHandle, AsyncDisposable {
     proto: SandboxSession,
     authToken: string,
     gatewayAddress: string,
-    cookieName: string,
     sshOptions?: SSHConnectOptions,
     private readonly dataPlaneReadyTimeoutMs = 60_000,
     dataPlane?: DataPlaneConfig,
@@ -190,7 +188,6 @@ export class Session implements SessionHandle, AsyncDisposable {
     this.rpcClient = rpcClient;
     this.authToken = authToken;
     this.gatewayAddress = gatewayAddress;
-    this.cookieName = cookieName;
     this.sshOptions = sshOptions;
     this.applyDataPlaneResponse(dataPlane?.endpoint, dataPlane?.credential, dataPlane?.routeStatus);
 
@@ -839,7 +836,7 @@ export class Session implements SessionHandle, AsyncDisposable {
   }
 
   async ssh(signal?: AbortSignal): Promise<SSHConnection> {
-    return connectSSH(this.gatewayAddress, this.id, this.authToken, this.cookieName, this.sshOptions);
+    return connectSSH(this.gatewayAddress, this.id, this.authToken, this.sshOptions);
   }
 
   async pause(): Promise<void> {

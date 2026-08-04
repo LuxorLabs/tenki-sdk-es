@@ -1,23 +1,25 @@
 import type { Interceptor } from "@connectrpc/connect";
 
-export function createAuthInterceptor(token: string, cookieName: string): Interceptor {
+import { InvalidAuthTokenError, MissingAuthTokenError } from "./errors.js";
+
+export function validateAuthToken(token: string): string {
+  const trimmed = token.trim();
+  if (!trimmed) throw new MissingAuthTokenError();
+  if (!trimmed.startsWith("tk_")) throw new InvalidAuthTokenError();
+  return trimmed;
+}
+
+export function createAuthInterceptor(token: string): Interceptor {
+  const authToken = validateAuthToken(token);
   return (next) => async (req) => {
-    setAuthHeaders(req.header, token, cookieName);
+    setAuthHeaders(req.header, authToken);
     return next(req);
   };
 }
 
-export function setAuthHeaders(headers: Headers, token: string, cookieName: string): void {
+export function setAuthHeaders(headers: Headers, token: string): void {
+  const authToken = validateAuthToken(token);
   headers.set("X-Tenki-Client-Family", "typescript_sdk");
   headers.set("X-Tenki-Client-Generation", "workspace_v1");
-  const trimmed = token.trim();
-  if (!trimmed) return;
-
-  if (trimmed.startsWith("tk_")) {
-    headers.set("Authorization", `Bearer ${trimmed}`);
-  } else if (trimmed.startsWith("ory_st_")) {
-    headers.set("X-Session-Token", trimmed);
-  } else {
-    headers.set("Cookie", `${cookieName}=${trimmed}`);
-  }
+  headers.set("Authorization", `Bearer ${authToken}`);
 }

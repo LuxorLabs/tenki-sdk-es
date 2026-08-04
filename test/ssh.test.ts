@@ -71,7 +71,7 @@ describe("SSH TLS options", () => {
 
   it("passes root certificates to the WebSocket TLS handshake", async () => {
     const rootCertificates = "-----BEGIN CERTIFICATE-----\ncorp\n-----END CERTIFICATE-----\n";
-    const pending = connectSSH("https://sandbox-gateway.tenki.test", "session-1", "tk_test", "tenki_session", {
+    const pending = connectSSH("https://sandbox-gateway.tenki.test", "session-1", "tk_test", {
       rootCertificates,
     });
 
@@ -98,7 +98,6 @@ describe("SSH TLS options", () => {
       }),
       "tk_test",
       "https://sandbox-gateway.tenki.test",
-      "tenki_session",
       { rootCertificates },
     );
 
@@ -150,7 +149,7 @@ describe("SSH gateway discovery", () => {
   });
 
   it("connectSSH dials the discovered URL when discovery succeeds", async () => {
-    const pending = connectSSH("https://sandbox-gateway.tenki.test", "session-1", "tk_test", "tenki_session", {
+    const pending = connectSSH("https://sandbox-gateway.tenki.test", "session-1", "tk_test", {
       discoverGateway: async () => "wss://gw-1.sb.tenki.test/v1/ssh/session-1",
     });
 
@@ -172,7 +171,7 @@ describe("SSH gateway discovery", () => {
       },
     ]) {
       const before = wsMock.instances.length;
-      const pending = connectSSH("https://sandbox-gateway.tenki.test", "session-1", "tk_test", "tenki_session", {
+      const pending = connectSSH("https://sandbox-gateway.tenki.test", "session-1", "tk_test", {
         discoverGateway,
       });
 
@@ -250,7 +249,6 @@ describe("SSH gateway discovery", () => {
       }),
       "tk_test",
       "https://sandbox-gateway.tenki.test",
-      "tenki_session",
       { discoverGateway: async (sid) => `wss://gw-1.sb.tenki.test/v1/ssh/${sid}` },
     );
 

@@ -12,7 +12,6 @@ export interface ClientOptions {
   baseUrl?: string;
   /** Optional SSH gateway address override. Most users should omit it. */
   gatewayAddress?: string;
-  cookieName?: string;
   rootCertificates?: RootCertificates;
   timeoutMs?: number;
   dataPlaneReadyTimeoutMs?: number;

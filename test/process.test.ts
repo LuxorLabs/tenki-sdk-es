@@ -32,7 +32,7 @@ function sessionWithRunReason(reason: string): Session {
     ownerType: "SERVICE",
     ownerId: "self",
   });
-  const session = new Session({} as never, proto, "tk_test", "wss://gateway.tenki.test", "tenki_session", undefined, 5);
+  const session = new Session({} as never, proto, "tk_test", "wss://gateway.tenki.test", undefined, 5);
   (session as any).dataPlaneClient = dataPlaneClient;
   return session;
 }
@@ -58,15 +58,7 @@ function sessionWithTransientRunError(err: unknown): Session {
     ownerType: "SERVICE",
     ownerId: "self",
   });
-  const session = new Session(
-    {} as never,
-    proto,
-    "tk_test",
-    "wss://gateway.tenki.test",
-    "tenki_session",
-    undefined,
-    100,
-  );
+  const session = new Session({} as never, proto, "tk_test", "wss://gateway.tenki.test", undefined, 100);
   (session as any).dataPlaneClient = dataPlaneClient;
   return session;
 }
@@ -98,15 +90,7 @@ function sessionWithTransientRunReset(err: unknown): { session: Session; run: Re
     ownerType: "SERVICE",
     ownerId: "self",
   });
-  const session = new Session(
-    {} as never,
-    proto,
-    "tk_test",
-    "wss://gateway.tenki.test",
-    "tenki_session",
-    undefined,
-    100,
-  );
+  const session = new Session({} as never, proto, "tk_test", "wss://gateway.tenki.test", undefined, 100);
   (session as any).dataPlaneClient = { run: runMock };
   return { session, run: runMock };
 }
@@ -128,15 +112,7 @@ function sessionWithResetAfterStarted(err: unknown): { session: Session; run: Re
     ownerType: "SERVICE",
     ownerId: "self",
   });
-  const session = new Session(
-    {} as never,
-    proto,
-    "tk_test",
-    "wss://gateway.tenki.test",
-    "tenki_session",
-    undefined,
-    100,
-  );
+  const session = new Session({} as never, proto, "tk_test", "wss://gateway.tenki.test", undefined, 100);
   (session as any).dataPlaneClient = { run: runMock };
   return { session, run: runMock };
 }
@@ -162,15 +138,7 @@ function sessionWithDeferredRunReset(err: unknown): {
     ownerType: "SERVICE",
     ownerId: "self",
   });
-  const session = new Session(
-    {} as never,
-    proto,
-    "tk_test",
-    "wss://gateway.tenki.test",
-    "tenki_session",
-    undefined,
-    100,
-  );
+  const session = new Session({} as never, proto, "tk_test", "wss://gateway.tenki.test", undefined, 100);
   (session as any).dataPlaneClient = { run: runMock };
   return { session, run: runMock, release };
 }
@@ -189,7 +157,7 @@ function sessionWithRunError(err: unknown): Session {
     ownerType: "SERVICE",
     ownerId: "self",
   });
-  const session = new Session({} as never, proto, "tk_test", "wss://gateway.tenki.test", "tenki_session", undefined, 5);
+  const session = new Session({} as never, proto, "tk_test", "wss://gateway.tenki.test", undefined, 5);
   (session as any).dataPlaneClient = dataPlaneClient;
   return session;
 }

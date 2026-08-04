@@ -18,6 +18,13 @@ export class MissingAuthTokenError extends SandboxError {
   }
 }
 
+export class InvalidAuthTokenError extends SandboxError {
+  constructor() {
+    super("invalid auth token - API keys and service tokens must start with tk_");
+    this.name = "InvalidAuthTokenError";
+  }
+}
+
 export class SessionNotFoundError extends SandboxError {
   name = "SessionNotFoundError";
 }

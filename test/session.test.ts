@@ -298,17 +298,10 @@ describe("Session streaming", () => {
       }),
       "tk_test",
       "wss://gateway.tenki.test",
-      "tenki_session",
     );
     expect(paused.pauseExpiresAt).toEqual(expiry);
 
-    const running = new Session(
-      makeRpcClient() as never,
-      makeSessionProto(),
-      "tk_test",
-      "wss://gateway.tenki.test",
-      "tenki_session",
-    );
+    const running = new Session(makeRpcClient() as never, makeSessionProto(), "tk_test", "wss://gateway.tenki.test");
     expect(running.pauseExpiresAt).toBeUndefined();
   });
 });
@@ -317,13 +310,7 @@ function makeSession(
   rpcClient: ReturnType<typeof makeRpcClient>,
   dataPlane: ReturnType<typeof makeDataPlaneRunClient>,
 ): Session {
-  const session = new Session(
-    rpcClient as never,
-    makeSessionProto(),
-    "tk_test",
-    "wss://gateway.tenki.test",
-    "tenki_session",
-  );
+  const session = new Session(rpcClient as never, makeSessionProto(), "tk_test", "wss://gateway.tenki.test");
   (session as any).dataPlaneClient = dataPlane;
   return session;
 }

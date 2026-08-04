@@ -2,7 +2,7 @@ import { create, toBinary } from "@bufbuild/protobuf";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { TenkiSandbox } from "../src/client.js";
-import { InvalidResourceConfigError, WaitReadyFailedError } from "../src/errors.js";
+import { InvalidAuthTokenError, InvalidResourceConfigError, WaitReadyFailedError } from "../src/errors.js";
 import {
   CreateSessionRequestSchema,
   CreateSessionResponseSchema,
@@ -42,6 +42,11 @@ describe("TenkiSandbox client TLS options", () => {
 
   afterEach(() => {
     vi.clearAllMocks();
+  });
+
+  it.each(["ory_st_test", "arbitrary-value"])("rejects invalid credential %s", (authToken) => {
+    expect(() => new TenkiSandbox({ authToken })).toThrow(InvalidAuthTokenError);
+    expect(connectMock.createClient).not.toHaveBeenCalled();
   });
 
   it("passes root certificates to the default HTTP/2 session manager", () => {

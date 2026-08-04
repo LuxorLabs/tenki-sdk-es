@@ -145,7 +145,7 @@ liveDescribe("template builder live E2E", () => {
   it(
     "verifies filesystem, memory restore, and forced cold fallback",
     async () => {
-      const sdk = new TenkiSandbox({ cookieName: process.env.TENKI_COOKIE_NAME ?? "tenki_session" });
+      const sdk = new TenkiSandbox();
       const workspaceId = requiredEnv("TENKI_SANDBOX_WORKSPACE_ID");
       const runId = Date.now().toString();
       const templates: Array<{ id: string }> = [];

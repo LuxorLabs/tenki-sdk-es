@@ -3,10 +3,9 @@ import { durationFromMs, timestampDate, timestampFromDate } from "@bufbuild/prot
 import { ConnectError, createClient, type Client } from "@connectrpc/connect";
 import { createGrpcTransport, Http2SessionManager } from "@connectrpc/connect-node";
 
-import { createAuthInterceptor } from "./auth.js";
+import { createAuthInterceptor, validateAuthToken } from "./auth.js";
 import {
   DEFAULT_BASE_URL,
-  DEFAULT_COOKIE_NAME,
   DEFAULT_CPU_CORES,
   DEFAULT_DATA_PLANE_READY_TIMEOUT_MS,
   DEFAULT_DISK_SIZE_GB,
@@ -25,7 +24,6 @@ import {
 import {
   InvalidTemplateSpecError,
   mapError,
-  MissingAuthTokenError,
   TemplateBuildFailedError,
   TemplateRuntimeFailedError,
   VolumeSyncPendingError,
@@ -153,7 +151,6 @@ export class TenkiSandbox implements AsyncDisposable {
   private sshGatewayClient: Client<typeof SSHGatewayClientService>;
   private authToken: string;
   private gatewayAddress: string;
-  private cookieName: string;
   private sshOptions?: SSHConnectOptions;
   private dataPlaneReadyTimeoutMs: number;
   private sessionManager?: Http2SessionManager;
@@ -161,9 +158,8 @@ export class TenkiSandbox implements AsyncDisposable {
 
   constructor(options?: ClientOptions) {
     // Auth resolution
-    let authToken = options?.authToken?.trim() || env(ENV_AUTH_TOKEN) || env(ENV_API_KEY) || "";
-    if (!authToken) throw new MissingAuthTokenError();
-    this.authToken = authToken;
+    const authToken = options?.authToken?.trim() || env(ENV_AUTH_TOKEN) || env(ENV_API_KEY) || "";
+    this.authToken = validateAuthToken(authToken);
 
     // URL resolution
     const baseUrl = options?.baseUrl?.trim() || env(ENV_API_ENDPOINT) || env(ENV_API_URL) || DEFAULT_BASE_URL;
@@ -172,7 +168,6 @@ export class TenkiSandbox implements AsyncDisposable {
     const pinnedGateway = options?.gatewayAddress?.trim() || env(ENV_GATEWAY_URL) || "";
     this.gatewayAddress = pinnedGateway || deriveGatewayAddress(baseUrl);
 
-    this.cookieName = options?.cookieName?.trim() || DEFAULT_COOKIE_NAME;
     this.dataPlaneReadyTimeoutMs =
       options?.dataPlaneReadyTimeoutMs && options.dataPlaneReadyTimeoutMs > 0
         ? options.dataPlaneReadyTimeoutMs
@@ -191,7 +186,7 @@ export class TenkiSandbox implements AsyncDisposable {
       options?.transport ??
       createGrpcTransport({
         baseUrl,
-        interceptors: [createAuthInterceptor(this.authToken, this.cookieName)],
+        interceptors: [createAuthInterceptor(this.authToken)],
         sessionManager,
       });
 
@@ -302,7 +297,6 @@ export class TenkiSandbox implements AsyncDisposable {
         resp.session!,
         this.authToken,
         this.gatewayAddress,
-        this.cookieName,
         this.sshOptions,
         this.dataPlaneReadyTimeoutMs,
         dataPlane,
@@ -334,7 +328,6 @@ export class TenkiSandbox implements AsyncDisposable {
           runtimeFailure.session,
           this.authToken,
           this.gatewayAddress,
-          this.cookieName,
           this.sshOptions,
           this.dataPlaneReadyTimeoutMs,
         );
@@ -378,7 +371,6 @@ export class TenkiSandbox implements AsyncDisposable {
         resp.session!,
         this.authToken,
         this.gatewayAddress,
-        this.cookieName,
         this.sshOptions,
         this.dataPlaneReadyTimeoutMs,
       );
@@ -409,7 +401,6 @@ export class TenkiSandbox implements AsyncDisposable {
                 s,
                 this.authToken,
                 this.gatewayAddress,
-                this.cookieName,
                 this.sshOptions,
                 this.dataPlaneReadyTimeoutMs,
               ),
@@ -462,7 +453,6 @@ export class TenkiSandbox implements AsyncDisposable {
         resp.session!,
         this.authToken,
         this.gatewayAddress,
-        this.cookieName,
         this.sshOptions,
         this.dataPlaneReadyTimeoutMs,
       );
@@ -1190,7 +1180,7 @@ export class TenkiSandbox implements AsyncDisposable {
   // -- SSH --
 
   async ssh(sessionId: string): Promise<SSHConnection> {
-    return connectSSH(this.gatewayAddress, sessionId, this.authToken, this.cookieName, this.sshOptions);
+    return connectSSH(this.gatewayAddress, sessionId, this.authToken, this.sshOptions);
   }
 
   /**

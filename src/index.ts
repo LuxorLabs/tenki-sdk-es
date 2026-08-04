@@ -121,6 +121,7 @@ export {
   SandboxError,
   PaginationStalledError,
   MissingAuthTokenError,
+  InvalidAuthTokenError,
   SessionNotFoundError,
   SessionExpiredError,
   SessionTerminatedError,

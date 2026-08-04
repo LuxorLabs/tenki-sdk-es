@@ -172,7 +172,6 @@ export async function connectSSH(
   gatewayAddress: string,
   sessionId: string,
   authToken: string,
-  cookieName: string,
   options?: SSHConnectOptions,
 ): Promise<SSHConnection> {
   let url = "";
@@ -190,7 +189,7 @@ export async function connectSSH(
 
   const headers: Record<string, string> = {};
   const h = new Headers();
-  setAuthHeaders(h, authToken, cookieName);
+  setAuthHeaders(h, authToken);
   h.forEach((value, key) => {
     headers[key] = value;
   });
