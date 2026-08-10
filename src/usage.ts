@@ -12,7 +12,7 @@ export type WorkspaceUsageUnit = "count" | "bytes" | "unspecified";
  * excluded, matching how the concurrency quota is enforced on create.
  */
 export interface WorkspaceUsageLimit {
-  /** Stable usage key, e.g. `"active_sessions"`. */
+  /** Stable usage key, e.g. `"max_concurrent_jobs"`. */
   key: string;
   /** Human-readable label, e.g. `"Active sessions"`. */
   label: string;

@@ -417,7 +417,7 @@ export class TenkiSandbox implements AsyncDisposable {
   /**
    * Current usage vs. limits for a workspace — concurrent sessions, snapshots,
    * volumes, etc. Each entry carries `current` and an optional `max`. Look up
-   * the `"active_sessions"` key to check the concurrent-session quota before
+   * the `"max_concurrent_jobs"` key to check the shared concurrency quota before
    * creating a session, so the UI can surface a "limit reached" state up front
    * instead of letting the create fail.
    */

@@ -43,6 +43,12 @@ const sandbox = new TenkiSandbox({ authToken: "tk_..." });
 
 The credential determines the Workspace automatically; ordinary Sandbox calls do not require a Workspace ID.
 
+### Migrating to v0.7.0
+
+Version 0.7.0 removes the generated workspace settings and pause-retention RPCs.
+Use `getUsage()` for read-only workspace usage and limit data. Its shared
+concurrency entry now uses the `max_concurrent_jobs` key.
+
 ### Migrating to v0.6.0
 
 Version 0.6.0 removes `ClientOptions.cookieName` and support for Ory session
@@ -116,6 +122,49 @@ under the sandbox guest workdir (`/home/tenki` by default), absolute paths are
 used unchanged, and missing or non-directory targets fail before the process
 starts.
 
+### Stopping a process
+
+`signal()` and `kill()` enqueue a signal frame and resolve immediately — they do
+**not** wait for the process to die, matching Node's `child_process.kill()`.
+Awaiting the handle is what resolves once the process has actually exited:
+
+```typescript
+const proc = session.run(["sleep", "3600"]);
+await proc.signal("SIGTERM"); // resolves once the frame is queued
+const result = await proc; // resolves once the process has exited
+console.log(result.signal); // "terminated"
+```
+
+`result.signal` carries the guest's own name for the signal, not the name you
+passed: SIGTERM reports `"terminated"` and SIGKILL reports `"killed"`. Compare
+against those values, not against `"TERM"`/`"KILL"`.
+
+Wait for `proc.pid` before signalling. Until the guest acknowledges the spawn the
+SDK may still be retrying the stream open, and `signal()`/`kill()` both cancel
+that retry; a signal queued before the acknowledgement is discarded when the
+stream restarts, so on a cold edge it can be dropped without ever reaching the
+process.
+
+`kill()` takes no argument and always sends SIGKILL; use `signal(name)` for
+anything else. Only `KILL`, `TERM`, `INT`, `HUP`, `USR1` and `USR2` are
+supported (with or without the `SIG` prefix), and **any unrecognized name is
+silently sent as SIGTERM** — a typo like `signal("SIGTRM")` stops the process
+gracefully instead of throwing, and so does `signal("unspecified")`, which is a
+harmless no-op in the Python SDK. (Python raises `ValueError` for unknown names
+instead.) Signalling a process that has already exited is a no-op, not an error,
+so the result of `signal()`/`kill()` is best-effort by design.
+
+Process lifetime is bound to the Run stream, not to the handle. Once that stream
+tears down — the connection breaks, or the edge times the idle connection out
+(~30s) — the platform sends SIGTERM, escalates to SIGKILL after 5s if the process
+is still alive, and reaps it within 10s.
+
+Dropping the handle does **not** close the stream on its own: the outbound queue
+is closed only once the result settles. An abandoned process can keep running,
+and one that keeps writing output keeps its own stream alive indefinitely. To
+stop a process, signal it and await the handle rather than abandoning it. There
+is no reattach — a caller that loses the handle must respawn.
+
 ## Files
 
 Simple helpers:
@@ -136,6 +185,10 @@ await session.fs.remove("/tmp/example");
 ```
 
 ## Networking
+
+`allowInbound` and `allowOutbound` both default to `true`, so a session reaches the internet and can expose
+ports without passing either option. They are create-time settings and cannot be changed on an existing
+session; `session.inboundEnabled` / `session.outboundEnabled` report what a session was created with.
 
 Expose a sandbox port:
 

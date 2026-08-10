@@ -19,7 +19,7 @@ describe("getUsage", () => {
       return create(GetWorkspaceSandboxUsageResponseSchema, {
         limits: [
           create(WorkspaceSandboxUsageLimitSchema, {
-            key: "active_sessions",
+            key: "max_concurrent_jobs",
             label: "Active sessions",
             unit: SandboxUsageUnit.COUNT,
             current: 5n,
@@ -36,7 +36,7 @@ describe("getUsage", () => {
     expect(getWorkspaceSandboxUsage).toHaveBeenCalledTimes(1);
     expect(usage).toEqual([
       {
-        key: "active_sessions",
+        key: "max_concurrent_jobs",
         label: "Active sessions",
         unit: "count",
         current: 5,
