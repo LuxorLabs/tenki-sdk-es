@@ -14,6 +14,7 @@ import {
   type PreviewUrl as ProtoPreviewUrl,
 } from "./internal/proto/tenki/sandbox/v1/sandbox_pb.js";
 import { advancePageToken, automaticPageSize } from "./pagination.js";
+import { wildcardStatusFromProto, type WildcardStatus } from "./session.js";
 
 export interface PreviewUrl {
   id: string;
@@ -27,6 +28,12 @@ export interface PreviewUrl {
   createdAt?: Date;
   updatedAt?: Date;
   lastAccessedAt?: Date;
+  /** Whether subdomain support is enabled for this preview URL. */
+  wildcard?: boolean;
+  /** Readiness of the wildcard subdomain provisioning; meaningful only when wildcard is true. */
+  wildcardStatus?: WildcardStatus;
+  /** Actionable reason when wildcardStatus is "FAILED"; empty otherwise. */
+  wildcardStatusReason?: string;
 }
 
 export interface PreviewUrlOptions {
@@ -55,6 +62,9 @@ export function previewUrlFromProto(proto: ProtoPreviewUrl | undefined): Preview
     createdAt: proto.createdAt ? timestampDate(proto.createdAt) : undefined,
     updatedAt: proto.updatedAt ? timestampDate(proto.updatedAt) : undefined,
     lastAccessedAt: proto.lastAccessedAt ? timestampDate(proto.lastAccessedAt) : undefined,
+    wildcard: proto.wildcard ?? false,
+    wildcardStatus: wildcardStatusFromProto(proto.wildcardStatus),
+    wildcardStatusReason: proto.wildcardStatusReason ?? "",
   };
 }
 

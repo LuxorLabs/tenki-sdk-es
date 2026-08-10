@@ -7,8 +7,11 @@ import { DataPlaneNotReadyError, FileNotFoundError } from "../src/errors.js";
 import {
   CreateSessionCredentialResponseSchema,
   DataPlaneRouteStatus,
+  ExposePortResponseSchema,
   GetSessionResponseSchema,
+  ListExposedPortsResponseSchema,
   PauseSessionResponseSchema,
+  WildcardStatus as ProtoWildcardStatus,
   ResumeSessionResponseSchema,
   RunResponseSchema,
   RunSignal_Sig,
@@ -303,6 +306,66 @@ describe("Session streaming", () => {
 
     const running = new Session(makeRpcClient() as never, makeSessionProto(), "tk_test", "wss://gateway.tenki.test");
     expect(running.pauseExpiresAt).toBeUndefined();
+  });
+});
+
+describe("Session exposePort wildcard", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("surfaces workspace wildcard readiness from the expose response", async () => {
+    const rpcClient = makeRpcClient();
+    (rpcClient as any).exposePort = vi.fn(async () =>
+      create(ExposePortResponseSchema, {
+        port: 3000,
+        previewUrl: "https://demo.tenki.us.sb.tenki.sh",
+        wildcard: true,
+        wildcardStatus: ProtoWildcardStatus.PENDING,
+      }),
+    );
+
+    const exposed = await makeSession(rpcClient, makeDataPlaneRunClient()).exposePort(3000);
+
+    expect(exposed.wildcard).toBe(true);
+    expect(exposed.wildcardStatus).toBe("PENDING");
+  });
+
+  it("reports flat previews the same way Go and Python do", async () => {
+    const rpcClient = makeRpcClient();
+    (rpcClient as any).exposePort = vi.fn(async () =>
+      create(ExposePortResponseSchema, { port: 3000, previewUrl: "https://demo.us.sb.tenki.sh" }),
+    );
+
+    const exposed = await makeSession(rpcClient, makeDataPlaneRunClient()).exposePort(3000);
+
+    expect(exposed.wildcard).toBe(false);
+    expect(exposed.wildcardStatus).toBe("UNSPECIFIED");
+    expect(exposed.wildcardStatusReason).toBe("");
+  });
+
+  it("surfaces wildcard status on listExposedPorts", async () => {
+    const rpcClient = makeRpcClient();
+    (rpcClient as any).listExposedPorts = vi.fn(async () =>
+      create(ListExposedPortsResponseSchema, {
+        ports: [
+          {
+            port: 3000,
+            previewUrl: "https://demo.us.sb.tenki.sh",
+            wildcard: true,
+            wildcardStatus: ProtoWildcardStatus.FAILED,
+            wildcardStatusReason: "certificate issuance failed",
+          },
+        ],
+      }),
+    );
+
+    const ports = await makeSession(rpcClient, makeDataPlaneRunClient()).listExposedPorts();
+
+    expect(ports).toHaveLength(1);
+    expect(ports[0].wildcard).toBe(true);
+    expect(ports[0].wildcardStatus).toBe("FAILED");
+    expect(ports[0].wildcardStatusReason).toBe("certificate issuance failed");
   });
 });
 

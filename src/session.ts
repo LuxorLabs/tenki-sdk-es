@@ -47,6 +47,7 @@ import {
   ListExposedPortsRequestSchema,
   PauseSessionRequestSchema,
   SessionState as ProtoSessionState,
+  WildcardStatus as ProtoWildcardStatus,
   ReadFileRequestSchema,
   ResumeSessionRequestSchema,
   SandboxService,
@@ -104,12 +105,26 @@ export type SessionState =
 
 export type RuntimeState = "UNSPECIFIED" | "STARTING" | "READY" | "FAILED" | "STOPPED";
 
+/**
+ * Readiness of the workspace wildcard domain backing a wildcard-scheme
+ * preview URL (the workspace's per-region wildcard certificate). A
+ * wildcard-scheme preview URL exists immediately but only starts serving once
+ * its workspace domain is READY.
+ */
+export type WildcardStatus = "UNSPECIFIED" | "PENDING" | "READY" | "FAILED" | "DISABLED";
+
 export interface ExposedPort {
   port: number;
   previewUrl: string;
   expiresAt?: Date;
   previewUrlId?: string;
   slug?: string;
+  /** Whether subdomain support is enabled for this exposure. */
+  wildcard?: boolean;
+  /** Readiness of the wildcard subdomain provisioning; meaningful only when wildcard is true. */
+  wildcardStatus?: WildcardStatus;
+  /** Actionable reason when wildcardStatus is "FAILED"; empty otherwise. */
+  wildcardStatusReason?: string;
 }
 
 export interface SessionHandle {
@@ -700,6 +715,9 @@ export class Session implements SessionHandle, AsyncDisposable {
         expiresAt: resp.expiresAt ? timestampDate(resp.expiresAt) : undefined,
         previewUrlId: resp.previewUrlId,
         slug: resp.slug,
+        wildcard: resp.wildcard ?? false,
+        wildcardStatus: wildcardStatusFromProto(resp.wildcardStatus),
+        wildcardStatusReason: resp.wildcardStatusReason ?? "",
       };
     } catch (err) {
       throw mapError(err);
@@ -723,6 +741,9 @@ export class Session implements SessionHandle, AsyncDisposable {
         expiresAt: p.expiresAt ? timestampDate(p.expiresAt) : undefined,
         previewUrlId: p.previewUrlId,
         slug: p.slug,
+        wildcard: p.wildcard ?? false,
+        wildcardStatus: wildcardStatusFromProto(p.wildcardStatus),
+        wildcardStatusReason: p.wildcardStatusReason ?? "",
       }));
     } catch (err) {
       throw mapError(err);
@@ -882,6 +903,24 @@ function sessionStateFromProto(state: ProtoSessionState): SessionState {
       return "TERMINATING";
     case ProtoSessionState.TERMINATED:
       return "TERMINATED";
+    default:
+      return "UNSPECIFIED";
+  }
+}
+
+// Unset maps to "UNSPECIFIED" rather than undefined so the same response
+// produces the same value in every SDK — Go and Python both report UNSPECIFIED
+// for an omitted status.
+export function wildcardStatusFromProto(status: ProtoWildcardStatus | undefined): WildcardStatus {
+  switch (status) {
+    case ProtoWildcardStatus.PENDING:
+      return "PENDING";
+    case ProtoWildcardStatus.READY:
+      return "READY";
+    case ProtoWildcardStatus.FAILED:
+      return "FAILED";
+    case ProtoWildcardStatus.DISABLED:
+      return "DISABLED";
     default:
       return "UNSPECIFIED";
   }
