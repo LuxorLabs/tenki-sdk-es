@@ -5,8 +5,11 @@ import {
   CapabilityUnavailableError,
   dataPlaneNotReadyError,
   isDataPlaneEdgeNotReady,
+  isSessionTerminatedReason,
   mapError,
   PrimitiveTimeoutError,
+  SessionTerminatedError,
+  sessionTerminationCause,
 } from "./errors.js";
 import {
   RunRequestSchema,
@@ -159,6 +162,11 @@ export function run(_session: Session, _argv: string[], _options?: ProcessRunOpt
             }
             if (exit.reason.startsWith("capability_unavailable")) {
               throw new CapabilityUnavailableError("run", exit.reason);
+            }
+            if (isSessionTerminatedReason(exit.reason)) {
+              throw new SessionTerminatedError(exit.reason, {
+                terminationCause: sessionTerminationCause(exit.reason),
+              });
             }
             stdoutController?.close();
             stderrController?.close();

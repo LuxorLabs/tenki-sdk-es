@@ -2,7 +2,13 @@ import { create } from "@bufbuild/protobuf";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { describe, expect, it, vi } from "vitest";
 
-import { CapabilityUnavailableError, DataPlaneNotReadyError, PrimitiveTimeoutError } from "../src/errors.js";
+import {
+  CapabilityUnavailableError,
+  DataPlaneNotReadyError,
+  PrimitiveTimeoutError,
+  SessionTerminatedError,
+  sessionTerminationCause,
+} from "../src/errors.js";
 import {
   RunResponseSchema,
   SandboxSessionSchema,
@@ -183,6 +189,28 @@ describe("run() exit-reason routing", () => {
   it("capability_unavailable is not a PrimitiveTimeoutError", async () => {
     const proc = run(sessionWithRunReason("capability_unavailable: run unsupported"), ["echo"]);
     await expect(proc).rejects.not.toBeInstanceOf(PrimitiveTimeoutError);
+  });
+
+  it("session_terminated reason throws a retryable SessionTerminatedError carrying the cause", async () => {
+    const proc = run(sessionWithRunReason("session_terminated:guest_agent_liveness: silent for 2m0s"), ["echo"]);
+    await expect(proc).rejects.toBeInstanceOf(SessionTerminatedError);
+    await expect(proc).rejects.toMatchObject({
+      terminationCause: "guest_agent_liveness",
+      retryable: true,
+    });
+  });
+
+  it("session_terminated is neither a capability nor a timeout failure", async () => {
+    const proc = run(sessionWithRunReason("session_terminated:guest_agent_liveness"), ["echo"]);
+    await expect(proc).rejects.not.toBeInstanceOf(CapabilityUnavailableError);
+    await expect(proc).rejects.not.toBeInstanceOf(PrimitiveTimeoutError);
+  });
+
+  it("parses the termination cause out of the exit reason", () => {
+    expect(sessionTerminationCause("session_terminated:guest_agent_liveness: detail")).toBe("guest_agent_liveness");
+    expect(sessionTerminationCause("session_terminated:guest_shutdown")).toBe("guest_shutdown");
+    expect(sessionTerminationCause("session_terminated")).toBe("");
+    expect(sessionTerminationCause("capability_unavailable: foo")).toBe("");
   });
 
   it("edge 404 unimplemented is a retryable data-plane readiness error", async () => {

@@ -33,6 +33,13 @@ export class SessionExpiredError extends SandboxError {
 }
 export class SessionTerminatedError extends SandboxError {
   name = "SessionTerminatedError";
+  readonly retryable = true;
+  readonly terminationCause?: string;
+
+  constructor(message: string, options?: ErrorOptions & { terminationCause?: string }) {
+    super(message, options);
+    this.terminationCause = options?.terminationCause;
+  }
 }
 export class FileNotFoundError extends SandboxError {
   name = "FileNotFoundError";
@@ -230,6 +237,23 @@ export class PrimitiveTimeoutError extends CapabilityUnavailableError {
   ) {
     super(primitive, message, options);
   }
+}
+
+// Platform-teardown exit reasons, formatted `session_terminated:<cause>[: detail]`
+// by node-agent — see the matching block in errors.py / run.go.
+export const SESSION_TERMINATED_REASON_PREFIX = "session_terminated";
+
+export function isSessionTerminatedReason(reason: string): boolean {
+  return reason.startsWith(SESSION_TERMINATED_REASON_PREFIX);
+}
+
+/** Extracts the cause token from a `session_terminated:<cause>[: detail]` reason. */
+export function sessionTerminationCause(reason: string): string {
+  if (!reason.startsWith(`${SESSION_TERMINATED_REASON_PREFIX}:`)) return "";
+  return reason
+    .slice(SESSION_TERMINATED_REASON_PREFIX.length + 1)
+    .split(":", 1)[0]!
+    .trim();
 }
 
 // Git failure classification — see the matching block in errors.go / errors.py.
