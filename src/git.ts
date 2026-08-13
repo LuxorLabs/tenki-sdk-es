@@ -8,6 +8,8 @@ export interface GitCloneParams {
 
 export interface GitCheckoutParams {
   create?: boolean;
+  /** Repository to operate on (git -C); required when the repo was cloned into a subdirectory. */
+  directory?: string;
 }
 
 export interface GitDiffParams {
@@ -15,12 +17,16 @@ export interface GitDiffParams {
   base?: string;
   head?: string;
   path?: string;
+  /** Repository to operate on (git -C); required when the repo was cloned into a subdirectory. */
+  directory?: string;
 }
 
 export interface GitLogParams {
   maxCount?: number;
   range?: string;
   path?: string;
+  /** Repository to operate on (git -C); required when the repo was cloned into a subdirectory. */
+  directory?: string;
 }
 
 export interface GitFetchPRParams {
@@ -43,6 +49,7 @@ export class Git {
   async checkout(ref: string, params?: GitCheckoutParams): Promise<string> {
     const args: Record<string, string> = { ref };
     if (params?.create) args["create"] = "true";
+    if (params?.directory) args["directory"] = params.directory;
     return this.session.gitOperation("checkout", args);
   }
 
@@ -52,6 +59,7 @@ export class Git {
     if (params?.base) args["base"] = params.base;
     if (params?.head) args["head"] = params.head;
     if (params?.path) args["path"] = params.path;
+    if (params?.directory) args["directory"] = params.directory;
     return this.session.gitOperation("diff", args);
   }
 
@@ -60,6 +68,7 @@ export class Git {
     if (params?.maxCount && params.maxCount > 0) args["max_count"] = String(params.maxCount);
     if (params?.range) args["range"] = params.range;
     if (params?.path) args["path"] = params.path;
+    if (params?.directory) args["directory"] = params.directory;
     return this.session.gitOperation("log", args);
   }
 
