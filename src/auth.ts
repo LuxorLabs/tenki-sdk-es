@@ -19,7 +19,5 @@ export function createAuthInterceptor(token: string): Interceptor {
 
 export function setAuthHeaders(headers: Headers, token: string): void {
   const authToken = validateAuthToken(token);
-  headers.set("X-Tenki-Client-Family", "typescript_sdk");
-  headers.set("X-Tenki-Client-Generation", "workspace_v1");
   headers.set("Authorization", `Bearer ${authToken}`);
 }

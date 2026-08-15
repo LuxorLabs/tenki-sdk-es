@@ -8,8 +8,6 @@ describe("setAuthHeaders", () => {
     const headers = new Headers();
     setAuthHeaders(headers, "tk_abc123");
     expect(headers.get("Authorization")).toBe("Bearer tk_abc123");
-    expect(headers.get("X-Tenki-Client-Family")).toBe("typescript_sdk");
-    expect(headers.get("X-Tenki-Client-Generation")).toBe("workspace_v1");
     expect(headers.get("X-Session-Token")).toBeNull();
     expect(headers.get("Cookie")).toBeNull();
   });
