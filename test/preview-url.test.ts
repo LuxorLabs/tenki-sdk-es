@@ -3,11 +3,11 @@ import { describe, expect, it, vi } from "vitest";
 import { PreviewUrlClient } from "../src/preview-url.js";
 
 describe("PreviewUrlClient workspace scope", () => {
-  it("creates and lists preview URLs without Project scope", async () => {
-    const createPreviewUrl = vi.fn(async (request: { workspaceId?: string; projectId?: string }) => ({
+  it("lets API key callers infer workspace scope", async () => {
+    const createPreviewUrl = vi.fn(async (request: { workspaceId?: string }) => ({
       previewUrl: { id: "preview-1", workspaceId: request.workspaceId },
     }));
-    const listPreviewUrls = vi.fn(async (request: { workspaceId?: string; projectId?: string }) => ({
+    const listPreviewUrls = vi.fn(async (request: { workspaceId?: string }) => ({
       previewUrls: [],
       nextPageToken: "",
     }));
@@ -16,9 +16,7 @@ describe("PreviewUrlClient workspace scope", () => {
     await client.create("demo");
     await client.list();
 
-    expect(createPreviewUrl).toHaveBeenCalledWith(expect.objectContaining({ projectId: "" }));
     expect(createPreviewUrl.mock.calls[0]?.[0].workspaceId).toBeUndefined();
-    expect(listPreviewUrls).toHaveBeenCalledWith(expect.objectContaining({ projectId: "" }));
     expect(listPreviewUrls.mock.calls[0]?.[0].workspaceId).toBeUndefined();
   });
 
