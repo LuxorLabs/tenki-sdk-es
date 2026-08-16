@@ -93,7 +93,7 @@ await sandbox.create({ snapshotId: "snap_..." });
 ## Commands
 
 ```typescript
-const proc = session.run(["npm", "test"], { cwd: "project", env: { CI: "true" } });
+const proc = session.run(["npm", "test"], { cwd: "app", env: { CI: "true" } });
 
 const reader = proc.stdout.getReader();
 try {

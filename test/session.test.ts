@@ -63,17 +63,17 @@ describe("Session streaming", () => {
 
   it("exec passes relative cwd to data-plane Run", async () => {
     const dataPlane = makeDataPlaneRunClient();
-    await makeSession(makeRpcClient(), dataPlane).exec("pwd", { cwd: "project" });
+    await makeSession(makeRpcClient(), dataPlane).exec("pwd", { cwd: "app" });
 
-    expect(dataPlane.starts[0]?.cwd).toBe("project");
+    expect(dataPlane.starts[0]?.cwd).toBe("app");
   });
 
   it("stream passes absolute cwd to data-plane Run", async () => {
     const dataPlane = makeDataPlaneRunClient();
-    const stream = await makeSession(makeRpcClient(), dataPlane).stream("pwd", { cwd: "/home/tenki/project" });
+    const stream = await makeSession(makeRpcClient(), dataPlane).stream("pwd", { cwd: "/home/tenki/app" });
     await stream.wait();
 
-    expect(dataPlane.starts[0]?.cwd).toBe("/home/tenki/project");
+    expect(dataPlane.starts[0]?.cwd).toBe("/home/tenki/app");
   });
 
   it("exec maps missing cwd failures after passing cwd unchanged", async () => {
