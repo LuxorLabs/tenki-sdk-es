@@ -8,6 +8,7 @@ import {
   isSessionTerminatedReason,
   mapError,
   PrimitiveTimeoutError,
+  SandboxError,
   SessionTerminatedError,
   sessionTerminationCause,
 } from "./errors.js";
@@ -27,6 +28,14 @@ export interface ProcessRunOptions {
   env?: Record<string, string>;
   stdin?: ReadableStream<Uint8Array>;
   privileged?: boolean;
+  /**
+   * Wall-clock budget for the run; omitted or `0` means unbounded. Enforced by
+   * the guest-agent, which resolves a spent budget with `timedOut: true` rather
+   * than rejecting.
+   */
+  timeoutMs?: number;
+  /** Signals the guest process and rejects the run with the signal's reason. */
+  signal?: AbortSignal;
 }
 
 export interface ProcessRunResult {
@@ -39,6 +48,8 @@ export interface ProcessRunResult {
   reason?: string;
   /** Raw errno on fork/exec/wait failures (ENOENT, EMFILE, EACCES, ...). */
   errno?: number;
+  /** Execution budget spent. May be set alongside `exitCode: 0`. */
+  timedOut?: boolean;
 }
 
 export interface ProcessRunHandle extends PromiseLike<ProcessRunResult> {
@@ -60,6 +71,8 @@ export function run(_session: Session, _argv: string[], _options?: ProcessRunOpt
   const options = _options;
   if (argv.length === 0 || !argv[0]) throw new Error("empty command");
 
+  // Round up: flooring a sub-millisecond budget to 0 would mean unbounded.
+  const timeoutMs = options?.timeoutMs && options.timeoutMs > 0 ? Math.max(1, Math.floor(options.timeoutMs)) : 0;
   const startRequest = create(RunRequestSchema, {
     payload: {
       case: "start",
@@ -70,6 +83,7 @@ export function run(_session: Session, _argv: string[], _options?: ProcessRunOpt
         env: options?.env ?? {},
         streamStdin: true,
         privileged: options?.privileged ?? false,
+        timeoutMs: Math.min(timeoutMs, 0xffff_ffff),
       },
     },
   });
@@ -77,6 +91,9 @@ export function run(_session: Session, _argv: string[], _options?: ProcessRunOpt
   outbound.push(startRequest);
   let stdinClosed = false;
   let replayable = true;
+  let receivedStarted = false;
+  // Replayed onto a reconnected stream so a pre-start abort is not lost.
+  const signalRequests: RunRequest[] = [];
   const stdinCloseRequest = () => create(RunRequestSchema, { payload: { case: "stdinClose", value: true } });
   const resetOutbound = () => {
     outbound = new AsyncQueue<RunRequest>();
@@ -84,19 +101,28 @@ export function run(_session: Session, _argv: string[], _options?: ProcessRunOpt
     if (stdinClosed) {
       outbound.push(stdinCloseRequest());
     }
+    for (const signalRequest of signalRequests) {
+      outbound.push(signalRequest);
+    }
   };
   const closeStdin = () => {
     if (stdinClosed) return;
     stdinClosed = true;
     outbound.push(stdinCloseRequest());
   };
+  let abandonedOnce = false;
+  // Closing the outbound queue only half-closes the request side.
+  const rpcAbort = new AbortController();
   const responses = (async function* () {
     const deadline = Date.now() + session.dataPlaneReadyBudgetMs();
     let reauthAttempted = false;
     for (let attempt = 0; ; attempt++) {
       const activeOutbound = outbound;
       const dataPlane = await session.requireDataPlane();
-      const activeResponses = unwrapDataPlaneRun(dataPlane.run(wrapDataPlaneRun(activeOutbound)));
+      if (abandonedOnce) return;
+      const activeResponses = unwrapDataPlaneRun(
+        dataPlane.run(wrapDataPlaneRun(activeOutbound), { signal: rpcAbort.signal }),
+      );
       let receivedResponse = false;
       try {
         for await (const frame of activeResponses) {
@@ -105,9 +131,11 @@ export function run(_session: Session, _argv: string[], _options?: ProcessRunOpt
         }
         return;
       } catch (err) {
+        if (abandonedOnce) return;
         if (!reauthAttempted && (await session.reauthOnUnauthenticated(err))) {
           reauthAttempted = true;
           activeOutbound.close();
+          if (abandonedOnce) return;
           resetOutbound();
           continue;
         }
@@ -118,6 +146,9 @@ export function run(_session: Session, _argv: string[], _options?: ProcessRunOpt
             throw err;
           }
           await sleepReadyBackoff(attempt, deadline);
+          // resetOutbound re-queues the start request, so an abandoned run
+          // would execute the command a second time.
+          if (abandonedOnce) return;
           resetOutbound();
           continue;
         }
@@ -145,6 +176,7 @@ export function run(_session: Session, _argv: string[], _options?: ProcessRunOpt
       for await (const frame of responses) {
         switch (frame.payload.case) {
           case "started":
+            receivedStarted = true;
             resolvePid(Number(frame.payload.value.pid));
             break;
           case "stdout":
@@ -170,6 +202,8 @@ export function run(_session: Session, _argv: string[], _options?: ProcessRunOpt
             }
             stdoutController?.close();
             stderrController?.close();
+            stdoutController = undefined;
+            stderrController = undefined;
             return {
               exitCode: exit.exitCode,
               signal: exit.signal || undefined,
@@ -178,6 +212,7 @@ export function run(_session: Session, _argv: string[], _options?: ProcessRunOpt
               stderr: concatUint8Arrays(stderrChunks),
               reason: exit.reason,
               errno: exit.errno,
+              timedOut: exit.timedOut,
             };
           }
         }
@@ -235,6 +270,51 @@ export function run(_session: Session, _argv: string[], _options?: ProcessRunOpt
     void options.stdin.pipeTo(stdin).catch((err) => outbound.fail(err));
   }
 
+  const sendSignal = (signal: string) => {
+    const request = create(RunRequestSchema, {
+      payload: { case: "signal", value: { signal: signalNameToProto(signal) } },
+    });
+    signalRequests.push(request);
+    if (receivedStarted) replayable = false;
+    outbound.push(request);
+  };
+
+  // An abort settles the run without an exit frame or stream error.
+  let rejectAbandoned: (err: unknown) => void = () => {};
+  const abandoned = new Promise<never>((_, reject) => {
+    rejectAbandoned = reject;
+  });
+  abandoned.catch(() => {});
+  const settled = Promise.race([result, abandoned]);
+  settled.catch(() => {});
+
+  const abandon = (err: unknown) => {
+    if (abandonedOnce) return;
+    abandonedOnce = true;
+    // Hands off to the guest's SIGTERM -> SIGKILL escalation; deliberately does
+    // not wait for an exit frame, which may never arrive.
+    sendSignal("TERM");
+    rejectPid(err);
+    stdoutController?.error(err);
+    stderrController?.error(err);
+    rejectAbandoned(err);
+    outbound.close();
+    rpcAbort.abort(err);
+  };
+
+  const abortSignal = options?.signal;
+  const onAbort = () => abandon(abortReason(abortSignal));
+  if (abortSignal) {
+    if (abortSignal.aborted) onAbort();
+    else abortSignal.addEventListener("abort", onAbort, { once: true });
+  }
+  void result
+    .finally(() => {
+      abandonedOnce = true;
+      abortSignal?.removeEventListener("abort", onAbort);
+    })
+    .catch(() => {});
+
   return {
     stdout,
     stderr,
@@ -243,21 +323,22 @@ export function run(_session: Session, _argv: string[], _options?: ProcessRunOpt
       return pid;
     },
     signal(signal: string) {
-      replayable = false;
-      outbound.push(
-        create(RunRequestSchema, {
-          payload: { case: "signal", value: { signal: signalNameToProto(signal) } },
-        }),
-      );
+      sendSignal(signal);
       return Promise.resolve();
     },
     kill() {
       return this.signal("KILL");
     },
     then(onfulfilled, onrejected) {
-      return result.then(onfulfilled, onrejected);
+      return settled.then(onfulfilled, onrejected);
     },
   } as ProcessRunHandle & { readonly pid: Promise<number> };
+}
+
+function abortReason(signal: AbortSignal | undefined): unknown {
+  const reason = signal?.reason;
+  if (reason !== undefined && reason !== null) return reason;
+  return new SandboxError("sandbox run aborted");
 }
 
 async function* wrapDataPlaneRun(outbound: AsyncIterable<RunRequest>) {

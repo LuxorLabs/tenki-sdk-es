@@ -74,9 +74,15 @@ export interface ExecOptions {
   args?: string[];
   /** Guest working directory. Relative paths resolve under the sandbox guest workdir; absolute paths pass through. */
   cwd?: string;
+  /**
+   * Wall-clock budget for the command; omitted or `0` means unbounded. Enforced
+   * by the guest-agent, which caps it at its own maximum and resolves a spent
+   * budget with `status: "TIMED_OUT"` rather than rejecting.
+   */
   timeoutMs?: number;
   env?: Record<string, string>;
   onOutput?: (output: Output) => void;
+  /** Signals the guest process and rejects the call with the signal's reason. */
   signal?: AbortSignal;
 }
 

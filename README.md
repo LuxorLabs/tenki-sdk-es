@@ -122,6 +122,61 @@ under the sandbox guest workdir (`/home/tenki` by default), absolute paths are
 used unchanged, and missing or non-directory targets fail before the process
 starts.
 
+### Timeouts and cancellation
+
+Commands are unbounded by default. Pass `timeoutMs` for a budget, or a `signal`
+to cancel.
+
+The budget is enforced by the guest-agent, which signals the process on expiry
+(`SIGTERM`, escalating to `SIGKILL`) and reports the run as timed out. That is
+**not** an exception — it resolves with `status: "TIMED_OUT"`, carrying the output
+captured before the budget expired:
+
+```typescript
+const result = await session.exec("bash", { args: ["-lc", "npm ci"], timeoutMs: 120_000 });
+if (result.status === "TIMED_OUT") {
+  // result.reason is "timeout", or "grace_timeout" when the guest could not reap
+  // the process. Partial output usually shows where it stalled.
+  console.error(result.reason, new TextDecoder().decode(result.stdout));
+}
+```
+
+Aborting **is** an exception — the call rejects with the signal's reason:
+
+```typescript
+const controller = new AbortController();
+const pending = session.exec("bash", { args: ["-lc", "make build"], signal: controller.signal });
+controller.abort();
+```
+
+The guest caps the request at its own configured maximum command timeout, and
+older guest-agents accept `timeoutMs` but ignore it, leaving the run unbounded.
+
+### Background processes and long-running services
+
+A command returns when its **stdout and stderr reach EOF**, not when the shell
+exits. A backgrounded process inherits both streams and holds them open, so this
+waits for the server rather than the shell:
+
+```typescript
+// Hangs: the server inherits stdout/stderr.
+await session.exec("sh", { args: ["-lc", "python3 -m http.server 3000 &"] });
+```
+
+Redirect **both** streams to detach it:
+
+```typescript
+await session.exec("sh", { args: ["-lc", "python3 -m http.server 3000 >/tmp/http.log 2>&1 &"] });
+```
+
+Redirecting only stdout is not enough — stderr still holds the stream open — and
+`nohup` does not help, because it blocks `SIGHUP` rather than stream inheritance.
+This is standard POSIX behavior, the same as Node's own `child_process.exec`.
+
+To keep hold of a service instead, use `session.run()` and read from the handle
+rather than awaiting it; for services you always want running, start them from a
+template `startCmd` instead.
+
 ### Stopping a process
 
 `signal()` and `kill()` enqueue a signal frame and resolve immediately — they do
@@ -139,11 +194,9 @@ console.log(result.signal); // "terminated"
 passed: SIGTERM reports `"terminated"` and SIGKILL reports `"killed"`. Compare
 against those values, not against `"TERM"`/`"KILL"`.
 
-Wait for `proc.pid` before signalling. Until the guest acknowledges the spawn the
-SDK may still be retrying the stream open, and `signal()`/`kill()` both cancel
-that retry; a signal queued before the acknowledgement is discarded when the
-stream restarts, so on a cold edge it can be dropped without ever reaching the
-process.
+Signalling before the guest acknowledges the spawn is safe: the SDK may still be
+retrying the stream open, and a signal queued during that window is replayed onto
+the replacement stream rather than being dropped.
 
 `kill()` takes no argument and always sends SIGKILL; use `signal(name)` for
 anything else. Only `KILL`, `TERM`, `INT`, `HUP`, `USR1` and `USR2` are

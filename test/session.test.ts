@@ -309,6 +309,107 @@ describe("Session streaming", () => {
   });
 });
 
+describe("Session.exec status mapping", () => {
+  function sessionWith(client: unknown): Session {
+    const session = new Session(
+      makeRpcClient() as never,
+      makeSessionProto(),
+      "tk_test",
+      "wss://gateway.tenki.test",
+      "tenki_session",
+    );
+    (session as any).dataPlaneClient = client;
+    return session;
+  }
+
+  it("reports TIMED_OUT when the guest spent the budget, even on exit code 0", async () => {
+    // A timed-out run can arrive as exit 0.
+    const result = await sessionWith(makeExitFrameClient({ exitCode: 0, timedOut: true, reason: "timeout" })).exec(
+      "start-server",
+    );
+
+    expect(result.status).toBe("TIMED_OUT");
+    expect(result.exitCode).toBe(0);
+    expect(result.reason).toBe("timeout");
+  });
+
+  it("keeps grace_timeout distinguishable from a clean budget kill", async () => {
+    const result = await sessionWith(
+      makeExitFrameClient({ exitCode: -1, timedOut: true, reason: "grace_timeout" }),
+    ).exec("start-server");
+
+    expect(result.status).toBe("TIMED_OUT");
+    expect(result.reason).toBe("grace_timeout");
+  });
+
+  it("still reports SUCCEEDED for a clean exit", async () => {
+    const result = await sessionWith(makeExitFrameClient({ exitCode: 0, reason: "exit" })).exec("true");
+
+    expect(result.status).toBe("SUCCEEDED");
+    expect(result.reason).toBe("exit");
+  });
+
+  it("still reports FAILED for a non-zero exit", async () => {
+    const result = await sessionWith(makeExitFrameClient({ exitCode: 3, reason: "exit" })).exec("false");
+
+    expect(result.status).toBe("FAILED");
+  });
+});
+
+describe("Session.exec timeout", () => {
+  it("forwards the budget to the guest instead of enforcing it locally", async () => {
+    const dataPlane = makeDataPlaneRunClient();
+    await makeSession(makeRpcClient(), dataPlane).exec("sleep", { timeoutMs: 12_345 });
+
+    expect(dataPlane.starts[0]?.timeoutMs).toBe(12_345);
+  });
+
+  it("leaves the run unbounded when no budget is supplied", async () => {
+    const dataPlane = makeDataPlaneRunClient();
+    await makeSession(makeRpcClient(), dataPlane).exec("sleep");
+
+    expect(dataPlane.starts[0]?.timeoutMs).toBe(0);
+  });
+
+  it("stays pending when the guest ignores the budget", async () => {
+    // exec deliberately does not compensate for a guest that ignores the budget.
+    const session = new Session(
+      makeRpcClient() as never,
+      makeSessionProto(),
+      "tk_test",
+      "wss://gateway.tenki.test",
+      "tenki_session",
+    );
+    (session as any).dataPlaneClient = makeStalledRunClient("starting server\n");
+
+    const settled = await Promise.race([
+      session.exec("start-server", { timeoutMs: 50 }).then(
+        () => "settled",
+        () => "settled",
+      ),
+      new Promise((resolve) => setTimeout(() => resolve("pending"), 150)),
+    ]);
+    expect(settled).toBe("pending");
+  });
+
+  it("aborts through the caller's AbortSignal", async () => {
+    const session = new Session(
+      makeRpcClient() as never,
+      makeSessionProto(),
+      "tk_test",
+      "wss://gateway.tenki.test",
+      "tenki_session",
+    );
+    (session as any).dataPlaneClient = makeStalledRunClient("working\n");
+    const controller = new AbortController();
+    const pending = session.exec("start-server", { signal: controller.signal });
+    const reason = new Error("caller gave up");
+    controller.abort(reason);
+
+    await expect(pending).rejects.toBe(reason);
+  });
+});
+
 describe("Session exposePort wildcard", () => {
   afterEach(() => {
     vi.restoreAllMocks();
@@ -452,6 +553,57 @@ function makeDataPlaneRunClient(options?: {
             payload: {
               case: "exit",
               value: { exitCode: 0, signal: "", timedOut: false, durationMs: 12n, reason: "exit", errno: 0 },
+            },
+          }),
+        };
+      })(),
+    ),
+  };
+}
+
+/**
+ * Emits output and then stalls without an exit frame - what the guest does while
+ * a backgrounded grandchild keeps stdout/stderr open.
+ */
+function makeStalledRunClient(stdout: string) {
+  return {
+    stat: vi.fn(async () => ({ response: { exists: true, isDir: true } })),
+    run: vi.fn(() =>
+      (async function* () {
+        yield { frame: create(RunResponseSchema, { payload: { case: "started", value: { pid: 42n } } }) };
+        yield {
+          frame: create(RunResponseSchema, {
+            payload: { case: "stdout", value: new TextEncoder().encode(stdout) },
+          }),
+        };
+        await new Promise(() => {});
+      })(),
+    ),
+  };
+}
+
+/**
+ * Emits a single exit frame. Lets tests pin how an exit frame's fields map onto
+ * ExecResult.status.
+ */
+function makeExitFrameClient(exit: { exitCode: number; signal?: string; timedOut?: boolean; reason?: string }) {
+  return {
+    stat: vi.fn(async () => ({ response: { exists: true, isDir: true } })),
+    run: vi.fn(() =>
+      (async function* () {
+        yield { frame: create(RunResponseSchema, { payload: { case: "started", value: { pid: 42n } } }) };
+        yield {
+          frame: create(RunResponseSchema, {
+            payload: {
+              case: "exit",
+              value: {
+                exitCode: exit.exitCode,
+                signal: exit.signal ?? "",
+                timedOut: exit.timedOut ?? false,
+                durationMs: 10n,
+                reason: exit.reason ?? "exit",
+                errno: 0,
+              },
             },
           }),
         };

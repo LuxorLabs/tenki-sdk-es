@@ -12,6 +12,7 @@ import {
 } from "./data-plane.js";
 import { dial, type DialOptions, type DialStream } from "./dial.js";
 import {
+  CommandTimeoutError,
   DataPlaneNotReadyError,
   dataPlaneNotReadyError,
   InvalidStateError,
@@ -76,7 +77,7 @@ import type {
 import { run, type ProcessRunHandle, type ProcessRunOptions } from "./process.js";
 import { sleepReadyBackoff } from "./ready-backoff.js";
 import { isRetryableStreamTransportError } from "./refused-stream.js";
-import type { ExecResult } from "./result.js";
+import type { CommandStatus, ExecResult } from "./result.js";
 import { snapshotFromProto, type Snapshot } from "./snapshot.js";
 import { connectSSH, type SSHConnection, type SSHConnectOptions } from "./ssh.js";
 import { Stream } from "./stream.js";
@@ -435,6 +436,8 @@ export class Session implements SessionHandle, AsyncDisposable {
       cwd: options?.cwd,
       env: options?.env,
       stdin: undefined,
+      timeoutMs: options?.timeoutMs,
+      signal: options?.signal,
     });
     void proc.stdin.close().catch(() => {});
     const stdoutChunks: Uint8Array[] = [];
@@ -445,15 +448,15 @@ export class Session implements SessionHandle, AsyncDisposable {
       collectReadableOutputs(proc.stdout, false, stdoutChunks, outputs, options?.onOutput),
       collectReadableOutputs(proc.stderr, true, stderrChunks, outputs, options?.onOutput),
     ]);
-
     const result = await proc;
     return {
       sessionId: this.id,
       command,
       args: options?.args ?? [],
-      status: result.exitCode === 0 && !result.signal ? "SUCCEEDED" : "FAILED",
+      status: commandStatusFromResult(result),
       exitCode: result.exitCode,
       durationMs: result.durationMs ?? 0,
+      reason: result.reason,
       outputs,
       stdout: concatUint8Arrays(stdoutChunks),
       stderr: concatUint8Arrays(stderrChunks),
@@ -464,7 +467,12 @@ export class Session implements SessionHandle, AsyncDisposable {
     if (options?.onOutput) {
       throw new Error("Session.stream does not support onOutput; consume chunks with stream.next() instead");
     }
-    const proc = run(this, [command, ...(options?.args ?? [])], { cwd: options?.cwd, env: options?.env });
+    const proc = run(this, [command, ...(options?.args ?? [])], {
+      cwd: options?.cwd,
+      env: options?.env,
+      timeoutMs: options?.timeoutMs,
+      signal: options?.signal,
+    });
     await proc.pid;
     void proc.stdin.close().catch(() => {});
     return streamFromRunHandle(this.id, command, options?.args ?? [], proc);
@@ -963,9 +971,10 @@ function streamFromRunHandle(sessionId: string, command: string, args: string[],
         sessionId,
         command,
         args,
-        status: result.exitCode === 0 && !result.signal ? "SUCCEEDED" : "FAILED",
+        status: commandStatusFromResult(result),
         exitCode: result.exitCode,
         durationMs: result.durationMs ?? 0,
+        reason: result.reason,
         outputs: [],
         stdout: result.stdout,
         stderr: result.stderr,
@@ -1014,6 +1023,12 @@ async function collectReadableOutputs(
     outputs.push(output);
     chunks.push(new Uint8Array(output.data));
   }
+}
+
+/** A timed-out run can arrive as exitCode 0, so timedOut outranks the exit code. */
+function commandStatusFromResult(result: { exitCode: number; signal?: string; timedOut?: boolean }): CommandStatus {
+  if (result.timedOut) return "TIMED_OUT";
+  return result.exitCode === 0 && !result.signal ? "SUCCEEDED" : "FAILED";
 }
 
 function concatUint8Arrays(arrays: Uint8Array[]): Uint8Array {

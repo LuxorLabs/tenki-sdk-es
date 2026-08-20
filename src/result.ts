@@ -12,6 +12,8 @@ export interface ExecResult {
   outputs: import("./options.js").Output[];
   stdout: Uint8Array;
   stderr: Uint8Array;
+  /** Guest terminal reason: "exit", "signaled", "timeout" or "grace_timeout". */
+  reason?: string;
 }
 
 export function stdoutText(result: ExecResult): string {

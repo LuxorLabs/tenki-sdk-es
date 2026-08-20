@@ -168,6 +168,282 @@ function sessionWithRunError(err: unknown): Session {
   return session;
 }
 
+/**
+ * A guest that starts the process, optionally emits output, and then never
+ * sends an exit frame - the shape produced by a backgrounded grandchild holding
+ * stdout/stderr open. The SDK does not bound this; the guest-agent's own
+ * execution budget is what ends such a run.
+ */
+function sessionWithHangingRun(stdout?: string): {
+  session: Session;
+  sent: Array<{ payload: { case?: string; value?: unknown } }>;
+} {
+  const sent: Array<{ payload: { case?: string; value?: unknown } }> = [];
+  const runMock = vi.fn((requests: AsyncIterable<{ frame?: unknown }>) => {
+    void (async () => {
+      for await (const req of requests) {
+        if (req.frame) sent.push(req.frame as never);
+      }
+    })();
+    return (async function* () {
+      yield {
+        frame: create(RunResponseSchema, { payload: { case: "started", value: { pid: 42n } } }),
+      };
+      if (stdout !== undefined) {
+        yield {
+          frame: create(RunResponseSchema, {
+            payload: { case: "stdout", value: new TextEncoder().encode(stdout) },
+          }),
+        };
+      }
+      await new Promise(() => {});
+    })();
+  });
+  const proto = create(SandboxSessionSchema, {
+    id: "session-1",
+    state: SessionState.RUNNING,
+    ownerType: "SERVICE",
+    ownerId: "self",
+  });
+  const session = new Session({} as never, proto, "tk_test", "wss://gateway.tenki.test", "tenki_session", undefined, 5);
+  (session as any).dataPlaneClient = { run: runMock };
+  return { session, sent };
+}
+
+const flush = () => new Promise((resolve) => setTimeout(resolve, 10));
+
+/**
+ * A guest that starts the process, optionally emits output, and then reports the
+ * given exit frame. This is how a spent execution budget actually reaches the
+ * SDK: the guest kills the process and sends an ordinary exit.
+ */
+function sessionWithRunExit(
+  exit: { exitCode?: number; signal?: string; timedOut?: boolean; reason?: string },
+  stdout?: string,
+): { session: Session; sent: Array<{ payload: { case?: string; value?: unknown } }> } {
+  const sent: Array<{ payload: { case?: string; value?: unknown } }> = [];
+  const runMock = vi.fn((requests: AsyncIterable<{ frame?: unknown }>) => {
+    void (async () => {
+      for await (const req of requests) {
+        if (req.frame) sent.push(req.frame as never);
+      }
+    })();
+    return (async function* () {
+      yield { frame: create(RunResponseSchema, { payload: { case: "started", value: { pid: 42n } } }) };
+      if (stdout !== undefined) {
+        yield {
+          frame: create(RunResponseSchema, {
+            payload: { case: "stdout", value: new TextEncoder().encode(stdout) },
+          }),
+        };
+      }
+      yield {
+        frame: create(RunResponseSchema, {
+          payload: {
+            case: "exit",
+            value: {
+              exitCode: exit.exitCode ?? 0,
+              signal: exit.signal ?? "",
+              timedOut: exit.timedOut ?? false,
+              durationMs: 12n,
+              reason: exit.reason ?? "exit",
+              errno: 0,
+            },
+          },
+        }),
+      };
+    })();
+  });
+  const proto = create(SandboxSessionSchema, {
+    id: "session-1",
+    state: SessionState.RUNNING,
+    ownerType: "SERVICE",
+    ownerId: "self",
+  });
+  const session = new Session({} as never, proto, "tk_test", "wss://gateway.tenki.test", "tenki_session", undefined, 5);
+  (session as any).dataPlaneClient = { run: runMock };
+  return { session, sent };
+}
+
+describe("run() timeout budget", () => {
+  it("advertises the budget to the guest on the start frame", async () => {
+    const { session, sent } = sessionWithRunExit({});
+    await run(session, ["sleep", "600"], { timeoutMs: 40 });
+    await flush();
+
+    const start = sent.find((frame) => frame.payload.case === "start");
+    expect(start?.payload.value).toMatchObject({ timeoutMs: 40 });
+  });
+
+  it("sends 0 when no budget is given, which the guest reads as unbounded", async () => {
+    const { session, sent } = sessionWithRunExit({});
+    await run(session, ["sleep", "600"]);
+    await flush();
+
+    const start = sent.find((frame) => frame.payload.case === "start");
+    expect(start?.payload.value).toMatchObject({ timeoutMs: 0 });
+  });
+
+  it("rounds a sub-millisecond budget up so it never becomes unbounded", async () => {
+    const { session, sent } = sessionWithRunExit({});
+    await run(session, ["sleep", "600"], { timeoutMs: 0.4 });
+    await flush();
+
+    const start = sent.find((frame) => frame.payload.case === "start");
+    expect(start?.payload.value).toMatchObject({ timeoutMs: 1 });
+  });
+
+  it("surfaces a guest timeout as timedOut rather than rejecting", async () => {
+    // A timed-out run arrives as exitCode 0, so callers must check timedOut.
+    const { session } = sessionWithRunExit({ exitCode: 0, timedOut: true, reason: "timeout" });
+
+    await expect(run(session, ["sleep", "600"], { timeoutMs: 40 })).resolves.toMatchObject({
+      exitCode: 0,
+      timedOut: true,
+      reason: "timeout",
+    });
+  });
+
+  it("keeps the output captured before the budget expired", async () => {
+    const { session } = sessionWithRunExit({ exitCode: 0, timedOut: true, reason: "timeout" }, "listening on :3000\n");
+
+    const result = await run(session, ["start-server"], { timeoutMs: 40 });
+    expect(new TextDecoder().decode(result.stdout)).toBe("listening on :3000\n");
+  });
+
+  it("does not bound the run itself when the guest stays quiet", async () => {
+    // The SDK deliberately does not compensate for a guest that ignores the budget.
+    const { session } = sessionWithHangingRun();
+    const proc = run(session, ["sleep", "600"], { timeoutMs: 40 });
+
+    const settled = await Promise.race([
+      proc.then(
+        () => "settled",
+        () => "settled",
+      ),
+      new Promise((resolve) => setTimeout(() => resolve("pending"), 120)),
+    ]);
+    expect(settled).toBe("pending");
+  });
+});
+
+describe("run() abandonment", () => {
+  it("does not re-send the start request when abandoned during establishment backoff", async () => {
+    // resetOutbound re-queues RunStart; retrying would run the command twice.
+    let starts = 0;
+    const runMock = vi.fn((requests: AsyncIterable<{ frame?: { payload: { case?: string } } }>) => {
+      void (async () => {
+        for await (const req of requests) {
+          if (req.frame?.payload.case === "start") starts++;
+        }
+      })();
+      return (async function* (): AsyncGenerator<never> {
+        throw new ConnectError("HTTP status 404 Not Found", Code.Unimplemented);
+      })();
+    });
+    const proto = create(SandboxSessionSchema, {
+      id: "session-1",
+      state: SessionState.RUNNING,
+      ownerType: "SERVICE",
+      ownerId: "self",
+    });
+    const session = new Session(
+      {} as never,
+      proto,
+      "tk_test",
+      "wss://gateway.tenki.test",
+      "tenki_session",
+      undefined,
+      10_000,
+    );
+    (session as any).dataPlaneClient = { run: runMock };
+
+    const controller = new AbortController();
+    const proc = run(session, ["rm", "-rf", "important"], { signal: controller.signal });
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    controller.abort(new Error("caller gave up"));
+    await expect(proc).rejects.toThrow("caller gave up");
+    const callsAtAbort = runMock.mock.calls.length;
+
+    await new Promise((resolve) => setTimeout(resolve, 600));
+
+    expect(runMock.mock.calls.length).toBe(callsAtAbort);
+    expect(starts).toBeLessThanOrEqual(callsAtAbort);
+  });
+});
+
+describe("run() abort signal", () => {
+  it("aborts an in-flight run with the caller's reason", async () => {
+    const { session, sent } = sessionWithHangingRun();
+    const controller = new AbortController();
+    const proc = run(session, ["sleep", "600"], { signal: controller.signal });
+    await proc.pid;
+
+    const reason = new Error("caller gave up");
+    controller.abort(reason);
+
+    await expect(proc).rejects.toBe(reason);
+    await flush();
+    expect(sent.filter((frame) => frame.payload.case === "signal")).toHaveLength(1);
+  });
+
+  it("rejects immediately when the signal is already aborted", async () => {
+    const { session } = sessionWithHangingRun();
+    const controller = new AbortController();
+    controller.abort(new Error("too late"));
+    const proc = run(session, ["sleep", "600"], { signal: controller.signal });
+
+    await expect(proc).rejects.toThrow("too late");
+  });
+
+  it("replays a pre-start signal onto the reconnected stream", async () => {
+    const perAttempt: Array<Array<string | undefined>> = [];
+    let attempt = 0;
+    const runMock = vi.fn((requests: AsyncIterable<{ frame?: { payload: { case?: string } } }>) => {
+      const seen: Array<string | undefined> = [];
+      perAttempt.push(seen);
+      const mine = ++attempt;
+      void (async () => {
+        for await (const req of requests) {
+          if (req.frame) seen.push(req.frame.payload.case);
+        }
+      })();
+      return (async function* () {
+        if (mine === 1) {
+          await new Promise((resolve) => setTimeout(resolve, 30));
+          throw new ConnectError("read ECONNRESET", Code.Aborted);
+        }
+        yield { frame: create(RunResponseSchema, { payload: { case: "started", value: { pid: 9n } } }) };
+        await new Promise(() => {});
+      })();
+    });
+    const proto = create(SandboxSessionSchema, {
+      id: "session-1",
+      state: SessionState.RUNNING,
+      ownerType: "SERVICE",
+      ownerId: "self",
+    });
+    const session = new Session(
+      {} as never,
+      proto,
+      "tk_test",
+      "wss://gateway.tenki.test",
+      "tenki_session",
+      undefined,
+      10_000,
+    );
+    (session as any).dataPlaneClient = { run: runMock };
+
+    const proc = run(session, ["sleep", "600"]);
+    await proc.signal("KILL");
+    await expect(proc.pid).resolves.toBe(9);
+    await flush();
+
+    expect(perAttempt.length).toBeGreaterThanOrEqual(2);
+    expect(perAttempt[1]).toContain("signal");
+  });
+});
+
 describe("run() exit-reason routing", () => {
   it("first_frame_timeout reason throws PrimitiveTimeoutError", async () => {
     const proc = run(sessionWithRunReason("first_frame_timeout: no response from guest-agent within deadline"), [
