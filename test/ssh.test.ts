@@ -125,6 +125,13 @@ describe("SSH gateway discovery", () => {
     await expect(discoverSSHGatewayUrl(client, "session-1")).resolves.toBe("wss://gw-1.sb.tenki.test/v1/ssh/session-1");
   });
 
+  it("sends the session id to gateway discovery", async () => {
+    const listActiveSSHGateways = vi.fn(async () => ({ gateways: [] }));
+    const client = { listActiveSSHGateways } as unknown as GatewayClient;
+    await discoverSSHGatewayUrl(client, "session-1");
+    expect(listActiveSSHGateways).toHaveBeenCalledWith({ sessionId: "session-1" });
+  });
+
   it("normalizes http(s) schemes and preserves a bridge path prefix", async () => {
     const client = fakeGatewayClient([{ healthy: true, wsBridgeEndpoint: "http://gw-1.sb.tenki.test:8443/bridge/" }]);
     await expect(discoverSSHGatewayUrl(client, "session-1")).resolves.toBe(

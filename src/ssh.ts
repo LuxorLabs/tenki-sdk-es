@@ -125,7 +125,7 @@ export async function discoverSSHGatewayUrl(
   if (!sid) return "";
   let gateways;
   try {
-    gateways = (await gatewayClient.listActiveSSHGateways({})).gateways ?? [];
+    gateways = (await gatewayClient.listActiveSSHGateways({ sessionId: sid })).gateways ?? [];
   } catch {
     return "";
   }
