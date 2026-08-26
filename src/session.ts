@@ -19,7 +19,9 @@ import {
   isDataPlaneEdgeNotReady,
   isPausedSessionStateError,
   mapError,
+  PauseFailedError,
   ResumeFailedError,
+  SessionNotFoundError,
   terminalDataPlaneNotReadyError,
 } from "./errors.js";
 import {
@@ -92,6 +94,7 @@ import { exposeHostPort, hostPortTunnel, type HostPortTunnel, type HostPortTunne
 // Tolerates stale stopped-state reads (read-replica lag) right after resume()
 // before waitResumed has observed RESUMING from the server.
 const RESUME_REVERT_GRACE_MS = 3_000;
+const PAUSE_REVERT_GRACE_MS = 3_000;
 
 export type SessionState =
   | "UNSPECIFIED"
@@ -623,7 +626,8 @@ export class Session implements SessionHandle, AsyncDisposable {
    * carrying the server-side lastResumeError.
    */
   async waitResumed(timeoutMs?: number, signal?: AbortSignal): Promise<void> {
-    const deadline = Date.now() + (timeoutMs ?? 180_000);
+    const timeout = timeoutMs ?? 180_000;
+    const deadline = Date.now() + timeout;
     const start = Date.now();
     let sawResuming = false;
     let attempt = 0;
@@ -655,6 +659,39 @@ export class Session implements SessionHandle, AsyncDisposable {
   private resumeFailedError(): Error {
     const suffix = this.lastResumeError ? `: ${this.lastResumeError}` : "";
     return new ResumeFailedError(`resume failed: session ${this.id} reverted to ${this.state}${suffix}`);
+  }
+
+  async waitPaused(timeoutMs?: number, signal?: AbortSignal): Promise<void> {
+    const timeout = timeoutMs ?? 180_000;
+    const deadline = timeout > 0 ? Date.now() + timeout : undefined;
+    const start = Date.now();
+    let sawPausing = false;
+    let attempt = 0;
+    while (deadline === undefined || Date.now() < deadline) {
+      signal?.throwIfAborted();
+      try {
+        const resp = await this.rpcClient.getSession(create(GetSessionRequestSchema, { sessionId: this.id }));
+        if (resp.session) this.applyProto(resp.session);
+      } catch (err) {
+        const mapped = mapError(err);
+        if (mapped instanceof SessionNotFoundError) {
+          await sleep(pollBackoffMs(attempt), signal);
+          attempt++;
+          continue;
+        }
+        throw mapped;
+      }
+      if (this.state === "PAUSED") return;
+      if (isTerminal(this.state)) throw this.terminalStateError();
+      if (this.state === "PAUSING") {
+        sawPausing = true;
+      } else if (this.state === "RUNNING" && (sawPausing || Date.now() - start > PAUSE_REVERT_GRACE_MS)) {
+        throw new PauseFailedError(`pause failed: session ${this.id} reverted to ${this.state}`);
+      }
+      await sleep(pollBackoffMs(attempt), signal);
+      attempt++;
+    }
+    throw new Error(`timeout waiting for session ${this.id} to pause`);
   }
 
   private terminalStateError(): Error {
@@ -869,8 +906,16 @@ export class Session implements SessionHandle, AsyncDisposable {
   }
 
   async pause(): Promise<void> {
+    return this.pauseWithAsync(false);
+  }
+
+  async pauseAsync(): Promise<void> {
+    return this.pauseWithAsync(true);
+  }
+
+  private async pauseWithAsync(async: boolean): Promise<void> {
     try {
-      const resp = await this.rpcClient.pauseSession(create(PauseSessionRequestSchema, { sessionId: this.id }));
+      const resp = await this.rpcClient.pauseSession(create(PauseSessionRequestSchema, { sessionId: this.id, async }));
       if (resp.session) this.applyProto(resp.session);
       this.resetDataPlane();
     } catch (err) {

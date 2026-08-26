@@ -118,6 +118,9 @@ export class SnapshotNotDurableError extends SandboxError {
 export class ResumeFailedError extends SandboxError {
   name = "ResumeFailedError";
 }
+export class PauseFailedError extends SandboxError {
+  name = "PauseFailedError";
+}
 export class TemplateNotFoundError extends SandboxError {
   name = "TemplateNotFoundError";
 }

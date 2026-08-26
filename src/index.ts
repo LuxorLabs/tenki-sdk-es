@@ -147,6 +147,7 @@ export {
   SnapshotFailedError,
   SnapshotNotDurableError,
   ResumeFailedError,
+  PauseFailedError,
   InvalidTemplateSpecError,
   TemplateNotFoundError,
   RegistryImageNotFoundError,

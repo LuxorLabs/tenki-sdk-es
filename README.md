@@ -90,6 +90,18 @@ await sandbox.create({ image: "workspace/name:tag" });
 await sandbox.create({ snapshotId: "snap_..." });
 ```
 
+### Durable pause
+
+`pause()` preserves legacy completion semantics and returns only after the pause completes.
+`pauseAsync()` returns after the service accepts the request and moves the session to `PAUSING`.
+Call `waitPaused()` after `pauseAsync()` when the caller needs a durable checkpoint before continuing.
+It resolves at `PAUSED` and throws `PauseFailedError` if a verified rollback restores `RUNNING`.
+Pass `0` as `timeoutMs` to wait until an abort signal cancels the call.
+
+`DURABLE_CEPH` snapshots can resume on a capability-matched host in the same datacenter while R2 replication continues.
+`DURABLE` snapshots are portable to eligible hosts.
+`LOCAL_READY` is not resumable for pause operations.
+
 ## Commands
 
 ```typescript

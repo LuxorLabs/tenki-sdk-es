@@ -3,7 +3,7 @@ import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { DataPlaneNotReadyError, FileNotFoundError } from "../src/errors.js";
+import { DataPlaneNotReadyError, FileNotFoundError, PauseFailedError, UnauthorizedError } from "../src/errors.js";
 import {
   CreateSessionCredentialResponseSchema,
   DataPlaneRouteStatus,
@@ -267,6 +267,7 @@ describe("Session streaming", () => {
 
     await session.pause();
     expect(session.state).toBe("PAUSED");
+    expect(rpcClient.pauseSession).toHaveBeenLastCalledWith(expect.objectContaining({ async: false }));
     expect(pausedCredential.stop).toHaveBeenCalledTimes(1);
     expect((session as any).dataPlaneEndpoint).toBe("");
     expect((session as any).dataPlaneCredential).toBeUndefined();
@@ -286,6 +287,10 @@ describe("Session streaming", () => {
     expect((session as any).dataPlaneCredential).toBeUndefined();
     expect((session as any).dataPlaneClient).toBeUndefined();
     expect((session as any).dataPlaneVerifiedClient).toBeUndefined();
+
+    await session.pauseAsync();
+    expect(session.state).toBe("PAUSED");
+    expect(rpcClient.pauseSession).toHaveBeenLastCalledWith(expect.objectContaining({ async: true }));
   });
 
   it("maps pauseExpiresAt for paused sessions and leaves it unset otherwise", () => {
@@ -710,6 +715,15 @@ describe("Session waitResumed", () => {
     expect(session.state).toBe("RUNNING");
   });
 
+  it.each([0, -1])("fails fast for timeout %i", async (timeout) => {
+    const rpcClient = makeRpcClient();
+    rpcClient.getSession = getSessionSequence([SessionState.RESUMING, SessionState.RUNNING]);
+    const session = makeSession(rpcClient, makeDataPlaneRunClient());
+
+    await expect(session.waitResumed(timeout)).rejects.toThrow("timeout waiting for session");
+    expect(rpcClient.getSession).not.toHaveBeenCalled();
+  });
+
   it("throws ResumeFailedError with lastResumeError when the session reverts to PAUSED", async () => {
     const restoreErr =
       "snapshot restore failed: reidentify guest network failed after 3 attempts: " +
@@ -744,5 +758,97 @@ describe("Session waitResumed", () => {
     const session = makeSession(rpcClient, makeDataPlaneRunClient());
 
     await expect(session.waitResumed(10_000)).rejects.toThrow(/terminal state/);
+  });
+});
+
+describe("Session waitPaused", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  function getSessionSequence(states: SessionState[]) {
+    let call = 0;
+    return vi.fn(async () => {
+      const state = states[Math.min(call++, states.length - 1)]!;
+      return create(GetSessionResponseSchema, {
+        session: create(SandboxSessionSchema, {
+          id: "session-1",
+          state,
+          ownerType: "SERVICE",
+          ownerId: "self",
+        }),
+      });
+    });
+  }
+
+  it("resolves once the session reaches PAUSED", async () => {
+    const rpcClient = makeRpcClient();
+    rpcClient.getSession = getSessionSequence([SessionState.PAUSING, SessionState.PAUSED]);
+    const session = makeSession(rpcClient, makeDataPlaneRunClient());
+
+    await session.waitPaused(10_000);
+    expect(session.state).toBe("PAUSED");
+  });
+
+  it.each([0, -1])("treats timeout %i as unbounded", async (timeout) => {
+    const rpcClient = makeRpcClient();
+    rpcClient.getSession = getSessionSequence([SessionState.PAUSING, SessionState.PAUSED]);
+    const session = makeSession(rpcClient, makeDataPlaneRunClient());
+
+    await session.waitPaused(timeout);
+    expect(session.state).toBe("PAUSED");
+  });
+
+  it("allows an unbounded wait to be aborted", async () => {
+    const rpcClient = makeRpcClient();
+    rpcClient.getSession = getSessionSequence([SessionState.PAUSING]);
+    const session = makeSession(rpcClient, makeDataPlaneRunClient());
+    const controller = new AbortController();
+
+    const waiting = session.waitPaused(0, controller.signal);
+    controller.abort(new Error("stop waiting"));
+
+    await expect(waiting).rejects.toThrow("stop waiting");
+  });
+
+  it("retries a temporary not-found response", async () => {
+    const rpcClient = makeRpcClient();
+    let calls = 0;
+    rpcClient.getSession = vi.fn(async () => {
+      calls++;
+      if (calls === 1) throw new ConnectError("session not found", Code.NotFound);
+      return create(GetSessionResponseSchema, {
+        session: create(SandboxSessionSchema, {
+          id: "session-1",
+          state: SessionState.PAUSED,
+          ownerType: "SERVICE",
+          ownerId: "self",
+        }),
+      });
+    });
+    const session = makeSession(rpcClient, makeDataPlaneRunClient());
+
+    await session.waitPaused(10_000);
+
+    expect(session.state).toBe("PAUSED");
+    expect(calls).toBe(2);
+  });
+
+  it("rethrows mapped non-not-found errors", async () => {
+    const rpcClient = makeRpcClient();
+    rpcClient.getSession = vi.fn(async () => {
+      throw new ConnectError("bad token", Code.Unauthenticated);
+    });
+    const session = makeSession(rpcClient, makeDataPlaneRunClient());
+
+    await expect(session.waitPaused(10)).rejects.toBeInstanceOf(UnauthorizedError);
+  });
+
+  it("throws PauseFailedError when the pause rolls back", async () => {
+    const rpcClient = makeRpcClient();
+    rpcClient.getSession = getSessionSequence([SessionState.PAUSING, SessionState.RUNNING]);
+    const session = makeSession(rpcClient, makeDataPlaneRunClient());
+
+    await expect(session.waitPaused(10_000)).rejects.toBeInstanceOf(PauseFailedError);
   });
 });
