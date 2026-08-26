@@ -4,6 +4,7 @@ import type { Transport } from "@connectrpc/connect";
 import type { RegistryImageKind, RegistrySortBy, RegistryVisibility } from "./registry.js";
 import type { TemplateSpec } from "./template-spec.js";
 import type { Template, TemplateImageRef } from "./template.js";
+import type { WarningHandler } from "./warning.js";
 
 export type RootCertificates = string | Buffer | Array<string | Buffer>;
 
@@ -15,6 +16,8 @@ export interface ClientOptions {
   rootCertificates?: RootCertificates;
   timeoutMs?: number;
   dataPlaneReadyTimeoutMs?: number;
+  /** Receives each warning returned by create(). Pass null to suppress emission. */
+  warningHandler?: WarningHandler | null;
   transport?: Transport;
 }
 
@@ -113,10 +116,18 @@ export interface UpdateSessionOptions {
   name?: string;
   tags?: string[];
   sticky?: boolean;
-  // Desired session lifetime to apply when un-stickying (sticky = false), so
-  // "allow sleep" restores the caller's configured duration instead of the
-  // server-side ceiling. Ignored by the backend unless sticky is set to false.
+  // Desired lifetime when setting sticky to false. Requires an explicit sticky
+  // value; sticky true discards this duration and returns a warning.
   maxDurationMs?: number;
+}
+
+export function validateUpdateMaxDurationMs(maxDurationMs: number | undefined, sticky: boolean | undefined): void {
+  if (maxDurationMs !== undefined && (!Number.isFinite(maxDurationMs) || maxDurationMs <= 0)) {
+    throw new RangeError("maxDurationMs must be a positive finite number");
+  }
+  if (maxDurationMs !== undefined && sticky === undefined) {
+    throw new TypeError("sticky must be set when maxDurationMs is provided");
+  }
 }
 
 export interface UpdateSnapshotOptions {

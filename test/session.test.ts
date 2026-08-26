@@ -16,12 +16,16 @@ import {
   RunResponseSchema,
   RunSignal_Sig,
   SandboxSessionSchema,
+  SandboxWarningCode,
+  SandboxWarningSchema,
   SessionCredentialSchema,
   SessionState,
+  UpdateSessionResponseSchema,
   WaitSessionResponseSchema,
   type RunStart,
 } from "../src/internal/proto/tenki/sandbox/v1/sandbox_pb.js";
 import { Session } from "../src/session.js";
+import { SandboxWarningCodes } from "../src/warning.js";
 
 describe("Session streaming", () => {
   afterEach(() => {
@@ -311,6 +315,83 @@ describe("Session streaming", () => {
 
     const running = new Session(makeRpcClient() as never, makeSessionProto(), "tk_test", "wss://gateway.tenki.test");
     expect(running.pauseExpiresAt).toBeUndefined();
+  });
+});
+
+describe("Session update", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("serializes duration, retains warnings, and survives a warning handler failure", async () => {
+    const updateSession = vi.fn(async () =>
+      create(UpdateSessionResponseSchema, {
+        session: makeSessionProto(),
+        warnings: [
+          create(SandboxWarningSchema, {
+            code: SandboxWarningCode.MAX_DURATION_CAPPED,
+            message: "max_duration was capped",
+          }),
+        ],
+      }),
+    );
+    const warningHandlerError = new Error("handler failed");
+    const warningHandler = vi.fn(() => {
+      throw warningHandlerError;
+    });
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const session = new Session(
+      { updateSession } as never,
+      makeSessionProto(),
+      "tk_test",
+      "wss://gateway.tenki.test",
+      undefined,
+      undefined,
+      undefined,
+      [],
+      warningHandler,
+    );
+
+    await expect(session.update({ sticky: false, maxDurationMs: 60_000 })).resolves.toBeUndefined();
+
+    expect(updateSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sticky: false,
+        maxDuration: expect.objectContaining({ seconds: 60n, nanos: 0 }),
+      }),
+    );
+    expect(session.warnings).toEqual([
+      { code: SandboxWarningCodes.MAX_DURATION_CAPPED, message: "max_duration was capped" },
+    ]);
+    expect(error).toHaveBeenCalledWith("tenki sandbox warning handler failed", warningHandlerError);
+  });
+
+  it.each([0, -1, Number.NaN, Number.POSITIVE_INFINITY])(
+    "rejects invalid maxDurationMs %p before RPC",
+    async (maxDurationMs) => {
+      const updateSession = vi.fn();
+      const session = new Session(
+        { updateSession } as never,
+        makeSessionProto(),
+        "tk_test",
+        "wss://gateway.tenki.test",
+      );
+
+      await expect(session.update({ maxDurationMs })).rejects.toThrow(RangeError);
+
+      expect(updateSession).not.toHaveBeenCalled();
+    },
+  );
+
+  it("requires sticky with maxDurationMs before RPC", async () => {
+    const updateSession = vi.fn();
+    const session = new Session({ updateSession } as never, makeSessionProto(), "tk_test", "wss://gateway.tenki.test");
+
+    await expect(session.update({ maxDurationMs: 60_000 })).rejects.toThrow(
+      "sticky must be set when maxDurationMs is provided",
+    );
+
+    expect(updateSession).not.toHaveBeenCalled();
   });
 });
 

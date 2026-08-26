@@ -98,6 +98,7 @@ import type {
   UpdateVolumeOptions,
   WorkspaceScopeOptions,
 } from "./options.js";
+import { validateUpdateMaxDurationMs } from "./options.js";
 import { advancePageToken, automaticPageSize } from "./pagination.js";
 import { PreviewUrlClient } from "./preview-url.js";
 import type {
@@ -144,6 +145,7 @@ import type { WorkspaceUsageLimit } from "./usage.js";
 import { workspaceUsageLimitFromProto } from "./usage.js";
 import type { Volume } from "./volume.js";
 import { volumeFromProto, volumeIsReady, volumeIsTerminal } from "./volume.js";
+import { defaultWarningHandler, emitWarnings, sandboxWarningsFromProto, type WarningHandler } from "./warning.js";
 import type { Identity } from "./whoami.js";
 
 export class TenkiSandbox implements AsyncDisposable {
@@ -153,10 +155,13 @@ export class TenkiSandbox implements AsyncDisposable {
   private gatewayAddress: string;
   private sshOptions?: SSHConnectOptions;
   private dataPlaneReadyTimeoutMs: number;
+  private readonly warningHandler?: WarningHandler;
   private sessionManager?: Http2SessionManager;
   readonly previewUrls: PreviewUrlClient;
 
   constructor(options?: ClientOptions) {
+    this.warningHandler =
+      options?.warningHandler === undefined ? defaultWarningHandler : (options.warningHandler ?? undefined);
     // Auth resolution
     const authToken = options?.authToken?.trim() || env(ENV_AUTH_TOKEN) || env(ENV_API_KEY) || "";
     this.authToken = validateAuthToken(authToken);
@@ -285,42 +290,10 @@ export class TenkiSandbox implements AsyncDisposable {
       req.env["GIT_TOKEN"] = options.githubToken.trim();
     }
 
+    let resp;
     try {
-      const resp = await this.rpcClient.createSession(req);
-      // Match the Go SDK: skip data-plane config on terminal route failure so the first op fails fast instead of retrying a dead route for the whole readiness budget.
-      const dataPlane =
-        resp.routeStatus === DataPlaneRouteStatus.FAILED
-          ? undefined
-          : { endpoint: resp.dataPlaneEndpoint, credential: resp.credential, routeStatus: resp.routeStatus };
-      const session = new Session(
-        this.rpcClient,
-        resp.session!,
-        this.authToken,
-        this.gatewayAddress,
-        this.sshOptions,
-        this.dataPlaneReadyTimeoutMs,
-        dataPlane,
-      );
-      if (!waitReady) return session;
-      if (isReady(session.state)) return session;
-      if (isTerminal(session.state)) {
-        const suffix = session.terminalError ? `: ${session.terminalError}` : "";
-        throw new Error(`session entered terminal state: ${session.state}${suffix}`);
-      }
-      try {
-        await session.waitReady(
-          options?.waitTimeoutMs ??
-            (templateSpecId ? DEFAULT_TEMPLATE_SPEC_CREATE_TIMEOUT_MS : DEFAULT_SESSION_CREATE_TIMEOUT_MS),
-        );
-      } catch (waitErr) {
-        if (isTerminal(session.state)) throw waitErr;
-        throw new WaitReadyFailedError(`session ${session.id} created but not ready within wait budget`, session, {
-          cause: waitErr instanceof Error ? waitErr : undefined,
-        });
-      }
-      return session;
+      resp = await this.rpcClient.createSession(req);
     } catch (err) {
-      if (err instanceof WaitReadyFailedError) throw err;
       const runtimeFailure = ConnectError.from(err).findDetails(TemplateRuntimeFailureSchema)[0];
       if (runtimeFailure?.session) {
         const session = new Session(
@@ -330,6 +303,9 @@ export class TenkiSandbox implements AsyncDisposable {
           this.gatewayAddress,
           this.sshOptions,
           this.dataPlaneReadyTimeoutMs,
+          undefined,
+          [],
+          this.warningHandler,
         );
         throw new TemplateRuntimeFailedError(runtimeFailure.reason || "template runtime failed", session, {
           cause: err instanceof Error ? err : undefined,
@@ -337,6 +313,43 @@ export class TenkiSandbox implements AsyncDisposable {
       }
       throw mapError(err);
     }
+
+    const warnings = sandboxWarningsFromProto(resp.warnings);
+    // Match the Go SDK: skip data-plane config on terminal route failure so the first op fails fast instead of retrying a dead route for the whole readiness budget.
+    const dataPlane =
+      resp.routeStatus === DataPlaneRouteStatus.FAILED
+        ? undefined
+        : { endpoint: resp.dataPlaneEndpoint, credential: resp.credential, routeStatus: resp.routeStatus };
+    const session = new Session(
+      this.rpcClient,
+      resp.session!,
+      this.authToken,
+      this.gatewayAddress,
+      this.sshOptions,
+      this.dataPlaneReadyTimeoutMs,
+      dataPlane,
+      warnings,
+      this.warningHandler,
+    );
+    emitWarnings(this.warningHandler, warnings);
+    if (!waitReady) return session;
+    if (isReady(session.state)) return session;
+    if (isTerminal(session.state)) {
+      const suffix = session.terminalError ? `: ${session.terminalError}` : "";
+      throw mapError(new Error(`session entered terminal state: ${session.state}${suffix}`));
+    }
+    try {
+      await session.waitReady(
+        options?.waitTimeoutMs ??
+          (templateSpecId ? DEFAULT_TEMPLATE_SPEC_CREATE_TIMEOUT_MS : DEFAULT_SESSION_CREATE_TIMEOUT_MS),
+      );
+    } catch (waitErr) {
+      if (isTerminal(session.state)) throw mapError(waitErr);
+      throw new WaitReadyFailedError(`session ${session.id} created but not ready within wait budget`, session, {
+        cause: waitErr instanceof Error ? waitErr : undefined,
+      });
+    }
+    return session;
   }
 
   async createAndWait(options?: CreateOptions & { timeoutMs?: number }): Promise<Session> {
@@ -373,6 +386,9 @@ export class TenkiSandbox implements AsyncDisposable {
         this.gatewayAddress,
         this.sshOptions,
         this.dataPlaneReadyTimeoutMs,
+        undefined,
+        [],
+        this.warningHandler,
       );
     } catch (err) {
       throw mapError(err);
@@ -403,6 +419,9 @@ export class TenkiSandbox implements AsyncDisposable {
                 this.gatewayAddress,
                 this.sshOptions,
                 this.dataPlaneReadyTimeoutMs,
+                undefined,
+                [],
+                this.warningHandler,
               ),
           ),
         );
@@ -432,6 +451,7 @@ export class TenkiSandbox implements AsyncDisposable {
   }
 
   async updateSession(sessionId: string, options: UpdateSessionOptions): Promise<Session> {
+    validateUpdateMaxDurationMs(options.maxDurationMs, options.sticky);
     const req = create(UpdateSessionRequestSchema, { sessionId: sessionId.trim() });
     if (options.name !== undefined) req.name = options.name;
     if (options.tags !== undefined) {
@@ -443,22 +463,29 @@ export class TenkiSandbox implements AsyncDisposable {
       }
     }
     if (options.sticky !== undefined) req.sticky = options.sticky;
-    if (options.maxDurationMs && options.maxDurationMs > 0) {
+    if (options.maxDurationMs !== undefined) {
       req.maxDuration = durationFromMs(options.maxDurationMs);
     }
+    let resp;
     try {
-      const resp = await this.rpcClient.updateSession(req);
-      return new Session(
-        this.rpcClient,
-        resp.session!,
-        this.authToken,
-        this.gatewayAddress,
-        this.sshOptions,
-        this.dataPlaneReadyTimeoutMs,
-      );
+      resp = await this.rpcClient.updateSession(req);
     } catch (err) {
       throw mapError(err);
     }
+    const warnings = sandboxWarningsFromProto(resp.warnings);
+    const session = new Session(
+      this.rpcClient,
+      resp.session!,
+      this.authToken,
+      this.gatewayAddress,
+      this.sshOptions,
+      this.dataPlaneReadyTimeoutMs,
+      undefined,
+      warnings,
+      this.warningHandler,
+    );
+    emitWarnings(this.warningHandler, warnings);
+    return session;
   }
 
   // -- Snapshots --

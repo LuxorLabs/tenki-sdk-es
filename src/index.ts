@@ -1,6 +1,7 @@
 export { TenkiSandbox } from "./client.js";
 export { Session } from "./session.js";
 export type { SessionState, RuntimeState, WildcardStatus, ExposedPort, SessionHandle, SessionFs } from "./session.js";
+export { SandboxWarningCodes, type SandboxWarning, type SandboxWarningCode, type WarningHandler } from "./warning.js";
 export { PreviewUrlClient } from "./preview-url.js";
 export type { PreviewUrl, PreviewUrlListOptions, PreviewUrlOptions } from "./preview-url.js";
 export { isReady, isTerminal } from "./session.js";

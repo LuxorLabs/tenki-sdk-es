@@ -76,6 +76,7 @@ import type {
   UpdateSessionOptions,
   VolumeMountConfig,
 } from "./options.js";
+import { validateUpdateMaxDurationMs } from "./options.js";
 import { run, type ProcessRunHandle, type ProcessRunOptions } from "./process.js";
 import { sleepReadyBackoff } from "./ready-backoff.js";
 import { isRetryableStreamTransportError } from "./refused-stream.js";
@@ -90,6 +91,7 @@ import {
   type ResilientHostPortTunnelOptions,
 } from "./tunnel-resilient.js";
 import { exposeHostPort, hostPortTunnel, type HostPortTunnel, type HostPortTunnelOptions } from "./tunnel.js";
+import { emitWarnings, sandboxWarningsFromProto, type SandboxWarning, type WarningHandler } from "./warning.js";
 
 // Tolerates stale stopped-state reads (read-replica lag) right after resume()
 // before waitResumed has observed RESUMING from the server.
@@ -185,6 +187,7 @@ export class Session implements SessionHandle, AsyncDisposable {
   public readonly sourceRegistryWorkspaceId?: string;
   public readonly sourceRegistryRef?: string;
   public readonly sourceTemplateId?: string;
+  public readonly warnings: SandboxWarning[];
 
   private authToken: string;
   private gatewayAddress: string;
@@ -203,6 +206,8 @@ export class Session implements SessionHandle, AsyncDisposable {
     sshOptions?: SSHConnectOptions,
     private readonly dataPlaneReadyTimeoutMs = 60_000,
     dataPlane?: DataPlaneConfig,
+    warnings: SandboxWarning[] = [],
+    private readonly warningHandler?: WarningHandler,
   ) {
     this.rpcClient = rpcClient;
     this.authToken = authToken;
@@ -248,6 +253,7 @@ export class Session implements SessionHandle, AsyncDisposable {
     this.sourceRegistryWorkspaceId = proto.sourceRegistryWorkspaceId || undefined;
     this.sourceRegistryRef = proto.sourceRegistryRef || undefined;
     this.sourceTemplateId = proto.sourceTemplateId || undefined;
+    this.warnings = [...warnings];
 
     this.git = new Git(this);
     this.fs = {
@@ -813,23 +819,32 @@ export class Session implements SessionHandle, AsyncDisposable {
   }
 
   async update(options: UpdateSessionOptions): Promise<void> {
-    try {
-      const updateReq: Record<string, unknown> = { sessionId: this.id };
-      if (options.name !== undefined) updateReq.name = options.name;
-      if (options.tags !== undefined) {
-        const normalized = normalizeTags(options.tags);
-        if (normalized.length === 0) {
-          updateReq.clearTags = true;
-        } else {
-          updateReq.tags = normalized;
-        }
+    validateUpdateMaxDurationMs(options.maxDurationMs, options.sticky);
+    const updateReq: Record<string, unknown> = { sessionId: this.id };
+    if (options.name !== undefined) updateReq.name = options.name;
+    if (options.tags !== undefined) {
+      const normalized = normalizeTags(options.tags);
+      if (normalized.length === 0) {
+        updateReq.clearTags = true;
+      } else {
+        updateReq.tags = normalized;
       }
-      if (options.sticky !== undefined) updateReq.sticky = options.sticky;
-      const resp = await this.rpcClient.updateSession(create(UpdateSessionRequestSchema, updateReq));
-      if (resp.session) this.applyProto(resp.session);
+    }
+    if (options.sticky !== undefined) updateReq.sticky = options.sticky;
+    if (options.maxDurationMs !== undefined) {
+      updateReq.maxDuration = durationFromMs(options.maxDurationMs);
+    }
+
+    let resp;
+    try {
+      resp = await this.rpcClient.updateSession(create(UpdateSessionRequestSchema, updateReq));
     } catch (err) {
       throw mapError(err);
     }
+    if (resp.session) this.applyProto(resp.session);
+    const warnings = sandboxWarningsFromProto(resp.warnings);
+    this.warnings.splice(0, this.warnings.length, ...warnings);
+    emitWarnings(this.warningHandler, warnings);
   }
 
   async attachVolume(volumeId: string, mountPath: string, options?: { readOnly?: boolean }): Promise<void> {

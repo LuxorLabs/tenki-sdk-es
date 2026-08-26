@@ -65,7 +65,6 @@ const session = await sandbox.create({
   diskSizeGb: 10,
   allowInbound: true,
   allowOutbound: true,
-  maxDurationMs: 60 * 60 * 1000,
   idleTimeoutMinutes: 15,
   env: { NODE_ENV: "production" },
   metadata: { purpose: "ci" },
@@ -81,6 +80,23 @@ await session.update({ name: "renamed", tags: ["ci", "kept"] });
 await session.pause();
 await session.resume();
 await session.close();
+```
+
+`sticky: true` discards `maxDurationMs` and disables automatic idle pause.
+Manual pause and resume do not clear sticky. The returned `session.warnings`
+array retains the structured warning. By default,
+`TenkiSandbox` writes each warning to `console.warn`. Set `warningHandler` to
+route warnings through your logger, or pass `null` to suppress emission:
+
+```typescript
+const sandbox = new TenkiSandbox({
+  warningHandler: (warning) => process.emitWarning(warning.message),
+});
+
+const session = await sandbox.create({ sticky: true, maxDurationMs: 60 * 60 * 1000 });
+if (session.warnings[0]?.code === "STICKY_OVERRIDES_MAX_DURATION") {
+  console.log("maxDurationMs was discarded");
+}
 ```
 
 Create from an image or snapshot:
@@ -178,7 +194,7 @@ await session.exec("sh", { args: ["-lc", "python3 -m http.server 3000 &"] });
 Redirect **both** streams to detach it:
 
 ```typescript
-await session.exec("sh", { args: ["-lc", "python3 -m http.server 3000 >/tmp/http.log 2>&1 &"] });
+await session.exec("sh", { args: ["-lc", "python3 -m http.server 3000 >/home/tenki/http.log 2>&1 &"] });
 ```
 
 Redirecting only stdout is not enough — stderr still holds the stream open — and

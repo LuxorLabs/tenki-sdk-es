@@ -7,10 +7,14 @@ import {
   CreateSessionRequestSchema,
   CreateSessionResponseSchema,
   SandboxSessionSchema,
+  SandboxWarningCode,
+  SandboxWarningSchema,
   SessionState,
   TerminateSessionResponseSchema,
+  UpdateSessionResponseSchema,
   WaitSessionResponseSchema,
 } from "../src/internal/proto/tenki/sandbox/v1/sandbox_pb.js";
+import { SandboxWarningCodes } from "../src/warning.js";
 
 const connectMock = vi.hoisted(() => ({
   createClient: vi.fn(),
@@ -81,6 +85,238 @@ describe("TenkiSandbox client TLS options", () => {
     await expect(client.create({ diskSizeGb: 3 })).rejects.toThrow(InvalidResourceConfigError);
 
     expect(createSession).not.toHaveBeenCalled();
+  });
+
+  it("retains and emits create warnings once", async () => {
+    const createSession = vi.fn(async () =>
+      create(CreateSessionResponseSchema, {
+        session: create(SandboxSessionSchema, {
+          id: "session-1",
+          state: SessionState.RUNNING,
+          ownerType: "SERVICE",
+          ownerId: "self",
+        }),
+        warnings: [
+          create(SandboxWarningSchema, {
+            code: SandboxWarningCode.STICKY_OVERRIDES_MAX_DURATION,
+            message: "sticky overrides max_duration",
+          }),
+        ],
+      }),
+    );
+    const warningHandler = vi.fn();
+    connectMock.createClient.mockReturnValue({ createSession });
+    const client = new TenkiSandbox({ authToken: "tk_test", warningHandler });
+
+    const session = await client.create();
+
+    expect(session.warnings).toEqual([
+      { code: SandboxWarningCodes.STICKY_OVERRIDES_MAX_DURATION, message: "sticky overrides max_duration" },
+    ]);
+    expect(warningHandler).toHaveBeenCalledOnce();
+    expect(warningHandler).toHaveBeenCalledWith(session.warnings[0]);
+  });
+
+  it("uses the default warning handler and allows suppression", async () => {
+    const createSession = vi.fn(async () =>
+      create(CreateSessionResponseSchema, {
+        session: create(SandboxSessionSchema, {
+          id: "session-1",
+          state: SessionState.RUNNING,
+          ownerType: "SERVICE",
+          ownerId: "self",
+        }),
+        warnings: [create(SandboxWarningSchema, { message: "sticky overrides max_duration" })],
+      }),
+    );
+    connectMock.createClient.mockReturnValue({ createSession });
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    await new TenkiSandbox({ authToken: "tk_test" }).create();
+    await new TenkiSandbox({ authToken: "tk_test", warningHandler: null }).create();
+
+    expect(warn).toHaveBeenCalledOnce();
+    expect(warn).toHaveBeenCalledWith(
+      `tenki sandbox warning [${SandboxWarningCodes.UNSPECIFIED}]: sticky overrides max_duration`,
+    );
+  });
+
+  it("returns a session when a warning handler throws", async () => {
+    const createSession = vi.fn(async () =>
+      create(CreateSessionResponseSchema, {
+        session: create(SandboxSessionSchema, {
+          id: "session-1",
+          state: SessionState.RUNNING,
+          ownerType: "SERVICE",
+          ownerId: "self",
+        }),
+        warnings: [
+          create(SandboxWarningSchema, {
+            code: SandboxWarningCode.STICKY_OVERRIDES_MAX_DURATION,
+            message: "sticky overrides max_duration",
+          }),
+        ],
+      }),
+    );
+    const warningHandlerError = new Error("handler failed");
+    const warningHandler = vi.fn(() => {
+      throw warningHandlerError;
+    });
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    connectMock.createClient.mockReturnValue({ createSession });
+
+    const session = await new TenkiSandbox({ authToken: "tk_test", warningHandler }).create();
+
+    expect(session.id).toBe("session-1");
+    expect(session.warnings).toEqual([
+      { code: SandboxWarningCodes.STICKY_OVERRIDES_MAX_DURATION, message: "sticky overrides max_duration" },
+    ]);
+    expect(warningHandler).toHaveBeenCalledOnce();
+    expect(error).toHaveBeenCalledWith("tenki sandbox warning handler failed", warningHandlerError);
+  });
+
+  it("maps unknown warning codes to unspecified", async () => {
+    const createSession = vi.fn(async () =>
+      create(CreateSessionResponseSchema, {
+        session: create(SandboxSessionSchema, {
+          id: "session-1",
+          state: SessionState.RUNNING,
+          ownerType: "SERVICE",
+          ownerId: "self",
+        }),
+        warnings: [create(SandboxWarningSchema, { code: 999 as SandboxWarningCode, message: "unknown warning" })],
+      }),
+    );
+    connectMock.createClient.mockReturnValue({ createSession });
+
+    const session = await new TenkiSandbox({ authToken: "tk_test", warningHandler: null }).create();
+
+    expect(session.warnings).toEqual([{ code: SandboxWarningCodes.UNSPECIFIED, message: "unknown warning" }]);
+  });
+
+  it("retains and emits update warnings", async () => {
+    const updateSession = vi.fn(async () =>
+      create(UpdateSessionResponseSchema, {
+        session: create(SandboxSessionSchema, {
+          id: "session-1",
+          state: SessionState.RUNNING,
+          ownerType: "SERVICE",
+          ownerId: "self",
+        }),
+        warnings: [
+          create(SandboxWarningSchema, {
+            code: SandboxWarningCode.MAX_DURATION_CAPPED,
+            message: "max_duration was capped",
+          }),
+        ],
+      }),
+    );
+    const warningHandler = vi.fn();
+    connectMock.createClient.mockReturnValue({ updateSession });
+
+    const session = await new TenkiSandbox({ authToken: "tk_test", warningHandler }).updateSession("session-1", {});
+
+    expect(session.warnings).toEqual([
+      { code: SandboxWarningCodes.MAX_DURATION_CAPPED, message: "max_duration was capped" },
+    ]);
+    expect(warningHandler).toHaveBeenCalledWith(session.warnings[0]);
+  });
+
+  it.each([0, -1, Number.NaN, Number.POSITIVE_INFINITY])(
+    "rejects invalid update maxDurationMs %p before RPC",
+    async (maxDurationMs) => {
+      const updateSession = vi.fn();
+      connectMock.createClient.mockReturnValue({ updateSession });
+      const client = new TenkiSandbox({ authToken: "tk_test" });
+
+      await expect(client.updateSession("session-1", { maxDurationMs })).rejects.toThrow(RangeError);
+
+      expect(updateSession).not.toHaveBeenCalled();
+    },
+  );
+
+  it("requires sticky with update maxDurationMs before RPC", async () => {
+    const updateSession = vi.fn();
+    connectMock.createClient.mockReturnValue({ updateSession });
+    const client = new TenkiSandbox({ authToken: "tk_test" });
+
+    await expect(client.updateSession("session-1", { maxDurationMs: 60_000 })).rejects.toThrow(
+      "sticky must be set when maxDurationMs is provided",
+    );
+
+    expect(updateSession).not.toHaveBeenCalled();
+  });
+
+  it("returns an updated session when its warning handler throws", async () => {
+    const updateSession = vi.fn(async () =>
+      create(UpdateSessionResponseSchema, {
+        session: create(SandboxSessionSchema, {
+          id: "session-1",
+          state: SessionState.RUNNING,
+          ownerType: "SERVICE",
+          ownerId: "self",
+        }),
+        warnings: [
+          create(SandboxWarningSchema, {
+            code: SandboxWarningCode.STICKY_OVERRIDES_IDLE_TIMEOUT,
+            message: "sticky overrides idle_timeout",
+          }),
+        ],
+      }),
+    );
+    const warningHandlerError = new Error("handler failed");
+    const warningHandler = vi.fn(() => {
+      throw warningHandlerError;
+    });
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    connectMock.createClient.mockReturnValue({ updateSession });
+
+    const session = await new TenkiSandbox({ authToken: "tk_test", warningHandler }).updateSession("session-1", {});
+
+    expect(session.warnings).toEqual([
+      { code: SandboxWarningCodes.STICKY_OVERRIDES_IDLE_TIMEOUT, message: "sticky overrides idle_timeout" },
+    ]);
+    expect(error).toHaveBeenCalledWith("tenki sandbox warning handler failed", warningHandlerError);
+  });
+
+  it("delivers update warnings from sessions returned by the client", async () => {
+    const createSession = vi.fn(async () =>
+      create(CreateSessionResponseSchema, {
+        session: create(SandboxSessionSchema, {
+          id: "session-1",
+          state: SessionState.RUNNING,
+          ownerType: "SERVICE",
+          ownerId: "self",
+        }),
+      }),
+    );
+    const updateSession = vi.fn(async () =>
+      create(UpdateSessionResponseSchema, {
+        session: create(SandboxSessionSchema, {
+          id: "session-1",
+          state: SessionState.RUNNING,
+          ownerType: "SERVICE",
+          ownerId: "self",
+        }),
+        warnings: [
+          create(SandboxWarningSchema, {
+            code: SandboxWarningCode.STICKY_OVERRIDES_IDLE_TIMEOUT,
+            message: "sticky overrides idle_timeout",
+          }),
+        ],
+      }),
+    );
+    const warningHandler = vi.fn();
+    connectMock.createClient.mockReturnValue({ createSession, updateSession });
+    const client = new TenkiSandbox({ authToken: "tk_test", warningHandler });
+
+    const session = await client.create({ waitReady: false });
+    await session.update({ sticky: true });
+
+    expect(session.warnings).toEqual([
+      { code: SandboxWarningCodes.STICKY_OVERRIDES_IDLE_TIMEOUT, message: "sticky overrides idle_timeout" },
+    ]);
+    expect(warningHandler).toHaveBeenCalledWith(session.warnings[0]);
   });
 
   it("returns a closable session when readiness waiting fails", async () => {
