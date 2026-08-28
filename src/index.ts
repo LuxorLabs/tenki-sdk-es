@@ -5,6 +5,7 @@ export { SandboxWarningCodes, type SandboxWarning, type SandboxWarningCode, type
 export { PreviewUrlClient } from "./preview-url.js";
 export type { PreviewUrl, PreviewUrlListOptions, PreviewUrlOptions } from "./preview-url.js";
 export { isReady, isTerminal } from "./session.js";
+export { validateCreateResources } from "./resources.js";
 export { Stream } from "./stream.js";
 export { Git } from "./git.js";
 export type { GitCloneParams, GitCheckoutParams, GitDiffParams, GitLogParams, GitFetchPRParams } from "./git.js";

@@ -14,6 +14,11 @@ interface ResourceOptions {
   diskSizeGb?: number;
 }
 
+/**
+ * Checks create resources against the sandbox API's constraints without issuing a
+ * request. Create applies it to every request; it is exported so callers building a
+ * form can reject one field at a time, omitting the fields they are not checking.
+ */
 export function validateCreateResources(resources: ResourceOptions): void {
   if (resources.cpuCores != null) validateCpuCores(resources.cpuCores);
   if (resources.memoryMb != null) validateMemoryMb(resources.memoryMb, MIN_CREATE_MEMORY_MB);

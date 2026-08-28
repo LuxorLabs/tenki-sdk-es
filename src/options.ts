@@ -38,6 +38,10 @@ export interface CreateOptions {
   pauseRetentionMs?: number;
   cpuCores?: number;
   memoryMb?: number;
+  /**
+   * Ephemeral root disk in GB, 5-100. A create with no image, snapshot or template
+   * spec defaults to 5; one with a source inherits that source's disk unless set.
+   */
   diskSizeGb?: number;
   metadata?: Record<string, string>;
   tags?: string[];
@@ -158,6 +162,7 @@ export interface CreateTemplateOptions {
   startCmd?: string;
   env?: Record<string, string>;
   tags?: string[];
+  /** Template defaults. `diskSizeGb` must be 0 or 5-100; 0 leaves no disk default. */
   resources?: { cpuCores?: number; memoryMb?: number; diskSizeGb?: number };
   parentTemplateId?: string;
   parentImage?: string;
@@ -172,6 +177,7 @@ export interface UpdateTemplateOptions {
   startCmd?: string;
   env?: Record<string, string>;
   tags?: string[];
+  /** Template defaults. `diskSizeGb` must be 0 or 5-100; 0 leaves no disk default. */
   resources?: { cpuCores?: number; memoryMb?: number; diskSizeGb?: number };
 }
 
