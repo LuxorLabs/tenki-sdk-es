@@ -49,6 +49,7 @@ import {
   DataPlaneRouteStatus,
   DeleteSnapshotRequestSchema,
   DeleteVolumeRequestSchema,
+  GetSessionMetricsRequestSchema,
   GetSessionRequestSchema,
   GetSnapshotDownloadURLRequestSchema,
   GetSnapshotRequestSchema,
@@ -81,6 +82,8 @@ import {
   TemplateResourcesSchema,
   UpdateTemplateRequestSchema,
 } from "./internal/proto/tenki/sandbox/v1/template_pb.js";
+import type { SessionMetrics } from "./metrics.js";
+import { sessionMetricsFromProto } from "./metrics.js";
 import type {
   ClientOptions,
   CreateOptions,
@@ -390,6 +393,16 @@ export class TenkiSandbox implements AsyncDisposable {
         [],
         this.warningHandler,
       );
+    } catch (err) {
+      throw mapError(err);
+    }
+  }
+
+  async getSessionMetrics(sessionId: string, windowMs?: number): Promise<SessionMetrics> {
+    const req = create(GetSessionMetricsRequestSchema, { sessionId: sessionId.trim() });
+    if (windowMs !== undefined && windowMs !== 0) req.window = durationFromMs(windowMs);
+    try {
+      return sessionMetricsFromProto(await this.rpcClient.getSessionMetrics(req));
     } catch (err) {
       throw mapError(err);
     }

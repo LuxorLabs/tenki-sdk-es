@@ -45,6 +45,7 @@ import {
   DetachVolumeRequestSchema,
   ExposePortRequestSchema,
   ExtendSessionRequestSchema,
+  GetSessionMetricsRequestSchema,
   GetSessionRequestSchema,
   GitOperationRequestSchema,
   ListExposedPortsRequestSchema,
@@ -68,6 +69,8 @@ import {
   WriteFileRequestSchema,
 } from "./internal/proto/tenki/sandbox/v1/sandbox_pb.js";
 import { TemplateRuntimeState as ProtoTemplateRuntimeState } from "./internal/proto/tenki/sandbox/v1/template_pb.js";
+import type { SessionMetrics } from "./metrics.js";
+import { sessionMetricsFromProto } from "./metrics.js";
 import type {
   DetachVolumeOptions,
   ExecOptions,
@@ -742,6 +745,16 @@ export class Session implements SessionHandle, AsyncDisposable {
     try {
       const resp = await this.rpcClient.getSession(create(GetSessionRequestSchema, { sessionId: this.id }));
       if (resp.session) this.applyProto(resp.session);
+    } catch (err) {
+      throw mapError(err);
+    }
+  }
+
+  async metrics(windowMs?: number): Promise<SessionMetrics> {
+    const req = create(GetSessionMetricsRequestSchema, { sessionId: this.id });
+    if (windowMs !== undefined && windowMs !== 0) req.window = durationFromMs(windowMs);
+    try {
+      return sessionMetricsFromProto(await this.rpcClient.getSessionMetrics(req));
     } catch (err) {
       throw mapError(err);
     }
