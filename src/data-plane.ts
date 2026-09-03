@@ -14,12 +14,55 @@ import type { Session } from "./session.js";
 
 export const dataPlaneCredentialHeader = "x-tenki-session-cert";
 
-const dataPlaneSessionManagers = new WeakMap<object, Http2SessionManager>();
+interface SharedDataPlaneSessionManager {
+  manager: Http2SessionManager;
+  origin: string;
+  references: number;
+}
+
+const sharedDataPlaneSessionManagers = new Map<string, SharedDataPlaneSessionManager>();
+const dataPlaneSessionManagers = new WeakMap<object, SharedDataPlaneSessionManager>();
 
 export interface DataPlaneConfig {
   endpoint?: string;
   credential?: SessionCredential;
   routeStatus?: DataPlaneRouteStatus;
+}
+
+export class DataPlaneEndpointHints {
+  private endpoint = "";
+  private resolving?: Promise<string>;
+
+  current(): string {
+    return this.endpoint;
+  }
+
+  remember(endpoint: string): void {
+    const resolved = endpoint.trim();
+    if (resolved) this.endpoint = resolved;
+  }
+
+  async resolve(resolveEndpoint: () => Promise<string>): Promise<string> {
+    for (;;) {
+      if (this.endpoint) return this.endpoint;
+      const owner = !this.resolving;
+      if (owner) {
+        this.resolving = resolveEndpoint().then((endpoint) => {
+          this.remember(endpoint);
+          return endpoint;
+        });
+      }
+      const resolving = this.resolving;
+      if (!resolving) continue;
+      try {
+        return await resolving;
+      } catch (err) {
+        if (owner) throw err;
+      } finally {
+        if (this.resolving === resolving) this.resolving = undefined;
+      }
+    }
+  }
 }
 
 export class DataPlaneCredentialManager {
@@ -93,23 +136,40 @@ export function createDataPlaneClient(
   };
   // refusedStreamRetry is outermost so a retried attempt re-runs the credential
   // interceptor (fresh connection re-applies auth).
-  const sessionManager = new Http2SessionManager(endpoint);
+  const origin = new URL(endpoint).origin;
+  let sharedSessionManager = sharedDataPlaneSessionManagers.get(origin);
+  if (!sharedSessionManager) {
+    sharedSessionManager = {
+      manager: new Http2SessionManager(origin),
+      origin,
+      references: 0,
+    };
+    sharedDataPlaneSessionManagers.set(origin, sharedSessionManager);
+  }
+  sharedSessionManager.references++;
   const transport = createGrpcTransport({
     baseUrl: endpoint,
     interceptors: [refusedStreamRetry, credentialInterceptor],
-    sessionManager,
+    sessionManager: sharedSessionManager.manager,
   });
   const client = createClient(SandboxSessionDataPlaneService, transport);
-  dataPlaneSessionManagers.set(client, sessionManager);
+  dataPlaneSessionManagers.set(client, sharedSessionManager);
   return client;
 }
 
 export async function warmDataPlaneConnection(client: Client<typeof SandboxSessionDataPlaneService>) {
-  await dataPlaneSessionManagers.get(client)?.connect();
+  await dataPlaneSessionManagers.get(client)?.manager.connect();
 }
 
 export function closeDataPlaneConnection(client?: Client<typeof SandboxSessionDataPlaneService>) {
   if (!client) return;
-  dataPlaneSessionManagers.get(client)?.abort();
+  const sharedSessionManager = dataPlaneSessionManagers.get(client);
+  if (!sharedSessionManager) return;
   dataPlaneSessionManagers.delete(client);
+  sharedSessionManager.references--;
+  if (sharedSessionManager.references > 0) return;
+  if (sharedDataPlaneSessionManagers.get(sharedSessionManager.origin) === sharedSessionManager) {
+    sharedDataPlaneSessionManagers.delete(sharedSessionManager.origin);
+  }
+  sharedSessionManager.manager.abort();
 }

@@ -506,6 +506,37 @@ describe("run() exit-reason routing", () => {
     await expect(proc.pid).resolves.toBe(1);
   });
 
+  it("retries not-found while an unverified data plane is still provisioning", async () => {
+    const proc = run(sessionWithTransientRunError(new ConnectError("session not found", Code.NotFound)), ["echo"]);
+    await expect(proc.pid).resolves.toBe(1);
+  });
+
+  it("retries unavailable while an unverified data plane is still provisioning", async () => {
+    const proc = run(
+      sessionWithTransientRunError(new ConnectError("HTTP status 503 Service Unavailable", Code.Unavailable)),
+      ["echo"],
+    );
+    await expect(proc.pid).resolves.toBe(1);
+  });
+
+  it("does not retry not-found after the data plane is verified", async () => {
+    const session = sessionWithRunError(new ConnectError("session not found", Code.NotFound));
+    (session as any).dataPlaneVerifiedClient = (session as any).dataPlaneClient;
+    const proc = run(session, ["echo"]);
+
+    await expect(proc).rejects.toMatchObject({ name: "SessionNotFoundError" });
+    expect((session as any).dataPlaneClient.run).toHaveBeenCalledOnce();
+  });
+
+  it("does not retry generic unavailable after the data plane is verified", async () => {
+    const session = sessionWithRunError(new ConnectError("HTTP status 503 Service Unavailable", Code.Unavailable));
+    (session as any).dataPlaneVerifiedClient = (session as any).dataPlaneClient;
+    const proc = run(session, ["echo"]);
+
+    await expect(proc).rejects.toMatchObject({ name: "SandboxError" });
+    expect((session as any).dataPlaneClient.run).toHaveBeenCalledOnce();
+  });
+
   it("retries an ECONNRESET before the first run response", async () => {
     const { session, run: runMock } = sessionWithTransientRunReset(new ConnectError("read ECONNRESET", Code.Aborted));
     const proc = run(session, ["echo"]);

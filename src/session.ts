@@ -7,6 +7,7 @@ import {
   closeDataPlaneConnection,
   createDataPlaneClient,
   DataPlaneCredentialManager,
+  DataPlaneEndpointHints,
   warmDataPlaneConnection,
   type DataPlaneConfig,
 } from "./data-plane.js";
@@ -200,6 +201,7 @@ export class Session implements SessionHandle, AsyncDisposable {
   private dataPlaneCredential?: DataPlaneCredentialManager;
   private dataPlaneClient?: Client<typeof SandboxSessionDataPlaneService>;
   private dataPlaneVerifiedClient?: Client<typeof SandboxSessionDataPlaneService>;
+  private dataPlaneEndpointFromHint = false;
 
   constructor(
     rpcClient: Client<typeof SandboxService>,
@@ -211,6 +213,7 @@ export class Session implements SessionHandle, AsyncDisposable {
     dataPlane?: DataPlaneConfig,
     warnings: SandboxWarning[] = [],
     private readonly warningHandler?: WarningHandler,
+    private readonly dataPlaneEndpointHints = new DataPlaneEndpointHints(),
   ) {
     this.rpcClient = rpcClient;
     this.authToken = authToken;
@@ -277,15 +280,41 @@ export class Session implements SessionHandle, AsyncDisposable {
     return this.dataPlaneReadyTimeoutMs;
   }
 
+  dataPlaneProvisioningPending(client: Client<typeof SandboxSessionDataPlaneService>): boolean {
+    return this.dataPlaneClient === client && this.dataPlaneVerifiedClient !== client;
+  }
+
+  markDataPlaneServing(client: Client<typeof SandboxSessionDataPlaneService>): void {
+    if (this.dataPlaneClient === client) this.dataPlaneVerifiedClient = client;
+  }
+
+  dataPlaneUsingEndpointHint(client: Client<typeof SandboxSessionDataPlaneService>): boolean {
+    return this.dataPlaneClient === client && this.dataPlaneEndpointFromHint;
+  }
+
+  async refreshHintedDataPlane(client: Client<typeof SandboxSessionDataPlaneService>): Promise<boolean> {
+    if (!this.dataPlaneUsingEndpointHint(client)) return false;
+    return this.renewDataPlaneCredential();
+  }
+
   // Bootstrap the data-plane client via CreateSessionCredential if not resolved yet.
-  async ensureDataPlane(): Promise<Client<typeof SandboxSessionDataPlaneService> | undefined> {
+  async ensureDataPlane(verifyServing = true): Promise<Client<typeof SandboxSessionDataPlaneService> | undefined> {
+    if (!this.dataPlaneClient && this.dataPlaneCredential?.current()) {
+      const hintedEndpoint = await this.dataPlaneEndpointHints.resolve(async () => {
+        await this.renewDataPlaneCredential();
+        return this.dataPlaneEndpoint;
+      });
+      if (!this.dataPlaneClient && hintedEndpoint) {
+        this.configureDataPlane({ endpoint: hintedEndpoint }, true);
+      }
+    }
     if (!this.dataPlaneClient) await this.renewDataPlaneCredential();
-    if (this.dataPlaneClient) await this.ensureDataPlaneServing(this.dataPlaneClient);
+    if (verifyServing && this.dataPlaneClient) await this.ensureDataPlaneServing(this.dataPlaneClient);
     return this.dataPlaneClient;
   }
 
-  async requireDataPlane(): Promise<Client<typeof SandboxSessionDataPlaneService>> {
-    const dataPlane = await this.ensureDataPlane();
+  async requireDataPlane(verifyServing = true): Promise<Client<typeof SandboxSessionDataPlaneService>> {
+    const dataPlane = await this.ensureDataPlane(verifyServing);
     if (!dataPlane) throw new Error("sandbox: data-plane endpoint unavailable");
     return dataPlane;
   }
@@ -326,18 +355,23 @@ export class Session implements SessionHandle, AsyncDisposable {
     }
   }
 
-  private configureDataPlane(dataPlane?: DataPlaneConfig): void {
+  private configureDataPlane(dataPlane?: DataPlaneConfig, endpointFromHint = false): void {
     const endpoint = dataPlane?.endpoint?.trim();
     if (!endpoint) return;
     if (endpoint === this.dataPlaneEndpoint && this.dataPlaneCredential) {
       this.dataPlaneCredential.set(dataPlane?.credential);
+      this.dataPlaneEndpointFromHint = endpointFromHint;
       return;
     }
-    this.dataPlaneCredential?.stop();
     closeDataPlaneConnection(this.dataPlaneClient);
     this.dataPlaneEndpoint = endpoint;
-    this.dataPlaneCredential = new DataPlaneCredentialManager(this, dataPlane?.credential);
+    if (!this.dataPlaneCredential) {
+      this.dataPlaneCredential = new DataPlaneCredentialManager(this, dataPlane?.credential);
+    } else {
+      this.dataPlaneCredential.set(dataPlane?.credential);
+    }
     this.dataPlaneClient = createDataPlaneClient(endpoint, this.dataPlaneCredential);
+    this.dataPlaneEndpointFromHint = endpointFromHint;
   }
 
   private resetDataPlane(): void {
@@ -347,6 +381,7 @@ export class Session implements SessionHandle, AsyncDisposable {
     this.dataPlaneCredential = undefined;
     this.dataPlaneClient = undefined;
     this.dataPlaneVerifiedClient = undefined;
+    this.dataPlaneEndpointFromHint = false;
     this.dataPlaneWarmStarted = false;
   }
 
@@ -356,7 +391,17 @@ export class Session implements SessionHandle, AsyncDisposable {
     routeStatus?: DataPlaneRouteStatus,
   ): void {
     if (routeStatus === DataPlaneRouteStatus.FAILED) return;
-    this.configureDataPlane({ endpoint, credential });
+    if (credential) {
+      if (!this.dataPlaneCredential) {
+        this.dataPlaneCredential = new DataPlaneCredentialManager(this, credential);
+      } else {
+        this.dataPlaneCredential.set(credential);
+      }
+    }
+    if (endpoint?.trim()) {
+      this.dataPlaneEndpointHints.remember(endpoint);
+      this.configureDataPlane({ endpoint, credential });
+    }
     this.startDataPlaneWarm();
     if (routeStatus === DataPlaneRouteStatus.VERIFIED && this.dataPlaneClient) {
       this.dataPlaneVerifiedClient = this.dataPlaneClient;
@@ -382,6 +427,10 @@ export class Session implements SessionHandle, AsyncDisposable {
           case DataPlaneRouteStatus.FAILED:
             throw terminalDataPlaneNotReadyError();
           case DataPlaneRouteStatus.NOT_READY:
+            if (resp.dataPlaneEndpoint?.trim()) {
+              this.applyDataPlaneResponse(resp.dataPlaneEndpoint, resp.credential, resp.routeStatus);
+              return true;
+            }
             lastErr = dataPlaneNotReadyError(undefined);
             await sleepReadyBackoff(attempt, deadline);
             continue;

@@ -1,7 +1,12 @@
 import { Http2SessionManager } from "@connectrpc/connect-node";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { closeDataPlaneConnection, createDataPlaneClient, DataPlaneCredentialManager } from "../src/data-plane.js";
+import {
+  closeDataPlaneConnection,
+  createDataPlaneClient,
+  DataPlaneCredentialManager,
+  DataPlaneEndpointHints,
+} from "../src/data-plane.js";
 import { InvalidStateError } from "../src/errors.js";
 
 describe("DataPlaneCredentialManager", () => {
@@ -17,6 +22,18 @@ describe("DataPlaneCredentialManager", () => {
     closeDataPlaneConnection(client);
     closeDataPlaneConnection(client);
 
+    expect(abort).toHaveBeenCalledOnce();
+  });
+
+  it("shares one session manager for clients on the same origin", () => {
+    const abort = vi.spyOn(Http2SessionManager.prototype, "abort");
+    const first = createDataPlaneClient("https://sandbox.example.com", { current: () => "first" } as never);
+    const second = createDataPlaneClient("https://sandbox.example.com/", { current: () => "second" } as never);
+
+    closeDataPlaneConnection(first);
+    expect(abort).not.toHaveBeenCalled();
+
+    closeDataPlaneConnection(second);
     expect(abort).toHaveBeenCalledOnce();
   });
 
@@ -67,5 +84,43 @@ describe("DataPlaneCredentialManager", () => {
     await renewLoop;
 
     expect(renewDataPlaneCredential).toHaveBeenCalledTimes(3);
+  });
+});
+
+describe("DataPlaneEndpointHints", () => {
+  it("singleflights concurrent endpoint discovery", async () => {
+    const hints = new DataPlaneEndpointHints();
+    let release!: (endpoint: string) => void;
+    const discovered = new Promise<string>((resolve) => {
+      release = resolve;
+    });
+    const resolveEndpoint = vi.fn(() => discovered);
+
+    const first = hints.resolve(resolveEndpoint);
+    const second = hints.resolve(resolveEndpoint);
+    release("https://data-plane.test");
+
+    await expect(Promise.all([first, second])).resolves.toEqual(["https://data-plane.test", "https://data-plane.test"]);
+    expect(resolveEndpoint).toHaveBeenCalledOnce();
+    expect(hints.current()).toBe("https://data-plane.test");
+  });
+
+  it("lets waiters retry when the resolver owner fails", async () => {
+    const hints = new DataPlaneEndpointHints();
+    let calls = 0;
+    const resolveEndpoint = vi.fn(async () => {
+      calls++;
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      if (calls === 1) throw new Error("transient resolver failure");
+      return "https://data-plane.test";
+    });
+
+    const results = await Promise.allSettled(Array.from({ length: 8 }, () => hints.resolve(resolveEndpoint)));
+
+    expect(resolveEndpoint).toHaveBeenCalledTimes(2);
+    expect(results.filter((result) => result.status === "rejected")).toHaveLength(1);
+    expect(results.filter((result) => result.status === "fulfilled").map((result) => result.value)).toEqual(
+      Array.from({ length: 7 }, () => "https://data-plane.test"),
+    );
   });
 });

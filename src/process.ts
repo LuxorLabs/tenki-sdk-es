@@ -61,8 +61,32 @@ export interface ProcessRunHandle extends PromiseLike<ProcessRunResult> {
   kill(): Promise<void>;
 }
 
-function isRetryableRunStreamEstablishmentError(err: unknown): boolean {
-  return isDataPlaneEdgeNotReady(err) || isRetryableStreamTransportError(err);
+function traceRunTiming(sessionId: string, startedAt: number, stage: string, details?: Record<string, unknown>): void {
+  if (typeof process === "undefined" || process.env?.TENKI_SDK_RUN_TRACE_TIMING !== "1") return;
+  console.error(
+    `TENKI_SDK_RUN_TIMING ${JSON.stringify({
+      sessionId,
+      stage,
+      epochMs: Date.now(),
+      elapsedMs: performance.now() - startedAt,
+      ...details,
+    })}`,
+  );
+}
+
+function isProvisioningSessionNotFound(err: unknown, provisioningPending: boolean): boolean {
+  const connectErr = err instanceof ConnectError ? err : ConnectError.from(err);
+  return provisioningPending && connectErr.code === Code.NotFound && /\bsession not found\b/i.test(connectErr.message);
+}
+
+function isRetryableRunStreamEstablishmentError(err: unknown, provisioningPending: boolean): boolean {
+  const connectErr = err instanceof ConnectError ? err : ConnectError.from(err);
+  return (
+    isDataPlaneEdgeNotReady(err) ||
+    isRetryableStreamTransportError(err) ||
+    isProvisioningSessionNotFound(err, provisioningPending) ||
+    (provisioningPending && connectErr.code === Code.Unavailable)
+  );
 }
 
 function argvPartTypeName(part: unknown): string {
@@ -105,6 +129,9 @@ export function run(_session: Session, _argv: string[], _options?: ProcessRunOpt
   }
   // protobuf-es puts a non-string straight onto the wire, so coerce here.
   const cmd = argv.map((part) => String(part));
+
+  const runStartedAt = performance.now();
+  traceRunTiming(session.id, runStartedAt, "called");
 
   // Round up: flooring a sub-millisecond budget to 0 would mean unbounded.
   const timeoutMs = options?.timeoutMs && options.timeoutMs > 0 ? Math.max(1, Math.floor(options.timeoutMs)) : 0;
@@ -153,19 +180,29 @@ export function run(_session: Session, _argv: string[], _options?: ProcessRunOpt
     let reauthAttempted = false;
     for (let attempt = 0; ; attempt++) {
       const activeOutbound = outbound;
-      const dataPlane = await session.requireDataPlane();
+      traceRunTiming(session.id, runStartedAt, "attempt_begin", { attempt });
+      const dataPlane = await session.requireDataPlane(false);
+      traceRunTiming(session.id, runStartedAt, "data_plane_ready", { attempt });
       if (abandonedOnce) return;
       const activeResponses = unwrapDataPlaneRun(
         dataPlane.run(wrapDataPlaneRun(activeOutbound), { signal: rpcAbort.signal }),
       );
+      traceRunTiming(session.id, runStartedAt, "stream_opened", { attempt });
       let receivedResponse = false;
       try {
         for await (const frame of activeResponses) {
+          if (!receivedResponse) traceRunTiming(session.id, runStartedAt, "first_response", { attempt });
           receivedResponse = true;
+          session.markDataPlaneServing(dataPlane);
           yield frame;
         }
         return;
       } catch (err) {
+        traceRunTiming(session.id, runStartedAt, "attempt_error", {
+          attempt,
+          code: ConnectError.from(err).code,
+          receivedResponse,
+        });
         if (abandonedOnce) return;
         if (!reauthAttempted && (await session.reauthOnUnauthenticated(err))) {
           reauthAttempted = true;
@@ -174,13 +211,18 @@ export function run(_session: Session, _argv: string[], _options?: ProcessRunOpt
           resetOutbound();
           continue;
         }
-        if (!receivedResponse && replayable && isRetryableRunStreamEstablishmentError(err)) {
+        const provisioningPending = session.dataPlaneProvisioningPending(dataPlane);
+        if (!receivedResponse && replayable && isRetryableRunStreamEstablishmentError(err, provisioningPending)) {
           activeOutbound.close();
           if (Date.now() >= deadline) {
             if (isDataPlaneEdgeNotReady(err)) throw dataPlaneNotReadyError(err);
             throw err;
           }
-          await sleepReadyBackoff(attempt, deadline);
+          if (isProvisioningSessionNotFound(err, provisioningPending)) {
+            await session.refreshHintedDataPlane(dataPlane);
+          }
+          if (attempt > 0) await sleepReadyBackoff(attempt - 1, deadline);
+          traceRunTiming(session.id, runStartedAt, "retry_backoff_complete", { attempt });
           // resetOutbound re-queues the start request, so an abandoned run
           // would execute the command a second time.
           if (abandonedOnce) return;
@@ -224,6 +266,7 @@ export function run(_session: Session, _argv: string[], _options?: ProcessRunOpt
             break;
           case "exit": {
             const exit = frame.payload.value;
+            traceRunTiming(session.id, runStartedAt, "exit_response");
             if (exit.reason.startsWith("first_frame_timeout")) {
               throw new PrimitiveTimeoutError("run", exit.reason);
             }
