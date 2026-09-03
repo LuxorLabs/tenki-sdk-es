@@ -80,7 +80,7 @@ import type {
   VolumeMountConfig,
 } from "./options.js";
 import { validateUpdateMaxDurationMs } from "./options.js";
-import { run, type ProcessRunHandle, type ProcessRunOptions } from "./process.js";
+import { normalizeArgv, run, type ProcessRunHandle, type ProcessRunOptions } from "./process.js";
 import { sleepReadyBackoff } from "./ready-backoff.js";
 import { isRetryableStreamTransportError } from "./refused-stream.js";
 import type { CommandStatus, ExecResult } from "./result.js";
@@ -139,8 +139,8 @@ export interface ExposedPort {
 export interface SessionHandle {
   readonly id: string;
   readonly rpcClient: Client<typeof SandboxService>;
-  exec(command: string, options?: ExecOptions): Promise<ExecResult>;
-  stream(command: string, options?: ExecOptions): Promise<Stream>;
+  exec(command: string | string[], options?: ExecOptions): Promise<ExecResult>;
+  stream(command: string | string[], options?: ExecOptions): Promise<Stream>;
   gitOperation(operation: string, args: Record<string, string>): Promise<string>;
 }
 
@@ -443,8 +443,9 @@ export class Session implements SessionHandle, AsyncDisposable {
     this.sticky = proto.sticky;
   }
 
-  async exec(command: string, options?: ExecOptions): Promise<ExecResult> {
-    const proc = run(this, [command, ...(options?.args ?? [])], {
+  async exec(command: string | string[], options?: ExecOptions): Promise<ExecResult> {
+    const argv = normalizeArgv(command, options?.args);
+    const proc = run(this, argv, {
       cwd: options?.cwd,
       env: options?.env,
       stdin: undefined,
@@ -463,8 +464,8 @@ export class Session implements SessionHandle, AsyncDisposable {
     const result = await proc;
     return {
       sessionId: this.id,
-      command,
-      args: options?.args ?? [],
+      command: argv[0],
+      args: argv.slice(1),
       status: commandStatusFromResult(result),
       exitCode: result.exitCode,
       durationMs: result.durationMs ?? 0,
@@ -475,11 +476,12 @@ export class Session implements SessionHandle, AsyncDisposable {
     };
   }
 
-  async stream(command: string, options?: ExecOptions): Promise<Stream> {
+  async stream(command: string | string[], options?: ExecOptions): Promise<Stream> {
     if (options?.onOutput) {
       throw new Error("Session.stream does not support onOutput; consume chunks with stream.next() instead");
     }
-    const proc = run(this, [command, ...(options?.args ?? [])], {
+    const argv = normalizeArgv(command, options?.args);
+    const proc = run(this, argv, {
       cwd: options?.cwd,
       env: options?.env,
       timeoutMs: options?.timeoutMs,
@@ -487,7 +489,7 @@ export class Session implements SessionHandle, AsyncDisposable {
     });
     await proc.pid;
     void proc.stdin.close().catch(() => {});
-    return streamFromRunHandle(this.id, command, options?.args ?? [], proc);
+    return streamFromRunHandle(this.id, argv[0], argv.slice(1), proc);
   }
 
   dial(unixSocketPath: string, options?: DialOptions): Promise<DialStream> {

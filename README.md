@@ -138,6 +138,13 @@ const result = await proc;
 console.log(result.exitCode);
 ```
 
+`exec` takes argv either as a command plus `options.args` or as a single array:
+
+```typescript
+await session.exec("sh", { args: ["-c", "echo hi"] });
+await session.exec(["sh", "-c", "echo hi"]); // equivalent
+```
+
 For simple commands, you can await `run` directly:
 
 ```typescript

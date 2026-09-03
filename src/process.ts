@@ -65,11 +65,46 @@ function isRetryableRunStreamEstablishmentError(err: unknown): boolean {
   return isDataPlaneEdgeNotReady(err) || isRetryableStreamTransportError(err);
 }
 
+function argvPartTypeName(part: unknown): string {
+  if (Array.isArray(part)) return "array";
+  return part === null ? "null" : typeof part;
+}
+
+/**
+ * Whether String(part) would yield a binary name no guest can resolve. Arrays
+ * and default-toString objects would; a number, or an object with a real
+ * toString (URL, Date), stringifies to something the caller plausibly meant, so
+ * it keeps the historical coercion.
+ */
+function isUnstringifiableArgvPart(part: unknown): boolean {
+  if (Array.isArray(part)) return true;
+  if (part === null || typeof part !== "object") return false;
+  return String(part).startsWith("[object ");
+}
+
+/**
+ * Resolve the two argv forms into one. A lone array is the argv itself, so
+ * `exec(["sh", "-c", cmd])` means the same as `exec("sh", { args: ["-c", cmd] })`.
+ */
+export function normalizeArgv(command: string | string[], args?: string[]): string[] {
+  if (!Array.isArray(command)) return [command, ...(args ?? [])];
+  if (args?.length) {
+    throw new TypeError("pass argv as a single array or as command plus options.args, not both");
+  }
+  return [...command];
+}
+
 export function run(_session: Session, _argv: string[], _options?: ProcessRunOptions): ProcessRunHandle {
   const session = _session;
   const argv = _argv;
   const options = _options;
   if (argv.length === 0 || !argv[0]) throw new Error("empty command");
+  const bad = argv.findIndex(isUnstringifiableArgvPart);
+  if (bad !== -1) {
+    throw new TypeError(`argv[${bad}] must be a string, got ${argvPartTypeName(argv[bad])}`);
+  }
+  // protobuf-es puts a non-string straight onto the wire, so coerce here.
+  const cmd = argv.map((part) => String(part));
 
   // Round up: flooring a sub-millisecond budget to 0 would mean unbounded.
   const timeoutMs = options?.timeoutMs && options.timeoutMs > 0 ? Math.max(1, Math.floor(options.timeoutMs)) : 0;
@@ -78,7 +113,7 @@ export function run(_session: Session, _argv: string[], _options?: ProcessRunOpt
       case: "start",
       value: {
         sessionId: session.id,
-        cmd: [...argv],
+        cmd,
         cwd: options?.cwd ?? "",
         env: options?.env ?? {},
         streamStdin: true,
