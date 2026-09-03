@@ -202,6 +202,7 @@ export class Session implements SessionHandle, AsyncDisposable {
   private dataPlaneClient?: Client<typeof SandboxSessionDataPlaneService>;
   private dataPlaneVerifiedClient?: Client<typeof SandboxSessionDataPlaneService>;
   private dataPlaneEndpointFromHint = false;
+  private readonly dataPlaneEndpointHints = new DataPlaneEndpointHints();
 
   constructor(
     rpcClient: Client<typeof SandboxService>,
@@ -213,7 +214,6 @@ export class Session implements SessionHandle, AsyncDisposable {
     dataPlane?: DataPlaneConfig,
     warnings: SandboxWarning[] = [],
     private readonly warningHandler?: WarningHandler,
-    private readonly dataPlaneEndpointHints = new DataPlaneEndpointHints(),
   ) {
     this.rpcClient = rpcClient;
     this.authToken = authToken;

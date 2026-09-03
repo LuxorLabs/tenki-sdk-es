@@ -117,6 +117,30 @@ describe("TenkiSandbox client TLS options", () => {
     expect(warningHandler).toHaveBeenCalledWith(session.warnings[0]);
   });
 
+  it("isolates data-plane endpoint hints between sessions", async () => {
+    let sessionNumber = 0;
+    const createSession = vi.fn(async () =>
+      create(CreateSessionResponseSchema, {
+        session: create(SandboxSessionSchema, {
+          id: `session-${++sessionNumber}`,
+          state: SessionState.RUNNING,
+          ownerType: "SERVICE",
+          ownerId: "self",
+        }),
+      }),
+    );
+    connectMock.createClient.mockReturnValue({ createSession });
+    const client = new TenkiSandbox({ authToken: "tk_test" });
+
+    const first = await client.create({ waitReady: false });
+    const second = await client.create({ waitReady: false });
+    const firstHints = Reflect.get(first, "dataPlaneEndpointHints") as { remember(endpoint: string): void };
+    const secondHints = Reflect.get(second, "dataPlaneEndpointHints") as { current(): string };
+    firstHints.remember("https://node.test");
+
+    expect(secondHints.current()).toBe("");
+  });
+
   it("uses the default warning handler and allows suppression", async () => {
     const createSession = vi.fn(async () =>
       create(CreateSessionResponseSchema, {

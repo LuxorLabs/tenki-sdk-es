@@ -3,7 +3,6 @@ import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { DataPlaneEndpointHints } from "../src/data-plane.js";
 import { DataPlaneNotReadyError, FileNotFoundError, PauseFailedError, UnauthorizedError } from "../src/errors.js";
 import {
   CreateSessionCredentialResponseSchema,
@@ -169,48 +168,40 @@ describe("Session streaming", () => {
     expect((session as any).dataPlaneEndpoint).toBe("http://data-plane.test");
   });
 
-  it("shares an optimistic endpoint hint and refreshes a mismatched route", async () => {
-    const hints = new DataPlaneEndpointHints();
-    const firstRPC = makeRpcClient();
-    const secondRPC = makeRpcClient();
-    firstRPC.createSessionCredential = vi
-      .fn()
-      .mockResolvedValue(makeCredentialResponse(DataPlaneRouteStatus.NOT_READY, "http://first.test"));
-    secondRPC.createSessionCredential = vi
+  it("refreshes a mismatched optimistic endpoint hint", async () => {
+    const rpcClient = makeRpcClient();
+    rpcClient.createSessionCredential = vi
       .fn()
       .mockResolvedValue(makeCredentialResponse(DataPlaneRouteStatus.NOT_READY, "http://second.test"));
     const preissued = create(SessionCredentialSchema, { credential: "preissued" });
-    const makeHintedSession = (id: string, rpcClient: ReturnType<typeof makeRpcClient>) =>
-      new Session(
-        rpcClient as never,
-        create(SandboxSessionSchema, { id, state: SessionState.CREATING, ownerType: "SERVICE", ownerId: "self" }),
-        "tk_test",
-        "wss://gateway.tenki.test",
-        undefined,
-        1_000,
-        { credential: preissued, routeStatus: DataPlaneRouteStatus.NOT_READY },
-        [],
-        undefined,
-        hints,
-      );
-    const first = makeHintedSession("session-1", firstRPC);
-    const second = makeHintedSession("session-2", secondRPC);
+    const session = new Session(
+      rpcClient as never,
+      create(SandboxSessionSchema, {
+        id: "session-1",
+        state: SessionState.CREATING,
+        ownerType: "SERVICE",
+        ownerId: "self",
+      }),
+      "tk_test",
+      "wss://gateway.tenki.test",
+      undefined,
+      1_000,
+      { credential: preissued, routeStatus: DataPlaneRouteStatus.NOT_READY },
+    );
+    (session as any).dataPlaneEndpointHints.remember("http://first.test");
 
-    await Promise.all([first.ensureDataPlane(false), second.ensureDataPlane(false)]);
+    await session.ensureDataPlane(false);
 
-    expect(firstRPC.createSessionCredential).toHaveBeenCalledOnce();
-    expect(secondRPC.createSessionCredential).not.toHaveBeenCalled();
-    expect((first as any).dataPlaneEndpoint).toBe("http://first.test");
-    expect((second as any).dataPlaneEndpoint).toBe("http://first.test");
-    expect((second as any).dataPlaneCredential.current()).toBe("preissued");
+    expect(rpcClient.createSessionCredential).not.toHaveBeenCalled();
+    expect((session as any).dataPlaneEndpoint).toBe("http://first.test");
+    expect((session as any).dataPlaneCredential.current()).toBe("preissued");
 
-    await second.refreshHintedDataPlane((second as any).dataPlaneClient);
+    await session.refreshHintedDataPlane((session as any).dataPlaneClient);
 
-    expect(secondRPC.createSessionCredential).toHaveBeenCalledOnce();
-    expect((second as any).dataPlaneEndpoint).toBe("http://second.test");
-    expect((second as any).dataPlaneCredential.current()).toBe("ready");
-    (first as any).resetDataPlane();
-    (second as any).resetDataPlane();
+    expect(rpcClient.createSessionCredential).toHaveBeenCalledOnce();
+    expect((session as any).dataPlaneEndpoint).toBe("http://second.test");
+    expect((session as any).dataPlaneCredential.current()).toBe("ready");
+    (session as any).resetDataPlane();
   });
 
   it("keeps a hinted endpoint retryable when refresh fails", async () => {

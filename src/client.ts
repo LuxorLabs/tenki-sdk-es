@@ -21,7 +21,6 @@ import {
   ENV_GATEWAY_URL,
   pollBackoffMs,
 } from "./constants.js";
-import { DataPlaneEndpointHints } from "./data-plane.js";
 import {
   InvalidTemplateSpecError,
   mapError,
@@ -160,7 +159,6 @@ export class TenkiSandbox implements AsyncDisposable {
   private sshOptions?: SSHConnectOptions;
   private dataPlaneReadyTimeoutMs: number;
   private readonly warningHandler?: WarningHandler;
-  private readonly dataPlaneEndpointHints = new DataPlaneEndpointHints();
   private sessionManager?: Http2SessionManager;
   readonly previewUrls: PreviewUrlClient;
 
@@ -213,7 +211,6 @@ export class TenkiSandbox implements AsyncDisposable {
 
   // -- Sessions --
 
-  // Sessions optimistically reuse a node-origin hint and authoritatively refresh it on a route mismatch.
   async create(options?: CreateOptions): Promise<Session> {
     const req = create(CreateSessionRequestSchema, {
       ownerType: "SERVICE",
@@ -312,7 +309,6 @@ export class TenkiSandbox implements AsyncDisposable {
           undefined,
           [],
           this.warningHandler,
-          this.dataPlaneEndpointHints,
         );
         throw new TemplateRuntimeFailedError(runtimeFailure.reason || "template runtime failed", session, {
           cause: err instanceof Error ? err : undefined,
@@ -337,7 +333,6 @@ export class TenkiSandbox implements AsyncDisposable {
       dataPlane,
       warnings,
       this.warningHandler,
-      this.dataPlaneEndpointHints,
     );
     emitWarnings(this.warningHandler, warnings);
     if (!waitReady) return session;
@@ -397,7 +392,6 @@ export class TenkiSandbox implements AsyncDisposable {
         undefined,
         [],
         this.warningHandler,
-        this.dataPlaneEndpointHints,
       );
     } catch (err) {
       throw mapError(err);
@@ -441,7 +435,6 @@ export class TenkiSandbox implements AsyncDisposable {
                 undefined,
                 [],
                 this.warningHandler,
-                this.dataPlaneEndpointHints,
               ),
           ),
         );
@@ -503,7 +496,6 @@ export class TenkiSandbox implements AsyncDisposable {
       undefined,
       warnings,
       this.warningHandler,
-      this.dataPlaneEndpointHints,
     );
     emitWarnings(this.warningHandler, warnings);
     return session;
