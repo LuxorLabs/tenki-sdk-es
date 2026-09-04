@@ -88,6 +88,15 @@ describe("DataPlaneCredentialManager", () => {
 });
 
 describe("DataPlaneEndpointHints", () => {
+  it("clears a remembered endpoint", () => {
+    const hints = new DataPlaneEndpointHints();
+    hints.remember("https://node.test");
+
+    hints.clear();
+
+    expect(hints.current()).toBe("");
+  });
+
   it("singleflights concurrent endpoint discovery", async () => {
     const hints = new DataPlaneEndpointHints();
     let release!: (endpoint: string) => void;

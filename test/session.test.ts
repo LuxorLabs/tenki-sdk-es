@@ -217,6 +217,18 @@ describe("Session streaming", () => {
     (session as any).resetDataPlane();
   });
 
+  it("waits for the current volume attachment past historical detached rows", () => {
+    const session = makeSession(makeRpcClient(), makeDataPlaneRunClient());
+    session.volumeMounts = [
+      { volumeId: "vol-1", mountPath: "/data", state: "DETACHED" },
+      { volumeId: "vol-1", mountPath: "/data", state: "SYNC_PENDING" },
+    ];
+
+    expect((session as any).isVolumeDetached("vol-1")).toBe(false);
+    session.volumeMounts[1]!.state = "DETACHED";
+    expect((session as any).isVolumeDetached("vol-1")).toBe(true);
+  });
+
   it("sends Run without a separate readiness Stat", async () => {
     const dataPlane = makeDataPlaneRunClient();
     const session = makeSession(makeRpcClient(), dataPlane);

@@ -42,6 +42,10 @@ export class DataPlaneEndpointHints {
     if (resolved) this.endpoint = resolved;
   }
 
+  clear(): void {
+    this.endpoint = "";
+  }
+
   async resolve(resolveEndpoint: () => Promise<string>): Promise<string> {
     for (;;) {
       if (this.endpoint) return this.endpoint;

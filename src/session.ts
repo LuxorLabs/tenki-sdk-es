@@ -248,6 +248,7 @@ export class Session implements SessionHandle, AsyncDisposable {
       volumeId: a.volumeId,
       mountPath: a.mountPath,
       readOnly: a.readonly,
+      state: a.state,
     }));
     this.lastResumeError = proto.lastResumeError || undefined;
     this.terminalError = proto.terminalError || undefined;
@@ -377,6 +378,7 @@ export class Session implements SessionHandle, AsyncDisposable {
   private resetDataPlane(): void {
     this.dataPlaneCredential?.stop();
     closeDataPlaneConnection(this.dataPlaneClient);
+    this.dataPlaneEndpointHints.clear();
     this.dataPlaneEndpoint = "";
     this.dataPlaneCredential = undefined;
     this.dataPlaneClient = undefined;
@@ -484,6 +486,7 @@ export class Session implements SessionHandle, AsyncDisposable {
       volumeId: a.volumeId,
       mountPath: a.mountPath,
       readOnly: a.readonly,
+      state: a.state,
     }));
     this.lastResumeError = proto.lastResumeError || undefined;
     this.terminalError = proto.terminalError || undefined;
@@ -928,6 +931,7 @@ export class Session implements SessionHandle, AsyncDisposable {
           volumeId: resp.attachment.volumeId,
           mountPath: resp.attachment.mountPath,
           readOnly: resp.attachment.readonly,
+          state: resp.attachment.state,
         });
       }
     } catch (err) {
@@ -955,14 +959,18 @@ export class Session implements SessionHandle, AsyncDisposable {
       while (Date.now() < deadline) {
         options?.signal?.throwIfAborted();
         await this.refresh();
-        const attachment = this.volumeMounts.find((v) => v.volumeId === volumeId);
-        if (!attachment) break;
+        if (this.isVolumeDetached(volumeId)) break;
         await sleep(pollBackoffMs(attempt), options?.signal);
         attempt++;
       }
     }
 
     this.volumeMounts = this.volumeMounts.filter((v) => v.volumeId !== volumeId);
+  }
+
+  private isVolumeDetached(volumeId: string): boolean {
+    const attachments = this.volumeMounts.filter((mount) => mount.volumeId === volumeId);
+    return attachments.length === 0 || attachments.every((attachment) => attachment.state === "DETACHED");
   }
 
   async gitOperation(operation: string, args: Record<string, string>): Promise<string> {

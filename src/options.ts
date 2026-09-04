@@ -25,6 +25,8 @@ export interface VolumeMountConfig {
   volumeId: string;
   mountPath: string;
   readOnly?: boolean;
+  /** Attachment state returned for existing sessions; ignored when creating a session. */
+  state?: string;
 }
 
 export interface CreateOptions {
