@@ -29,6 +29,7 @@ export interface RegistryTag {
 
 export interface RegistryImage {
   id: string;
+  /** Empty for a system image, which belongs to a namespace rather than a workspace. */
   workspaceId: string;
   workspaceSlug: string;
   name: string;
@@ -47,6 +48,7 @@ export interface RegistryImage {
 
 export interface RegistryImageSummary {
   id: string;
+  /** Empty for a system image, which belongs to a namespace rather than a workspace. */
   workspaceId: string;
   workspaceSlug: string;
   name: string;
@@ -198,7 +200,7 @@ export function registryTagFromProto(proto: ProtoRegistryTag | undefined): Regis
 export function registryImageFromProto(proto: ProtoRegistryImage): RegistryImage {
   return {
     id: proto.id,
-    workspaceId: proto.workspaceId,
+    workspaceId: proto.workspaceId ?? "",
     workspaceSlug: proto.workspaceSlug,
     name: proto.name,
     kind: registryKindFromProto(proto.kind),
@@ -218,7 +220,7 @@ export function registryImageFromProto(proto: ProtoRegistryImage): RegistryImage
 export function registryImageSummaryFromProto(proto: ProtoRegistryImageSummary): RegistryImageSummary {
   return {
     id: proto.id,
-    workspaceId: proto.workspaceId,
+    workspaceId: proto.workspaceId ?? "",
     workspaceSlug: proto.workspaceSlug,
     name: proto.name,
     kind: registryKindFromProto(proto.kind),
