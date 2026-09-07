@@ -1,9 +1,10 @@
 import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { createClient, type Client, type Interceptor } from "@connectrpc/connect";
-import { createGrpcTransport, Http2SessionManager } from "@connectrpc/connect-node";
+import { createGrpcTransport, type Http2SessionManager } from "@connectrpc/connect-node";
 
 import { pollBackoffMs } from "./constants.js";
 import { DataPlaneNotReadyError, InvalidStateError, isPausedSessionStateError } from "./errors.js";
+import { DrainingHttp2SessionManager } from "./http2-drain.js";
 import {
   DataPlaneRouteStatus,
   SandboxSessionDataPlaneService,
@@ -144,7 +145,7 @@ export function createDataPlaneClient(
   let sharedSessionManager = sharedDataPlaneSessionManagers.get(origin);
   if (!sharedSessionManager) {
     sharedSessionManager = {
-      manager: new Http2SessionManager(origin),
+      manager: new DrainingHttp2SessionManager(origin),
       origin,
       references: 0,
     };

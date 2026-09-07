@@ -1,7 +1,7 @@
 import { create } from "@bufbuild/protobuf";
 import { durationFromMs, timestampDate, timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { ConnectError, createClient, type Client } from "@connectrpc/connect";
-import { createGrpcTransport, Http2SessionManager } from "@connectrpc/connect-node";
+import { createGrpcTransport, type Http2SessionManager } from "@connectrpc/connect-node";
 
 import { createAuthInterceptor, validateAuthToken } from "./auth.js";
 import {
@@ -29,6 +29,7 @@ import {
   VolumeSyncPendingError,
   WaitReadyFailedError,
 } from "./errors.js";
+import { DrainingHttp2SessionManager } from "./http2-drain.js";
 import {
   DeleteRegistryImageRequestSchema,
   DeleteRegistryImageVersionRequestSchema,
@@ -183,7 +184,7 @@ export class TenkiSandbox implements AsyncDisposable {
 
     const sessionManager = options?.transport
       ? undefined
-      : new Http2SessionManager(
+      : new DrainingHttp2SessionManager(
           baseUrl,
           undefined,
           options?.rootCertificates !== undefined ? { ca: options.rootCertificates } : undefined,

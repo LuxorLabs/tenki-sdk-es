@@ -8,7 +8,7 @@ TypeScript SDK for [Tenki Sandbox](https://tenki.cloud), programmatic cloud sand
 npm install @tenkicloud/sandbox
 ```
 
-Requires Node.js 18 or newer.
+Requires Node.js 18 or newer. Bun 1.3 or newer also works.
 
 ## Quick Start
 
