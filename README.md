@@ -277,6 +277,18 @@ const entries = await session.fs.list("/tmp");
 await session.fs.remove("/tmp/example");
 ```
 
+### Disk space
+
+The root disk defaults to 5 GB and holds the base image as well as your work, so a fresh
+sandbox already reports around 56% used. It is fixed at create time and cannot be grown in
+place — pass `diskSizeGb` (5–100) to `create` if you need more. Budget for it before a
+large install.
+
+Every `ExecResult` carries `disk`. `isDiskExhausted(result.disk)` reports whether the
+sandbox ran out of space at any point during the command — check it even when the command
+exited 0, since npm reports `ENOSPC` as a warning and still exits successfully with a
+broken install.
+
 ## Networking
 
 `allowInbound` and `allowOutbound` both default to `true`, so a session reaches the internet and can expose

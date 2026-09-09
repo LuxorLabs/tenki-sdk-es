@@ -33,7 +33,9 @@ export { list, mkdir, readFileStream, remove, stat, writeFileStream } from "./fs
 export type { FileInfo, ListOptions as FsListOptions, ReadStreamOptions, WriteStreamOptions } from "./fs.js";
 
 export type { ExecResult, CommandStatus } from "./result.js";
+export type { DiskUsage } from "./disk.js";
 export { stdoutText, stderrText, isSuccess } from "./result.js";
+export { isDiskExhausted, diskUsedBytes, diskUsedPercent } from "./disk.js";
 
 export type { Snapshot, SnapshotDownloadURL, SnapshotState } from "./snapshot.js";
 export type { Volume, VolumeAttachment, VolumeState } from "./volume.js";

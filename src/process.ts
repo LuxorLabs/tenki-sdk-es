@@ -1,6 +1,7 @@
 import { create } from "@bufbuild/protobuf";
 import { Code, ConnectError } from "@connectrpc/connect";
 
+import type { DiskUsage } from "./disk.js";
 import {
   CapabilityUnavailableError,
   dataPlaneNotReadyError,
@@ -50,6 +51,24 @@ export interface ProcessRunResult {
   errno?: number;
   /** Execution budget spent. May be set alongside `exitCode: 0`. */
   timedOut?: boolean;
+  /** Sandbox filesystem state observed while the command ran. */
+  disk?: DiskUsage;
+}
+
+/** Maps the guest exit frame's disk fields, which are absent on older guests. */
+function diskUsageFromExit(exit: {
+  diskTotalBytes: bigint;
+  diskFreeBytes: bigint;
+  diskAvailableBytes: bigint;
+  diskMinAvailableBytes: bigint;
+}): DiskUsage | undefined {
+  if (exit.diskTotalBytes <= 0n) return undefined;
+  return {
+    totalBytes: Number(exit.diskTotalBytes),
+    freeBytes: Number(exit.diskFreeBytes),
+    availableBytes: Number(exit.diskAvailableBytes),
+    minAvailableBytes: Number(exit.diskMinAvailableBytes),
+  };
 }
 
 export interface ProcessRunHandle extends PromiseLike<ProcessRunResult> {
@@ -291,6 +310,7 @@ export function run(_session: Session, _argv: string[], _options?: ProcessRunOpt
               reason: exit.reason,
               errno: exit.errno,
               timedOut: exit.timedOut,
+              disk: diskUsageFromExit(exit),
             };
           }
         }
