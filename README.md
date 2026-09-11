@@ -295,6 +295,19 @@ broken install.
 ports without passing either option. They are create-time settings and cannot be changed on an existing
 session; `session.inboundEnabled` / `session.outboundEnabled` report what a session was created with.
 
+### Egress allowlist
+
+Restrict outbound access with `allowDomains` and `allowCidrs`. A session that may only reach PyPI:
+
+```typescript
+const session = await client.create({
+  allowDomains: ["pypi.org", "*.pypi.org", "files.pythonhosted.org"],
+});
+```
+
+`allowOutbound: false` still blocks everything, regardless of `allowDomains`/`allowCidrs`.
+Read the allowlist back from `session.egress`.
+
 Expose a sandbox port:
 
 ```typescript

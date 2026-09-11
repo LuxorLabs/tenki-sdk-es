@@ -154,6 +154,19 @@ export interface SessionFs {
   list(path: string, options?: FsListOptions): Promise<FileInfo[]>;
 }
 
+/** Outbound allowlist echoed back on a session. Both lists empty means unrestricted. */
+export interface SessionEgressPolicy {
+  allowDomains: string[];
+  allowCidrs: string[];
+}
+
+function egressFromProto(proto: SandboxSession): SessionEgressPolicy {
+  return {
+    allowDomains: [...(proto.egress?.allowDomains ?? [])],
+    allowCidrs: [...(proto.egress?.allowCidrs ?? [])],
+  };
+}
+
 export class Session implements SessionHandle, AsyncDisposable {
   readonly id: string;
   readonly rpcClient: Client<typeof SandboxService>;
@@ -179,6 +192,7 @@ export class Session implements SessionHandle, AsyncDisposable {
   pauseExpiresAt?: Date;
   metadata: Record<string, string>;
   tags: string[];
+  egress: SessionEgressPolicy;
   volumeMounts: VolumeMountConfig[];
   pauseSnapshot?: Snapshot;
   lastResumeError?: string;
@@ -243,6 +257,7 @@ export class Session implements SessionHandle, AsyncDisposable {
     this.pauseExpiresAt = proto.pauseExpiresAt ? timestampDate(proto.pauseExpiresAt) : undefined;
     this.metadata = { ...proto.metadata };
     this.tags = [...(proto.tags ?? [])];
+    this.egress = egressFromProto(proto);
     this.pauseSnapshot = proto.pauseSnapshot ? snapshotFromProto(proto.pauseSnapshot) : undefined;
     this.volumeMounts = (proto.volumeAttachments ?? []).map((a) => ({
       volumeId: a.volumeId,
@@ -481,6 +496,7 @@ export class Session implements SessionHandle, AsyncDisposable {
     this.pauseExpiresAt = proto.pauseExpiresAt ? timestampDate(proto.pauseExpiresAt) : undefined;
     this.metadata = { ...proto.metadata };
     this.tags = [...(proto.tags ?? [])];
+    this.egress = egressFromProto(proto);
     this.pauseSnapshot = proto.pauseSnapshot ? snapshotFromProto(proto.pauseSnapshot) : undefined;
     this.volumeMounts = (proto.volumeAttachments ?? []).map((a) => ({
       volumeId: a.volumeId,

@@ -63,6 +63,7 @@ import {
   ListWorkspaceSnapshotsRequestSchema,
   ResizeVolumeRequestSchema,
   SandboxService,
+  SessionEgressPolicySchema,
   TemplateRuntimeFailureSchema,
   UpdateSessionRequestSchema,
   UpdateSnapshotRequestSchema,
@@ -228,6 +229,13 @@ export class TenkiSandbox implements AsyncDisposable {
       setupEnv: { ...(options?.setupEnv ?? {}) },
       setupSecrets: { ...(options?.setupSecrets ?? {}) },
     });
+
+    if (options?.allowDomains?.length || options?.allowCidrs?.length) {
+      req.egress = create(SessionEgressPolicySchema, {
+        allowDomains: options?.allowDomains ?? [],
+        allowCidrs: options?.allowCidrs ?? [],
+      });
+    }
 
     const image = registryRefOf(options?.image);
     const templateSpecId = options?.fromTemplateSpec ? resourceIdOf(options.fromTemplateSpec) : "";

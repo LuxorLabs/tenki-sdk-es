@@ -504,6 +504,37 @@ describe("TenkiSandbox client TLS options", () => {
     );
   });
 
+  it("sets egress only when allowDomains or allowCidrs is non-empty, and echoes it on the session", async () => {
+    const createSession = vi.fn(async () =>
+      create(CreateSessionResponseSchema, {
+        session: create(SandboxSessionSchema, {
+          id: "session-1",
+          state: SessionState.CREATING,
+          ownerType: "SERVICE",
+          ownerId: "self",
+          egress: { allowDomains: ["*.pypi.org", "files.pythonhosted.org"], allowCidrs: ["10.0.0.0/8"] },
+        }),
+      }),
+    );
+    connectMock.createClient.mockReturnValue({ createSession });
+    const client = new TenkiSandbox({ authToken: "tk_test" });
+
+    await client.create({ waitReady: false });
+    const session = await client.create({
+      allowDomains: ["*.pypi.org", "files.pythonhosted.org"],
+      allowCidrs: ["10.0.0.0/8"],
+      waitReady: false,
+    });
+
+    expect(createSession.mock.calls[0]?.[0].egress).toBeUndefined();
+    expect(createSession.mock.calls[1]?.[0].egress?.allowDomains).toEqual(["*.pypi.org", "files.pythonhosted.org"]);
+    expect(createSession.mock.calls[1]?.[0].egress?.allowCidrs).toEqual(["10.0.0.0/8"]);
+    expect(session.egress).toEqual({
+      allowDomains: ["*.pypi.org", "files.pythonhosted.org"],
+      allowCidrs: ["10.0.0.0/8"],
+    });
+  });
+
   it("routes primary session and snapshot lists through Workspace RPCs", async () => {
     const listWorkspaceSandboxes = vi.fn(async () => ({ sessions: [] }));
     const listWorkspaceSnapshots = vi.fn(async () => ({ snapshots: [] }));
