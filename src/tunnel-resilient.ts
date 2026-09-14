@@ -2,6 +2,7 @@ import type { Session } from "./session.js";
 import {
   exposeHostPort,
   type HostPortTunnel,
+  type HostPortTunnelEndpoint,
   type HostPortTunnelOptions,
   type HostPortTunnelTermination,
   type TunnelTerminationReason,
@@ -23,6 +24,7 @@ export interface ResilientHostPortTunnelOptions extends HostPortTunnelOptions {
 
 export interface ResilientHostPortTunnel extends HostPortTunnel {
   readonly state: ResilientHostPortTunnelState;
+  endpoint(): HostPortTunnelEndpoint;
   onStateChange(cb: (event: ResilientHostPortTunnelStateEvent) => void): void;
 }
 
@@ -125,6 +127,9 @@ export async function exposeHostPortResilient(
   reconnectLoop().catch((error: unknown) => finish({ reason: "transport_error", error }));
 
   return {
+    endpoint() {
+      return [current.sandboxAddress, current.sandboxPort];
+    },
     get sandboxPort() {
       return current.sandboxPort;
     },

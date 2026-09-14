@@ -332,6 +332,7 @@ const tunnel = await session.resilientHostPortTunnel("127.0.0.1", 3000, {
   sandboxPort: 8080,
 });
 
+const [address, port] = tunnel.endpoint();
 await tunnel.close();
 ```
 

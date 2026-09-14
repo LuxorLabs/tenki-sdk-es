@@ -105,6 +105,7 @@ describe("resilient host port tunnel", () => {
     first.push(terminated(HostPortTunnelTerminated_Reason.SESSION_LOST, "lost"));
     await waitFor(() => tunnel.sandboxPort === 9101);
 
+    expect(tunnel.endpoint()).toEqual([tunnel.sandboxAddress, 9101]);
     expect(tunnel.state).toBe("open");
     expect(events).toContain("reconnecting");
     expect(events).toContain("open");

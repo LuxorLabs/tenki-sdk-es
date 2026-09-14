@@ -32,6 +32,8 @@ export interface HostPortTunnelTermination {
   error?: unknown;
 }
 
+export type HostPortTunnelEndpoint = readonly [address: string, port: number];
+
 export interface HostPortTunnel {
   sandboxPort: number;
   sandboxAddress: string;
