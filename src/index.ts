@@ -184,3 +184,16 @@ export {
   DEFAULT_EXEC_TIMEOUT_MS,
   DEFAULT_VOLUME_DETACH_TIMEOUT_MS,
 } from "./constants.js";
+
+export { WorkspaceClient, type WorkspaceOptions } from "./workspace.js";
+export { WorkspaceSecretError } from "./workspace-secrets.js";
+export type {
+  SecretDeliveryMode,
+  SecretDestinationMode,
+  SecretPolicy,
+  WorkspaceSecret,
+  WorkspaceSecretVersion,
+  SecretMutationOptions,
+  UpdateSecretOptions,
+  SecretPageOptions,
+} from "./workspace-secrets.js";

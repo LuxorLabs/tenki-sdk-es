@@ -513,3 +513,38 @@ try {
 ```typescript
 import { GB, GiB, KB, KiB, MB, MiB, TB, TiB } from "@tenkicloud/sandbox";
 ```
+
+## Workspace secrets
+
+`WorkspaceClient` exposes workspace resources through `workspace.secrets`, independently of sandbox Sessions:
+
+```typescript
+import { WorkspaceClient } from "@tenkicloud/sandbox";
+
+await using workspace = new WorkspaceClient({ workspaceId });
+const secret = await workspace.secrets.create(
+  "TOKEN",
+  valueBytes,
+  {
+    deliveryMode: "guest_and_injection",
+    destinationMode: "unset",
+  },
+  requestId,
+);
+```
+
+Authentication uses `TENKI_AUTH_TOKEN` or `TENKI_API_KEY`. Set `baseUrl` or
+`TENKI_CLOUD_API_URL` to override the cloud API endpoint independently of sandbox
+configuration. Set `workspaceId` once on the client. An omitted or empty workspace ID uses the authenticated workspace key's scope;
+other callers must specify one.
+
+`create`, `update`, `get`, `list`, `listVersions`, `revoke`, and `delete` return
+metadata only. Values are `Uint8Array`; omitting `value` on update retains it, while
+an empty array creates an empty value. Update, revoke, and delete require
+`expectedRevision`. To select an existing version, update `activeVersion` with
+`value` omitted. Revoking without `version` irreversibly revokes the entire secret.
+
+Mutations generate a request ID when none is supplied. For retries after an
+uncertain result, supply and reuse the same request ID and identical arguments.
+The SDK does not retry mutations automatically. `WorkspaceSecretError.code`
+preserves the RPC status, including revision conflicts.
