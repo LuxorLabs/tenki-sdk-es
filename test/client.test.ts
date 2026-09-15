@@ -480,6 +480,27 @@ describe("TenkiSandbox client TLS options", () => {
     );
   });
 
+  it("warns for the deprecated idleTimeoutMinutes and keeps it off the wire", async () => {
+    const createSession = vi.fn(async () =>
+      create(CreateSessionResponseSchema, {
+        session: create(SandboxSessionSchema, {
+          id: "session-1",
+          state: SessionState.CREATING,
+          ownerType: "SERVICE",
+          ownerId: "self",
+        }),
+      }),
+    );
+    connectMock.createClient.mockReturnValue({ createSession });
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const client = new TenkiSandbox({ authToken: "tk_test" });
+
+    await client.create({ idleTimeoutMinutes: 15, waitReady: false });
+
+    expect(createSession.mock.calls[0]?.[0].idleTimeoutMinutes).toBeUndefined();
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("idleTimeoutMinutes is deprecated"));
+  });
+
   it("serializes default and explicit false inbound policy", async () => {
     const createSession = vi.fn(async () =>
       create(CreateSessionResponseSchema, {

@@ -40,6 +40,10 @@ export interface CreateOptions {
   /** Restricts outbound access to these IPv4 CIDRs. No effect if allowOutbound is false. */
   allowCidrs?: string[];
   maxDurationMs?: number;
+  /**
+   * Ignored: sandboxes do not auto-pause on idle.
+   * @deprecated Removed in the next major release; use maxDurationMs instead.
+   */
   idleTimeoutMinutes?: number;
   pauseRetentionMs?: number;
   cpuCores?: number;

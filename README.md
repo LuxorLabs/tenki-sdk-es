@@ -65,7 +65,6 @@ const session = await sandbox.create({
   diskSizeGb: 10,
   allowInbound: true,
   allowOutbound: true,
-  idleTimeoutMinutes: 15,
   env: { NODE_ENV: "production" },
   metadata: { purpose: "ci" },
   tags: ["ci"],
@@ -82,9 +81,12 @@ await session.resume();
 await session.close();
 ```
 
-`sticky: true` discards `maxDurationMs` and disables automatic idle pause.
-Manual pause and resume do not clear sticky. The returned `session.warnings`
-array retains the structured warning. By default,
+`idleTimeoutMinutes` is deprecated and ignored: sandboxes do not auto-pause on
+idle. Use `maxDurationMs`, or `session.pause()` to pause explicitly.
+
+`sticky: true` discards `maxDurationMs` and runs the session until it is
+terminated. Manual pause and resume do not clear sticky. The returned
+`session.warnings` array retains the structured warning. By default,
 `TenkiSandbox` writes each warning to `console.warn`. Set `warningHandler` to
 route warnings through your logger, or pass `null` to suppress emission:
 

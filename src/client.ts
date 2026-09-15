@@ -256,7 +256,7 @@ export class TenkiSandbox implements AsyncDisposable {
       req.maxDuration = durationFromMs(options.maxDurationMs);
     }
     if (options?.idleTimeoutMinutes != null) {
-      req.idleTimeoutMinutes = options.idleTimeoutMinutes;
+      warnIdleTimeoutDeprecated();
     }
     if (options?.pauseRetentionMs && options.pauseRetentionMs > 0) {
       req.pauseRetention = durationFromMs(options.pauseRetentionMs);
@@ -1256,6 +1256,16 @@ export class TenkiSandbox implements AsyncDisposable {
   async [Symbol.asyncDispose](): Promise<void> {
     this.close();
   }
+}
+
+let idleTimeoutDeprecationWarned = false;
+
+function warnIdleTimeoutDeprecated(): void {
+  if (idleTimeoutDeprecationWarned) return;
+  idleTimeoutDeprecationWarned = true;
+  console.warn(
+    "tenki sandbox: idleTimeoutMinutes is deprecated and ignored; sandboxes do not auto-pause on idle. Use maxDurationMs to bound a session's lifetime.",
+  );
 }
 
 function normalizeTags(tags: string[]): string[] {
