@@ -1,5 +1,5 @@
 import { create } from "@bufbuild/protobuf";
-import { timestampDate } from "@bufbuild/protobuf/wkt";
+import { timestampDate, timestampFromDate } from "@bufbuild/protobuf/wkt";
 import type { Client } from "@connectrpc/connect";
 
 import { mapError } from "./errors.js";
@@ -34,6 +34,8 @@ export interface PreviewUrl {
   wildcardStatus?: WildcardStatus;
   /** Actionable reason when wildcardStatus is "FAILED"; empty otherwise. */
   wildcardStatusReason?: string;
+  /** Deadline after which the URL stops serving; undefined means it does not expire. */
+  expiresAt?: Date;
 }
 
 export interface PreviewUrlOptions {
@@ -41,11 +43,15 @@ export interface PreviewUrlOptions {
   workspaceId?: string;
   sessionId?: string;
   port?: number;
+  /** Deadline after which the URL stops serving. */
+  expiresAt?: Date;
 }
 
 export interface PreviewUrlListOptions {
   /** Explicit workspace scope for service-token callers. Workspace API keys infer this server-side. */
   workspaceId?: string;
+  /** Restrict the result to the preview URLs bound to one session. */
+  sessionId?: string;
 }
 
 export function previewUrlFromProto(proto: ProtoPreviewUrl | undefined): PreviewUrl | undefined {
@@ -65,17 +71,20 @@ export function previewUrlFromProto(proto: ProtoPreviewUrl | undefined): Preview
     wildcard: proto.wildcard ?? false,
     wildcardStatus: wildcardStatusFromProto(proto.wildcardStatus),
     wildcardStatusReason: proto.wildcardStatusReason ?? "",
+    expiresAt: proto.expiresAt ? timestampDate(proto.expiresAt) : undefined,
   };
 }
 
 export class PreviewUrlClient {
   constructor(private readonly rpcClient: Client<typeof SandboxService>) {}
 
+  /** Create a preview URL. `slug` is required and must be unique within the workspace. */
   async create(slug: string, options?: PreviewUrlOptions): Promise<PreviewUrl> {
     try {
       const resp = await this.rpcClient.createPreviewUrl(
         create(CreatePreviewUrlRequestSchema, {
-          slug,
+          slug: slug.trim(),
+          expiresAt: options?.expiresAt ? timestampFromDate(options.expiresAt) : undefined,
           workspaceId: options?.workspaceId,
           sessionId: options?.sessionId,
           port: options?.port,
@@ -95,10 +104,15 @@ export class PreviewUrlClient {
     }
   }
 
-  async bind(previewUrlId: string, sessionId: string, port: number): Promise<PreviewUrl> {
+  async bind(previewUrlId: string, sessionId: string, port: number, expiresAt?: Date): Promise<PreviewUrl> {
     try {
       const resp = await this.rpcClient.bindPreviewUrl(
-        create(BindPreviewUrlRequestSchema, { previewUrlId, sessionId, port }),
+        create(BindPreviewUrlRequestSchema, {
+          previewUrlId,
+          sessionId,
+          port,
+          expiresAt: expiresAt ? timestampFromDate(expiresAt) : undefined,
+        }),
       );
       return previewUrlFromProto(resp.previewUrl)!;
     } catch (err) {
@@ -123,6 +137,7 @@ export class PreviewUrlClient {
         const resp = await this.rpcClient.listPreviewUrls(
           create(ListPreviewUrlsRequestSchema, {
             workspaceId: options?.workspaceId,
+            sessionId: options?.sessionId,
             pageSize: automaticPageSize(),
             pageToken,
           }),
