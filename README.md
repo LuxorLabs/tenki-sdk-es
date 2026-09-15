@@ -120,6 +120,41 @@ Pass `0` as `timeoutMs` to wait until an abort signal cancels the call.
 `DURABLE` snapshots are portable to eligible hosts.
 `LOCAL_READY` is not resumable for pause operations.
 
+### What survives a pause
+
+Pause captures the VM's full memory, not only its disk: a resumed session is the
+same running machine, not a reboot. Processes keep their PIDs and their in-memory
+state, and the guest clock stops for the duration of the pause.
+
+`/tmp` is cleared across a pause. Keep durable state under `/home/tenki`, which
+is preserved.
+
+While a session is paused it serves no traffic: preview requests return `404`
+until it resumes. The client connection itself is not dropped — a held
+keep-alive connection returns `200` again after resume — so treat a paused
+session as unavailable rather than disconnected.
+
+SSH is different: a held transport fails on use while paused and does not
+recover after resume, so reconnect rather than retry on it. A fresh
+connection succeeds as soon as the session is `RUNNING` again.
+
+```typescript
+async function text(cmd: string): Promise<string> {
+  const result = await session.exec(["bash", "-lc", cmd]);
+  return new TextDecoder().decode(result.stdout).trim();
+}
+
+await text("echo hello > ~/marker");
+await text("setsid nohup sleep 3600 >/dev/null 2>&1 </dev/null &");
+const pid = await text("pgrep -n sleep");
+
+await session.pause();
+await session.resume();
+
+console.log(await text("cat ~/marker")); // "hello" - the marker file survived
+console.log(await text(`kill -0 ${pid} && echo alive`)); // "alive" - same process, same memory
+```
+
 ## Commands
 
 ```typescript
