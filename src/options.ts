@@ -67,6 +67,10 @@ export interface CreateOptions {
   setupEnv?: Record<string, string>;
   /** Secret environment used only during template checkout/setup. */
   setupSecrets?: Record<string, string>;
+  /** Managed boot runtime authored with TemplateSpec.start/processCompose. */
+  directRuntime?: TemplateSpec;
+  /** Declared secret names mapped to replacement names in the launching workspace. */
+  secretOverrides?: Record<string, string>;
   enableOpenCode?: boolean;
   cloneRepoUrl?: string;
   volumes?: VolumeMountConfig[];

@@ -32,6 +32,7 @@ export interface Snapshot {
   memoryMb: number;
   diskSizeGb: number;
   rawImageAvailable: boolean;
+  readonly hasRuntimeSecrets: boolean;
 }
 
 export function snapshotStateFromProto(state: ProtoSnapshotState): SnapshotState {
@@ -91,5 +92,6 @@ export function snapshotFromProto(proto: ProtoSnapshot): Snapshot {
     memoryMb: proto.memoryMb,
     diskSizeGb: proto.diskSizeGb,
     rawImageAvailable: proto.rawImageAvailable,
+    hasRuntimeSecrets: proto.hasRuntimeSecrets,
   };
 }

@@ -96,6 +96,8 @@ export type TemplateRestartPolicyOption = "never" | "on-failure" | "always";
 export type TemplateSnapshotModeOption = "filesystem" | "memory";
 
 export interface TemplateRuntimeOptions {
+  /** Environment targets mapped to secret names in the launching workspace. */
+  secretEnv?: Record<string, string>;
   runAt?: TemplateRunAt;
   restartPolicy?: TemplateRestartPolicyOption;
   snapshotMode?: TemplateSnapshotModeOption;
@@ -224,6 +226,35 @@ export class TemplateSpec {
   /** @internal */
   toProto(): ProtoTemplateBuildSpec {
     return clone(TemplateBuildSpecSchema, this.proto);
+  }
+
+  /** @internal Extract the managed runtime for direct Session launch. */
+  toDirectRuntimeProto(): ProtoTemplateRuntime {
+    const p = this.toProto();
+    if (
+      p.base?.source.case !== "image" ||
+      p.base.source.value !== "sandbox" ||
+      p.context ||
+      p.build ||
+      p.steps.length ||
+      p.resources
+    ) {
+      throw new InvalidTemplateSpecError(
+        "directRuntime accepts runtime settings only; configure the launch image and resources on create",
+      );
+    }
+    const violations = this.validate();
+    if (violations.length)
+      throw new InvalidTemplateSpecError(violations.map((v) => `${v.field}: ${v.message}`).join("; "));
+    if (
+      !p.runtime ||
+      (p.runtime.runAt !== TemplateRuntimeRunAt.UNSPECIFIED && p.runtime.runAt !== TemplateRuntimeRunAt.BOOT)
+    ) {
+      throw new InvalidTemplateSpecError("directRuntime requires a boot runtime entrypoint");
+    }
+    if (p.runtime.entrypoint.case && !p.runtime.entrypoint.value.workdir)
+      p.runtime.entrypoint.value.workdir = p.workdir;
+    return p.runtime;
   }
 
   /** Authored JSON document with short enum values; `JSON.stringify(spec)` uses this. */
@@ -542,6 +573,7 @@ function ensureRuntime(p: ProtoTemplateBuildSpec): ProtoTemplateRuntime {
 
 function applyRuntimeOptions(runtime: ProtoTemplateRuntime, options?: TemplateRuntimeOptions): void {
   if (!options) return;
+  if (options.secretEnv !== undefined) runtime.secretEnv = { ...options.secretEnv };
   if (options.runAt !== undefined) {
     runtime.runAt =
       options.runAt === "boot"
@@ -730,6 +762,16 @@ function validateStep(step: TemplateStep, index: number, hasContext: boolean, v:
 }
 
 function validateRuntime(runtime: ProtoTemplateRuntime, v: TemplateSpecViolation[]): void {
+  if (Object.keys(runtime.secretEnv).length > 64)
+    v.push({ field: "runtime.secretEnv", message: "at most 64 secret references are supported" });
+  for (const [target, name] of Object.entries(runtime.secretEnv)) {
+    if (!/^[A-Za-z_][A-Za-z0-9_]{0,127}$/.test(target))
+      v.push({ field: "runtime.secretEnv", message: "invalid environment target" });
+    if (!/^[A-Za-z_][A-Za-z0-9_-]{0,127}$/.test(name))
+      v.push({ field: "runtime.secretEnv", message: "invalid workspace secret name" });
+    if (Object.hasOwn(runtime.env, target))
+      v.push({ field: "runtime.secretEnv", message: "secret target conflicts with runtime environment" });
+  }
   if (Object.keys(runtime.env).length > 256) {
     v.push({ field: "runtime.env", message: "at most 256 runtime environment variables are supported" });
   }

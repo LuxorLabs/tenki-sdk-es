@@ -198,6 +198,10 @@ export class Session implements SessionHandle, AsyncDisposable {
   lastResumeError?: string;
   terminalError?: string;
   runtimeState: RuntimeState;
+  private runtimeSecretsPresent: boolean;
+  get hasRuntimeSecrets(): boolean {
+    return this.runtimeSecretsPresent;
+  }
   runtimeError?: string;
   sticky: boolean;
   public readonly sourceRegistryImageId?: string;
@@ -268,6 +272,7 @@ export class Session implements SessionHandle, AsyncDisposable {
     this.lastResumeError = proto.lastResumeError || undefined;
     this.terminalError = proto.terminalError || undefined;
     this.runtimeState = templateRuntimeStateFromProto(proto.runtimeState);
+    this.runtimeSecretsPresent = proto.hasRuntimeSecrets;
     this.runtimeError = proto.runtimeError || undefined;
     this.sticky = proto.sticky;
     this.sourceRegistryImageId = proto.sourceRegistryImageId || undefined;
@@ -507,6 +512,7 @@ export class Session implements SessionHandle, AsyncDisposable {
     this.lastResumeError = proto.lastResumeError || undefined;
     this.terminalError = proto.terminalError || undefined;
     this.runtimeState = templateRuntimeStateFromProto(proto.runtimeState);
+    this.runtimeSecretsPresent = proto.hasRuntimeSecrets;
     this.runtimeError = proto.runtimeError || undefined;
     this.sticky = proto.sticky;
   }

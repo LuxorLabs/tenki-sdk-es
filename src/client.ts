@@ -228,6 +228,8 @@ export class TenkiSandbox implements AsyncDisposable {
       cloneRepoUrl: options?.cloneRepoUrl ?? "",
       setupEnv: { ...(options?.setupEnv ?? {}) },
       setupSecrets: { ...(options?.setupSecrets ?? {}) },
+      runtime: options?.directRuntime?.toDirectRuntimeProto(),
+      secretOverrides: { ...(options?.secretOverrides ?? {}) },
     });
 
     if (options?.allowDomains?.length || options?.allowCidrs?.length) {
@@ -265,6 +267,8 @@ export class TenkiSandbox implements AsyncDisposable {
       req.sticky = true;
     }
     const waitReady = options?.waitReady !== false;
+    if (req.runtime && options?.fromTemplateSpec)
+      throw new InvalidTemplateSpecError("directRuntime conflicts with fromTemplateSpec");
     const waitForRuntime = options?.waitForRuntime ?? false;
     // Wait client-side so WaitSession can expose the endpoint and prewarm the data plane during provision.
     req.waitReady = waitReady && waitForRuntime;
@@ -300,6 +304,11 @@ export class TenkiSandbox implements AsyncDisposable {
     if (options?.githubToken?.trim()) {
       req.env["GH_TOKEN"] = options.githubToken.trim();
       req.env["GIT_TOKEN"] = options.githubToken.trim();
+    }
+
+    for (const target of Object.keys(req.runtime?.secretEnv ?? {})) {
+      if (Object.hasOwn(req.env, target))
+        throw new InvalidTemplateSpecError("secret target conflicts with session environment");
     }
 
     let resp;

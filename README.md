@@ -585,3 +585,22 @@ Mutations generate a request ID when none is supplied. For retries after an
 uncertain result, supply and reuse the same request ID and identical arguments.
 The SDK does not retry mutations automatically. `WorkspaceSecretError.code`
 preserves the RPC status, including revision conflicts.
+
+Workspace secrets can be referenced by a managed runtime without passing their values:
+
+```typescript
+const runtime = new TemplateSpec().start("npm start", {
+  secretEnv: { API_TOKEN: "app-token" },
+});
+const session = await sandbox.create({
+  image: "team/base:v1",
+  directRuntime: runtime,
+  secretOverrides: { "app-token": "development-token" },
+});
+```
+
+The same `secretEnv` option works with `startArgs` and `processCompose` in stored
+templates. Names resolve in the launching workspace. `directRuntime` accepts a
+runtime-only `TemplateSpec` and starts at boot; use create options for the image
+and resources. Secret targets cannot also appear in ordinary runtime/session env.
+`session.hasRuntimeSecrets` and `snapshot.hasRuntimeSecrets` are read-only markers.
