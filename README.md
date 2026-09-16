@@ -41,6 +41,9 @@ Pass an API key or service token starting with `tk_` explicitly, or set `TENKI_A
 const sandbox = new TenkiSandbox({ authToken: "tk_..." });
 ```
 
+`apiKey` is an alias for `authToken`. If both are supplied, `authToken` wins.
+Blank or whitespace-only values count as absent.
+
 The credential determines the Workspace automatically; ordinary Sandbox calls do not require a Workspace ID.
 
 ### Migrating to v0.7.0

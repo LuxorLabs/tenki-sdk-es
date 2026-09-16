@@ -10,6 +10,8 @@ export type RootCertificates = string | Buffer | Array<string | Buffer>;
 
 export interface ClientOptions {
   authToken?: string;
+  /** Alias for authToken. Pass one or the other, not both. */
+  apiKey?: string;
   baseUrl?: string;
   /** Optional SSH gateway address override. Most users should omit it. */
   gatewayAddress?: string;

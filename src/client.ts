@@ -3,7 +3,7 @@ import { durationFromMs, timestampDate, timestampFromDate } from "@bufbuild/prot
 import { ConnectError, createClient, type Client } from "@connectrpc/connect";
 import { createGrpcTransport, type Http2SessionManager } from "@connectrpc/connect-node";
 
-import { createAuthInterceptor, validateAuthToken } from "./auth.js";
+import { createAuthInterceptor, resolveAuthToken } from "./auth.js";
 import {
   DEFAULT_BASE_URL,
   DEFAULT_CPU_CORES,
@@ -15,9 +15,7 @@ import {
   DEFAULT_TEMPLATE_SPEC_CREATE_TIMEOUT_MS,
   DEFAULT_TIMEOUT_MS,
   ENV_API_ENDPOINT,
-  ENV_API_KEY,
   ENV_API_URL,
-  ENV_AUTH_TOKEN,
   ENV_GATEWAY_URL,
   pollBackoffMs,
 } from "./constants.js";
@@ -167,9 +165,7 @@ export class TenkiSandbox implements AsyncDisposable {
   constructor(options?: ClientOptions) {
     this.warningHandler =
       options?.warningHandler === undefined ? defaultWarningHandler : (options.warningHandler ?? undefined);
-    // Auth resolution
-    const authToken = options?.authToken?.trim() || env(ENV_AUTH_TOKEN) || env(ENV_API_KEY) || "";
-    this.authToken = validateAuthToken(authToken);
+    this.authToken = resolveAuthToken(options?.authToken, options?.apiKey);
 
     // URL resolution
     const baseUrl = options?.baseUrl?.trim() || env(ENV_API_ENDPOINT) || env(ENV_API_URL) || DEFAULT_BASE_URL;

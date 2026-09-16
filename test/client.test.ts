@@ -53,6 +53,17 @@ describe("TenkiSandbox client TLS options", () => {
     expect(connectMock.createClient).not.toHaveBeenCalled();
   });
 
+  it("accepts apiKey as an alias for authToken", () => {
+    expect(new TenkiSandbox({ apiKey: "tk_alias" })).toBeInstanceOf(TenkiSandbox);
+    expect(connectMock.createClient).toHaveBeenCalled();
+  });
+
+  // Backwards compatibility: apiKey was silently ignored before it became an alias.
+  it("prefers authToken when both are supplied", () => {
+    expect(new TenkiSandbox({ authToken: "tk_one", apiKey: "tk_two" })).toBeInstanceOf(TenkiSandbox);
+    expect(connectMock.createClient).toHaveBeenCalled();
+  });
+
   it("passes root certificates to the default HTTP/2 session manager", () => {
     const rootCertificates = "-----BEGIN CERTIFICATE-----\ncorp\n-----END CERTIFICATE-----\n";
 

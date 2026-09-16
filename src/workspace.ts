@@ -1,7 +1,7 @@
 import { createClient, type Transport } from "@connectrpc/connect";
 import { createGrpcTransport } from "@connectrpc/connect-node";
 
-import { createAuthInterceptor, validateAuthToken } from "./auth.js";
+import { createAuthInterceptor, resolveAuthToken } from "./auth.js";
 import { DrainingHttp2SessionManager } from "./http2-drain.js";
 import * as pb from "./internal/proto/tenki/cloud/workspace/v1beta1/secrets_pb.js";
 import { Secrets } from "./workspace-secrets.js";
@@ -9,6 +9,8 @@ import { Secrets } from "./workspace-secrets.js";
 export interface WorkspaceOptions {
   workspaceId?: string;
   authToken?: string;
+  /** Alias for authToken. Pass one or the other, not both. */
+  apiKey?: string;
   /** Cloud API endpoint, independent of sandbox endpoint configuration. */
   baseUrl?: string;
   transport?: Transport;
@@ -20,9 +22,7 @@ export class WorkspaceClient implements AsyncDisposable {
   readonly secrets: Secrets;
   private readonly sessionManager?: DrainingHttp2SessionManager;
   constructor(options: WorkspaceOptions = {}) {
-    const token = validateAuthToken(
-      options.authToken || process.env.TENKI_AUTH_TOKEN || process.env.TENKI_API_KEY || "",
-    );
+    const token = resolveAuthToken(options.authToken, options.apiKey);
     const baseUrl = options.baseUrl || process.env.TENKI_CLOUD_API_URL || "https://api.tenki.cloud";
     this.sessionManager = options.transport
       ? undefined
