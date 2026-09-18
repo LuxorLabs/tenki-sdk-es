@@ -342,6 +342,7 @@ describe("Session streaming", () => {
     await session.pause();
     expect(session.state).toBe("PAUSED");
     expect(rpcClient.pauseSession).toHaveBeenLastCalledWith(expect.objectContaining({ async: false }));
+    expect(rpcClient.getSession).not.toHaveBeenCalled();
     expect(pausedCredential.stop).toHaveBeenCalledTimes(1);
     expect((session as any).dataPlaneEndpoint).toBe("");
     expect((session as any).dataPlaneCredential).toBeUndefined();
@@ -363,7 +364,7 @@ describe("Session streaming", () => {
     expect((session as any).dataPlaneVerifiedClient).toBeUndefined();
 
     await session.pauseAsync();
-    expect(session.state).toBe("PAUSED");
+    expect(session.state).toBe("PAUSING");
     expect(rpcClient.pauseSession).toHaveBeenLastCalledWith(expect.objectContaining({ async: true }));
   });
 
@@ -811,11 +812,11 @@ function makeRpcClient() {
         });
       })(),
     ),
-    pauseSession: vi.fn(async () =>
+    pauseSession: vi.fn(async (req: { async: boolean }) =>
       create(PauseSessionResponseSchema, {
         session: create(SandboxSessionSchema, {
           id: "session-1",
-          state: SessionState.PAUSED,
+          state: req.async ? SessionState.PAUSING : SessionState.PAUSED,
           ownerType: "SERVICE",
           ownerId: "self",
         }),

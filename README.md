@@ -113,9 +113,10 @@ await sandbox.create({ snapshotId: "snap_..." });
 
 ### Durable pause
 
-`pause()` preserves legacy completion semantics and returns only after the pause completes.
-`pauseAsync()` returns after the service accepts the request and moves the session to `PAUSING`.
-Call `waitPaused()` after `pauseAsync()` when the caller needs a durable checkpoint before continuing.
+`pauseAsync()` returns after the service durably accepts the request and moves the session to `PAUSING` on a node that supports asynchronous pause.
+Snapshot capture and persistence continue in the background; acceptance does not mean the VM has stopped or the snapshot is durable.
+`pause()` retains its existing completion behavior for compatibility.
+Call `waitPaused()` before resuming or relying on a durable checkpoint.
 It resolves at `PAUSED` and throws `PauseFailedError` if a verified rollback restores `RUNNING`.
 Pass `0` as `timeoutMs` to wait until an abort signal cancels the call.
 
