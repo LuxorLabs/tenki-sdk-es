@@ -258,6 +258,13 @@ To keep hold of a service instead, use `session.run()` and read from the handle
 rather than awaiting it; for services you always want running, start them from a
 template `startCmd` instead.
 
+That last option is the durable one. Every exec child runs inside the
+guest-agent's own systemd cgroup, so a guest-agent restart kills it, and `nohup`
+does not change that. Pause and resume restore VM memory, so a backgrounded
+process does survive a pause with the same PID — which makes an ad-hoc service
+look more durable than it is. Anything load-bearing belongs in a template start
+command with a readiness probe.
+
 ### Stopping a process
 
 `signal()` and `kill()` enqueue a signal frame and resolve immediately — they do
