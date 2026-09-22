@@ -670,10 +670,7 @@ export class Session implements SessionHandle, AsyncDisposable {
       signal?.throwIfAborted();
       if (resp.session) this.applyProto(resp.session);
       this.applyDataPlaneResponse(resp.dataPlaneEndpoint, resp.credential, resp.routeStatus);
-      if (isReady(this.state)) return;
-      if (isTerminal(this.state)) {
-        throw this.terminalStateError();
-      }
+      // WaitSession closes after its final state; consume EOF to release the RPC deadline.
     }
     if (isReady(this.state)) return;
     if (isTerminal(this.state)) {

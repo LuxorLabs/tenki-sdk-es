@@ -331,6 +331,7 @@ export function run(_session: Session, _argv: string[], _options?: ProcessRunOpt
       throw err;
     } finally {
       outbound.close();
+      rpcAbort.abort();
     }
   })();
   // Suppress unhandled-rejection noise when callers (e.g. Session.stream on a

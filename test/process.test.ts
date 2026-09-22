@@ -444,6 +444,16 @@ describe("run() abort signal", () => {
   });
 });
 
+describe("run() stream cleanup", () => {
+  it.each(["exit", "capability_unavailable"])("cancels the RPC after %s", async (reason) => {
+    const session = sessionWithRunReason(reason);
+    const client = (session as unknown as { dataPlaneClient: { run: ReturnType<typeof vi.fn> } }).dataPlaneClient;
+    await Promise.resolve(run(session, ["true"])).catch(() => {});
+    const options = client.run.mock.calls[0]?.[1] as { signal: AbortSignal };
+    expect(options.signal.aborted).toBe(true);
+  });
+});
+
 describe("run() exit-reason routing", () => {
   it("first_frame_timeout reason throws PrimitiveTimeoutError", async () => {
     const proc = run(sessionWithRunReason("first_frame_timeout: no response from guest-agent within deadline"), [

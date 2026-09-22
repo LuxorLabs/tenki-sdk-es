@@ -267,6 +267,21 @@ describe("Session streaming", () => {
     expect((session as any).dataPlaneVerifiedClient).toBe((session as any).dataPlaneClient);
   });
 
+  it("waitReady consumes the stream through EOF after the ready update", async () => {
+    const rpcClient = makeRpcClient();
+    const streamFinished = vi.fn();
+    const originalWait = rpcClient.waitSession;
+    rpcClient.waitSession = vi.fn(() =>
+      (async function* () {
+        yield* originalWait();
+        streamFinished();
+      })(),
+    );
+    const session = makeSession(rpcClient, makeDataPlaneRunClient());
+    await session.waitReady(1_000);
+    expect(streamFinished).toHaveBeenCalledOnce();
+  });
+
   it("waitReady includes terminalError", async () => {
     const rpcClient = makeRpcClient();
     rpcClient.waitSession = vi.fn(() =>
