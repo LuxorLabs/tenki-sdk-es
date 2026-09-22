@@ -27,6 +27,11 @@ export interface SSHCert {
   sshCert: string;
   /** User-CA public key for known_hosts pinning. */
   caPub: string;
+  /**
+   * Whether the client should verify the gateway host certificate against
+   * caPub. False on engines that predate the field.
+   */
+  pinHostKey?: boolean;
   /** Hex-encoded serial, for audit/revocation correlation. */
   certSerial: string;
   /** Absolute expiry; new authentication attempts fail after this time. */
@@ -62,6 +67,7 @@ export async function issueSandboxSSHCert(
   return {
     sshCert: resp.sshCert,
     caPub: resp.caPub,
+    pinHostKey: resp.pinHostKey,
     certSerial: resp.certSerial,
     expiresAt: resp.expiresAt ? timestampDate(resp.expiresAt) : undefined,
     renewalAfterMs: resp.renewalAfter
