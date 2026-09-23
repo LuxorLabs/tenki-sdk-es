@@ -9,6 +9,7 @@ import {
   SessionState,
   SnapshotSchema,
 } from "../src/internal/proto/tenki/sandbox/v1/sandbox_pb.js";
+import { secretFileNames } from "../src/secret-files.js";
 import { snapshotFromProto } from "../src/snapshot.js";
 import { TemplateSpec } from "../src/template-spec.js";
 
@@ -59,6 +60,7 @@ describe("runtime workspace secret references", () => {
         image: "team/base:v1",
         directRuntime: new TemplateSpec().workdir("/app").start("app", { secretEnv: refs }),
         secretOverrides: { "shared-token": "local-token" },
+        secretFiles: [{ path: "/app/env.tpl-sandbox", content: "TOKEN=secrets://shared-token" }],
         waitReady: false,
       });
       expect(seen[0]).toMatchObject({
@@ -66,6 +68,7 @@ describe("runtime workspace secret references", () => {
         runtime: { secretEnv: refs, entrypoint: { case: "start", value: { workdir: "/app" } } },
         secretOverrides: { "shared-token": "local-token" },
       });
+      expect(seen[0].secretFiles[0]?.format).toEqual({ case: "content", value: "TOKEN=secrets://shared-token" });
       expect(session.hasRuntimeSecrets).toBe(true);
       expect(snapshotFromProto(create(SnapshotSchema, { hasRuntimeSecrets: true })).hasRuntimeSecrets).toBe(true);
       await expect(
@@ -94,4 +97,34 @@ describe("runtime workspace secret references", () => {
       await client.close();
     }
   });
+});
+
+describe("runtime secret files", () => {
+  it.each(["start", "argv", "compose"])("preserves %s file declarations without retaining caller state", (kind) => {
+    const files = [
+      { path: "/app/raw", raw: { name: "RAW" } },
+      { path: "/app/.env", content: "TOKEN=secrets://TOKEN" },
+      { path: "/app/config.yaml", source: "/app/config.tpl.yaml" },
+    ];
+    const spec =
+      kind === "compose"
+        ? new TemplateSpec().processCompose("compose.yaml", { secretFiles: files })
+        : kind === "argv"
+          ? new TemplateSpec().startArgs(["app"], { secretFiles: files })
+          : new TemplateSpec().start("app", { secretFiles: files });
+    files[0]!.path = "/etc/unsafe";
+    expect(spec.validate()).toEqual([]);
+    const runtime = TemplateSpec.fromJSON(spec.toJSON()).toDirectRuntimeProto();
+    expect(runtime.secretFiles).toHaveLength(3);
+    expect(runtime.secretFiles[0]!.path).toBe("/app/raw");
+    expect(new TemplateSpec().start("app", { secretFiles: files }).validate()).not.toEqual([]);
+  });
+});
+
+it("discovers literal file references consistently", () => {
+  expect(
+    secretFileNames("a=secrets://TOKEN,b=secrets://TOKEN,literal=\\secrets://IGNORE,header=\\secrets://API"),
+  ).toEqual(["TOKEN"]);
+  for (const text of ["secrets://", "secrets://9bad", "secrets://" + "a".repeat(129), "bad\u0000"])
+    expect(secretFileNames(text)).toBeNull();
 });

@@ -1,3 +1,4 @@
+import { toJson } from "@bufbuild/protobuf";
 import { timestampDate } from "@bufbuild/protobuf/wkt";
 
 import type {
@@ -13,6 +14,8 @@ import {
   RegistrySortBy as ProtoRegistrySortBy,
   RegistryVisibility as ProtoRegistryVisibility,
 } from "./internal/proto/tenki/sandbox/v1/registry_pb.js";
+import { RuntimeSecretFileSchema } from "./internal/proto/tenki/sandbox/v1/secret_file_pb.js";
+import type { RuntimeSecretFile } from "./secret-files.js";
 
 export type RegistryImageKind = "template" | "snapshot";
 export type RegistryVisibility = "private" | "public" | "shared";
@@ -63,6 +66,8 @@ export interface RegistryImageSummary {
 }
 
 export interface RegistryImageDetail {
+  runtimeSecretEnv: Record<string, string>;
+  runtimeSecretFiles: RuntimeSecretFile[];
   image?: RegistryImage;
   resolvedSnapshotId?: string;
   resolvedRef?: string;
@@ -237,6 +242,10 @@ export function registryImageSummaryFromProto(proto: ProtoRegistryImageSummary):
 export function registryImageDetailFromProto(proto: ProtoRegistryImageDetail | undefined): RegistryImageDetail {
   return {
     image: proto?.image ? registryImageFromProto(proto.image) : undefined,
+    runtimeSecretEnv: { ...(proto?.runtimeSecretEnv ?? {}) },
+    runtimeSecretFiles: (proto?.runtimeSecretFiles ?? []).map(
+      (file) => toJson(RuntimeSecretFileSchema, file) as unknown as RuntimeSecretFile,
+    ),
     resolvedSnapshotId: proto?.resolvedSnapshotId,
     resolvedRef: proto?.resolvedRef,
     workspaceActive: proto?.workspaceActive ?? false,

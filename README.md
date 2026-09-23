@@ -615,3 +615,29 @@ templates. Names resolve in the launching workspace. `directRuntime` accepts a
 runtime-only `TemplateSpec` and starts at boot; use create options for the image
 and resources. Secret targets cannot also appear in ordinary runtime/session env.
 `session.hasRuntimeSecrets` and `snapshot.hasRuntimeSecrets` are read-only markers.
+
+## Runtime secret files
+
+Put `secrets://API_TOKEN` in any text file, regardless of filename or extension. Built templates capture unresolved source text from the guest image; direct launches supply content read on the caller. Values resolve from the launching workspace before managed startup.
+
+```typescript
+import { readFile } from "node:fs/promises";
+
+// Built template: source is already inside the image.
+const spec = new TemplateSpec().start("python3 /app/server.py", {
+  secretFiles: [{ source: "/app/env.tpl-sandbox", path: "/app/.env" }],
+});
+
+// Direct launch: read on the caller and upload unresolved text.
+const session = await client.create({
+  image: "my-template:latest",
+  secretFiles: [{ path: "/app/.env", content: await readFile("./env.tpl-sandbox", "utf8") }],
+  secretOverrides: { API_TOKEN: "STAGING_API_TOKEN" },
+});
+```
+
+Rendering performs one literal pass, without YAML/JSON/dotenv escaping, environment expansion, or recursive substitution. A backslash before a marker escapes it. Authors must ensure the actual consumer accepts the result; do not shell-source rendered secret text. Use a raw reference for exact-byte credentials, including binary values.
+
+Allowed destinations are under `/home/tenki/`, `/workspace/`, or `/app/`. Files are private, owned by tenki, and replaced atomically. Duplicate destinations, unsafe paths, missing references, and injection-only plaintext delivery fail startup. Limits: 64 KiB per secret, 256 KiB per source/output file, 1 MiB total source/output, 32 files, and 64 references across environment and files.
+
+Guest values remain frozen across retries, restart, and ordinary resume; replacement Sessions adopt updates. Escape a file marker as `\secrets://NAME` to preserve `secrets://NAME` for separately authorized outbound injection; the marker grants no authority by itself. See [the file delivery contract](../../../docs/sandbox-secret-files.md) for lifecycle and path details.

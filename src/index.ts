@@ -197,3 +197,5 @@ export type {
   UpdateSecretOptions,
   SecretPageOptions,
 } from "./workspace-secrets.js";
+
+export type { RuntimeSecretFile, RuntimeSecretReference } from "./secret-files.js";

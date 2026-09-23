@@ -37,6 +37,7 @@ import {
   TemplateSymlinkStepSchema,
   TemplateWriteFileStepSchema,
 } from "./internal/proto/tenki/sandbox/v1/template_pb.js";
+import { secretFileToProto, validSecretFiles, type RuntimeSecretFile } from "./secret-files.js";
 
 export const TEMPLATE_SPEC_VERSION = "tenki.template.v1";
 
@@ -98,6 +99,7 @@ export type TemplateSnapshotModeOption = "filesystem" | "memory";
 export interface TemplateRuntimeOptions {
   /** Environment targets mapped to secret names in the launching workspace. */
   secretEnv?: Record<string, string>;
+  secretFiles?: RuntimeSecretFile[];
   runAt?: TemplateRunAt;
   restartPolicy?: TemplateRestartPolicyOption;
   snapshotMode?: TemplateSnapshotModeOption;
@@ -573,6 +575,7 @@ function ensureRuntime(p: ProtoTemplateBuildSpec): ProtoTemplateRuntime {
 
 function applyRuntimeOptions(runtime: ProtoTemplateRuntime, options?: TemplateRuntimeOptions): void {
   if (!options) return;
+  if (options.secretFiles !== undefined) runtime.secretFiles = options.secretFiles.map(secretFileToProto);
   if (options.secretEnv !== undefined) runtime.secretEnv = { ...options.secretEnv };
   if (options.runAt !== undefined) {
     runtime.runAt =
@@ -762,6 +765,8 @@ function validateStep(step: TemplateStep, index: number, hasContext: boolean, v:
 }
 
 function validateRuntime(runtime: ProtoTemplateRuntime, v: TemplateSpecViolation[]): void {
+  if (!validSecretFiles(runtime.secretFiles, Object.keys(runtime.secretEnv).length))
+    v.push({ field: "runtime.secretFiles", message: "invalid secret file declaration" });
   if (Object.keys(runtime.secretEnv).length > 64)
     v.push({ field: "runtime.secretEnv", message: "at most 64 secret references are supported" });
   for (const [target, name] of Object.entries(runtime.secretEnv)) {

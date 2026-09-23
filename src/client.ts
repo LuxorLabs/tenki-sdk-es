@@ -128,6 +128,7 @@ import {
   resolvedRegistryRefFromProto,
 } from "./registry.js";
 import { validateCreateResources, validateTemplateResources } from "./resources.js";
+import { secretFileToProto, validSecretFiles } from "./secret-files.js";
 import { isReady, isTerminal, Session } from "./session.js";
 import type { Snapshot, SnapshotDownloadURL } from "./snapshot.js";
 import { snapshotFromProto, snapshotIsReady, snapshotIsTerminal } from "./snapshot.js";
@@ -226,8 +227,12 @@ export class TenkiSandbox implements AsyncDisposable {
       setupSecrets: { ...(options?.setupSecrets ?? {}) },
       runtime: options?.directRuntime?.toDirectRuntimeProto(),
       secretOverrides: { ...(options?.secretOverrides ?? {}) },
+      secretFiles: (options?.secretFiles ?? []).map(secretFileToProto),
     });
 
+    if (!validSecretFiles(req.secretFiles, 0) || req.secretFiles.some((file) => file.format.case === "source")) {
+      throw new Error("Invalid direct secret files; image source paths require a template build");
+    }
     if (options?.allowDomains?.length || options?.allowCidrs?.length) {
       req.egress = create(SessionEgressPolicySchema, {
         allowDomains: options?.allowDomains ?? [],

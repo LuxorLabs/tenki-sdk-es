@@ -2,6 +2,7 @@ import type { Buffer } from "node:buffer";
 import type { Transport } from "@connectrpc/connect";
 
 import type { RegistryImageKind, RegistrySortBy, RegistryVisibility } from "./registry.js";
+import type { RuntimeSecretFile } from "./secret-files.js";
 import type { TemplateSpec } from "./template-spec.js";
 import type { Template, TemplateImageRef } from "./template.js";
 import type { WarningHandler } from "./warning.js";
@@ -73,6 +74,8 @@ export interface CreateOptions {
   directRuntime?: TemplateSpec;
   /** Declared secret names mapped to replacement names in the launching workspace. */
   secretOverrides?: Record<string, string>;
+  /** Unresolved file contents or raw references for this launch. */
+  secretFiles?: RuntimeSecretFile[];
   enableOpenCode?: boolean;
   cloneRepoUrl?: string;
   volumes?: VolumeMountConfig[];
