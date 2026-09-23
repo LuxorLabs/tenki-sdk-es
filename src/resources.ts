@@ -1,10 +1,10 @@
 import { InvalidResourceConfigError } from "./errors.js";
 
 export const MIN_CPU_CORES = 1;
-export const MAX_CPU_CORES = 16;
+export const MAX_CPU_CORES = 128;
 export const MIN_CREATE_MEMORY_MB = 128;
 export const MIN_PROVISION_MEMORY_MB = 512;
-export const MAX_MEMORY_MB = 65536;
+export const MAX_MEMORY_MB = 524288;
 export const MIN_DISK_SIZE_GB = 5;
 export const MAX_DISK_SIZE_GB = 100;
 

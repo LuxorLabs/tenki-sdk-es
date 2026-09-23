@@ -504,11 +504,11 @@ export class TemplateSpec {
 
     if (p.resources) {
       const r = p.resources;
-      if (r.cpuCores < 0 || r.cpuCores > 16) {
-        v.push({ field: "resources.cpuCores", message: "cpu_cores must be between 0 and 16" });
+      if (r.cpuCores < 0 || r.cpuCores > 128) {
+        v.push({ field: "resources.cpuCores", message: "cpu_cores must be between 0 and 128" });
       }
-      if (r.memoryMb !== 0 && (r.memoryMb < 512 || r.memoryMb > 65536 || r.memoryMb % 2 !== 0)) {
-        v.push({ field: "resources.memoryMb", message: "memory_mb must be 0 or an even value between 512 and 65536" });
+      if (r.memoryMb !== 0 && (r.memoryMb < 512 || r.memoryMb > 524288 || r.memoryMb % 2 !== 0)) {
+        v.push({ field: "resources.memoryMb", message: "memory_mb must be 0 or an even value between 512 and 524288" });
       }
       if (r.diskSizeGb !== 0 && (r.diskSizeGb < 5 || r.diskSizeGb > 100)) {
         v.push({ field: "resources.diskSizeGb", message: "disk_size_gb must be 0 or between 5 and 100" });

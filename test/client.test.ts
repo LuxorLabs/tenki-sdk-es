@@ -91,7 +91,7 @@ describe("TenkiSandbox client TLS options", () => {
     connectMock.createClient.mockReturnValue({ createSession });
     const client = new TenkiSandbox({ authToken: "tk_test" });
 
-    await expect(client.create({ cpuCores: 17 })).rejects.toThrow(InvalidResourceConfigError);
+    await expect(client.create({ cpuCores: 129 })).rejects.toThrow(InvalidResourceConfigError);
     await expect(client.create({ memoryMb: 8089 })).rejects.toThrow(InvalidResourceConfigError);
     await expect(client.create({ diskSizeGb: 3 })).rejects.toThrow(InvalidResourceConfigError);
 

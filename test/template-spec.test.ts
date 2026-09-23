@@ -423,7 +423,7 @@ describe("TemplateSpec", () => {
         .writeFile("/tmp/file", "x", { mode: 4096 })
         .mkdir("/tmp/dir", { mode: 4096 })
         .start("npm start", { workdir: "relative" })
-        .resources({ cpuCores: 17, memoryMb: 513 })
+        .resources({ cpuCores: 129, memoryMb: 513 })
         .validate();
 
       expect(violations).toEqual(

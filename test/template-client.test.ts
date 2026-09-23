@@ -140,7 +140,7 @@ describe("TenkiSandbox template APIs", () => {
   it("rejects locally invalid typed specs before RPC submission", async () => {
     const rpcClient = { createTemplate: vi.fn(), updateTemplate: vi.fn() };
     const sdk = makeSdk(rpcClient);
-    const invalid = new TemplateSpec().resources({ cpuCores: 17 });
+    const invalid = new TemplateSpec().resources({ cpuCores: 129 });
 
     await expect(sdk.createTemplate({ workspaceId: "workspace-1", name: "node-api", spec: invalid })).rejects.toThrow(
       InvalidTemplateSpecError,
