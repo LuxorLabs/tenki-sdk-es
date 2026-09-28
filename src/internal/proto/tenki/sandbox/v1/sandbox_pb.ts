@@ -1011,8 +1011,9 @@ export type CreateSessionRequest = Message<"tenki.sandbox.v1.CreateSessionReques
    * it always had. Only platform services may set it; a customer session is
    * always placed on the default platform.
    *
-   * It is a hard placement filter rather than a preference, and it picks the
-   * base image together with the owner's identity.
+   * It is a hard placement filter rather than a preference. The base image name
+   * does not change with it; each host maps that name to an image of its own
+   * platform.
    *
    * @generated from field: optional string platform = 38;
    */
