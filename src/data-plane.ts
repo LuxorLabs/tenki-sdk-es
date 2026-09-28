@@ -71,7 +71,7 @@ export class DataPlaneEndpointHints {
 }
 
 export class DataPlaneCredentialManager {
-  private credential = "";
+  #credential = "";
   private expiresAt?: Date;
   private timer?: ReturnType<typeof setTimeout>;
   private stopped = false;
@@ -84,12 +84,12 @@ export class DataPlaneCredentialManager {
   }
 
   current(): string {
-    return this.credential;
+    return this.#credential;
   }
 
   set(credential?: SessionCredential): void {
     if (!credential?.credential) return;
-    this.credential = credential.credential;
+    this.#credential = credential.credential;
     this.expiresAt = credential.expiresAt ? timestampDate(credential.expiresAt) : undefined;
     this.schedule();
   }

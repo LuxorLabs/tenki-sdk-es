@@ -211,7 +211,7 @@ export class Session implements SessionHandle, AsyncDisposable {
   public readonly sourceTemplateId?: string;
   public readonly warnings: SandboxWarning[];
 
-  private authToken: string;
+  #authToken: string;
   private gatewayAddress: string;
   private sshOptions?: SSHConnectOptions;
   private dataPlaneEndpoint = "";
@@ -234,7 +234,7 @@ export class Session implements SessionHandle, AsyncDisposable {
     private readonly warningHandler?: WarningHandler,
   ) {
     this.rpcClient = rpcClient;
-    this.authToken = authToken;
+    this.#authToken = authToken;
     this.gatewayAddress = gatewayAddress;
     this.sshOptions = sshOptions;
     this.applyDataPlaneResponse(dataPlane?.endpoint, dataPlane?.credential, dataPlane?.routeStatus);
@@ -1009,7 +1009,7 @@ export class Session implements SessionHandle, AsyncDisposable {
   }
 
   async ssh(signal?: AbortSignal): Promise<SSHConnection> {
-    return connectSSH(this.gatewayAddress, this.id, this.authToken, this.sshOptions);
+    return connectSSH(this.gatewayAddress, this.id, this.#authToken, this.sshOptions);
   }
 
   async pause(): Promise<void> {

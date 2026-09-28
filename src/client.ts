@@ -155,7 +155,7 @@ import type { Identity } from "./whoami.js";
 export class TenkiSandbox implements AsyncDisposable {
   private rpcClient: Client<typeof SandboxService>;
   private sshGatewayClient: Client<typeof SSHGatewayClientService>;
-  private authToken: string;
+  #authToken: string;
   private gatewayAddress: string;
   private sshOptions?: SSHConnectOptions;
   private dataPlaneReadyTimeoutMs: number;
@@ -166,7 +166,7 @@ export class TenkiSandbox implements AsyncDisposable {
   constructor(options?: ClientOptions) {
     this.warningHandler =
       options?.warningHandler === undefined ? defaultWarningHandler : (options.warningHandler ?? undefined);
-    this.authToken = resolveAuthToken(options?.authToken, options?.apiKey);
+    this.#authToken = resolveAuthToken(options?.authToken, options?.apiKey);
 
     // URL resolution
     const baseUrl = options?.baseUrl?.trim() || env(ENV_API_ENDPOINT) || env(ENV_API_URL) || DEFAULT_BASE_URL;
@@ -193,7 +193,7 @@ export class TenkiSandbox implements AsyncDisposable {
       options?.transport ??
       createGrpcTransport({
         baseUrl,
-        interceptors: [createAuthInterceptor(this.authToken)],
+        interceptors: [createAuthInterceptor(this.#authToken)],
         sessionManager,
       });
 
@@ -322,7 +322,7 @@ export class TenkiSandbox implements AsyncDisposable {
         const session = new Session(
           this.rpcClient,
           runtimeFailure.session,
-          this.authToken,
+          this.#authToken,
           this.gatewayAddress,
           this.sshOptions,
           this.dataPlaneReadyTimeoutMs,
@@ -346,7 +346,7 @@ export class TenkiSandbox implements AsyncDisposable {
     const session = new Session(
       this.rpcClient,
       resp.session!,
-      this.authToken,
+      this.#authToken,
       this.gatewayAddress,
       this.sshOptions,
       this.dataPlaneReadyTimeoutMs,
@@ -405,7 +405,7 @@ export class TenkiSandbox implements AsyncDisposable {
       return new Session(
         this.rpcClient,
         resp.session!,
-        this.authToken,
+        this.#authToken,
         this.gatewayAddress,
         this.sshOptions,
         this.dataPlaneReadyTimeoutMs,
@@ -448,7 +448,7 @@ export class TenkiSandbox implements AsyncDisposable {
               new Session(
                 this.rpcClient,
                 s,
-                this.authToken,
+                this.#authToken,
                 this.gatewayAddress,
                 this.sshOptions,
                 this.dataPlaneReadyTimeoutMs,
@@ -509,7 +509,7 @@ export class TenkiSandbox implements AsyncDisposable {
     const session = new Session(
       this.rpcClient,
       resp.session!,
-      this.authToken,
+      this.#authToken,
       this.gatewayAddress,
       this.sshOptions,
       this.dataPlaneReadyTimeoutMs,
@@ -1240,7 +1240,7 @@ export class TenkiSandbox implements AsyncDisposable {
   // -- SSH --
 
   async ssh(sessionId: string): Promise<SSHConnection> {
-    return connectSSH(this.gatewayAddress, sessionId, this.authToken, this.sshOptions);
+    return connectSSH(this.gatewayAddress, sessionId, this.#authToken, this.sshOptions);
   }
 
   /**
