@@ -647,7 +647,7 @@ Guest values remain frozen across retries, restart, and ordinary resume; replace
 ```typescript
 const sandbox = await client.create({
   workspaceId,
-  secretHeaders: [
+  secretRequests: [
     {
       name: "token",
       secretName: "API_TOKEN",
@@ -663,7 +663,7 @@ const sandbox = await client.create({
 Send `Authorization: Bearer secrets://token` from the sandbox to that origin.
 The host replaces the placeholder after authorizing the whole request; the value
 is never delivered to the guest. Explicit values and absent headers are unchanged.
-The same `secretHeaders` option works in template `start`, `startArgs`, and
+The same `secretRequests` option works in template `start`, `startArgs`, and
 `processCompose` options. Template launches can use `secretOverrides` to select a
 different workspace secret.
 

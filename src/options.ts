@@ -3,7 +3,7 @@ import type { Transport } from "@connectrpc/connect";
 
 import type { RegistryImageKind, RegistrySortBy, RegistryVisibility } from "./registry.js";
 import type { RuntimeSecretFile } from "./secret-files.js";
-import type { SecretHeaderBinding } from "./secret-headers.js";
+import type { SecretRequestBinding } from "./secret-requests.js";
 import type { TemplateSpec } from "./template-spec.js";
 import type { Template, TemplateImageRef } from "./template.js";
 import type { WarningHandler } from "./warning.js";
@@ -77,7 +77,7 @@ export interface CreateOptions {
   secretOverrides?: Record<string, string>;
   /** Unresolved file contents or raw references for this launch. */
   secretFiles?: RuntimeSecretFile[];
-  secretHeaders?: SecretHeaderBinding[];
+  secretRequests?: SecretRequestBinding[];
   enableOpenCode?: boolean;
   cloneRepoUrl?: string;
   volumes?: VolumeMountConfig[];

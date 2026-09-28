@@ -200,4 +200,4 @@ export type {
 
 export type { RuntimeSecretFile, RuntimeSecretReference } from "./secret-files.js";
 
-export type { SecretHeaderBinding } from "./secret-headers.js";
+export type { SecretRequestBinding } from "./secret-requests.js";

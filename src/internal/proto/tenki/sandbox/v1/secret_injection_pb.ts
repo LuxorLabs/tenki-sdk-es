@@ -10,14 +10,14 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file tenki/sandbox/v1/secret_injection.proto.
  */
 export const file_tenki_sandbox_v1_secret_injection: GenFile = /*@__PURE__*/
-  fileDesc("Cid0ZW5raS9zYW5kYm94L3YxL3NlY3JldF9pbmplY3Rpb24ucHJvdG8SEHRlbmtpLnNhbmRib3gudjEijQEKE1NlY3JldEhlYWRlckJpbmRpbmcSDAoEbmFtZRgBIAEoCRITCgtzZWNyZXRfbmFtZRgCIAEoCRIOCgZvcmlnaW4YBCABKAkSDwoHbWV0aG9kcxgFIAMoCRITCgtwYXRoX3ByZWZpeBgGIAEoCRIOCgZoZWFkZXIYByABKAlKBAgDEARSB3ZlcnNpb25C4wEKFGNvbS50ZW5raS5zYW5kYm94LnYxQhRTZWNyZXRJbmplY3Rpb25Qcm90b1ABWlNnaXRodWIuY29tL0x1eG9yTGFicy90ZW5raS1zZGstZ28vc2FuZGJveC9pbnRlcm5hbC9wcm90by90ZW5raS9zYW5kYm94L3YxO3NhbmRib3h2MaICA1RTWKoCEFRlbmtpLlNhbmRib3guVjHKAhBUZW5raVxTYW5kYm94XFYx4gIcVGVua2lcU2FuZGJveFxWMVxHUEJNZXRhZGF0YeoCElRlbmtpOjpTYW5kYm94OjpWMWIGcHJvdG8z");
+  fileDesc("Cid0ZW5raS9zYW5kYm94L3YxL3NlY3JldF9pbmplY3Rpb24ucHJvdG8SEHRlbmtpLnNhbmRib3gudjEivQEKFFNlY3JldFJlcXVlc3RCaW5kaW5nEgwKBG5hbWUYASABKAkSEwoLc2VjcmV0X25hbWUYAiABKAkSDgoGb3JpZ2luGAQgASgJEg8KB21ldGhvZHMYBSADKAkSEwoLcGF0aF9wcmVmaXgYBiABKAkSDgoGaGVhZGVyGAcgASgJEhcKD3F1ZXJ5X3BhcmFtZXRlchgIIAEoCRIUCgxqc29uX3BvaW50ZXIYCSABKAlKBAgDEARSB3ZlcnNpb25C4wEKFGNvbS50ZW5raS5zYW5kYm94LnYxQhRTZWNyZXRJbmplY3Rpb25Qcm90b1ABWlNnaXRodWIuY29tL0x1eG9yTGFicy90ZW5raS1zZGstZ28vc2FuZGJveC9pbnRlcm5hbC9wcm90by90ZW5raS9zYW5kYm94L3YxO3NhbmRib3h2MaICA1RTWKoCEFRlbmtpLlNhbmRib3guVjHKAhBUZW5raVxTYW5kYm94XFYx4gIcVGVua2lcU2FuZGJveFxWMVxHUEJNZXRhZGF0YeoCElRlbmtpOjpTYW5kYm94OjpWMWIGcHJvdG8z");
 
 /**
  * A nonsecret placeholder is secrets://NAME; a binding grants its use only at this request location.
  *
- * @generated from message tenki.sandbox.v1.SecretHeaderBinding
+ * @generated from message tenki.sandbox.v1.SecretRequestBinding
  */
-export type SecretHeaderBinding = Message<"tenki.sandbox.v1.SecretHeaderBinding"> & {
+export type SecretRequestBinding = Message<"tenki.sandbox.v1.SecretRequestBinding"> & {
   /**
    * @generated from field: string name = 1;
    */
@@ -47,12 +47,24 @@ export type SecretHeaderBinding = Message<"tenki.sandbox.v1.SecretHeaderBinding"
    * @generated from field: string header = 7;
    */
   header: string;
+
+  /**
+   * @generated from field: string query_parameter = 8;
+   */
+  queryParameter: string;
+
+  /**
+   * RFC 6901 pointer to a JSON string field, for example /credentials/token.
+   *
+   * @generated from field: string json_pointer = 9;
+   */
+  jsonPointer: string;
 };
 
 /**
- * Describes the message tenki.sandbox.v1.SecretHeaderBinding.
- * Use `create(SecretHeaderBindingSchema)` to create a new message.
+ * Describes the message tenki.sandbox.v1.SecretRequestBinding.
+ * Use `create(SecretRequestBindingSchema)` to create a new message.
  */
-export const SecretHeaderBindingSchema: GenMessage<SecretHeaderBinding> = /*@__PURE__*/
+export const SecretRequestBindingSchema: GenMessage<SecretRequestBinding> = /*@__PURE__*/
   messageDesc(file_tenki_sandbox_v1_secret_injection, 0);
 
