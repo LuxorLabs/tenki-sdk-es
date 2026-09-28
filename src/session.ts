@@ -663,6 +663,7 @@ export class Session implements SessionHandle, AsyncDisposable {
   }
 
   private async waitReadyStream(timeoutMs: number, signal?: AbortSignal): Promise<void> {
+    // WaitSession ends at readiness or termination; consume its trailers to release the RPC deadline.
     for await (const resp of this.rpcClient.waitSession(create(WaitSessionRequestSchema, { sessionId: this.id }), {
       timeoutMs,
       signal,
