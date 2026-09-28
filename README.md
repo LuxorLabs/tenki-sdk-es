@@ -641,3 +641,46 @@ Rendering performs one literal pass, without YAML/JSON/dotenv escaping, environm
 Allowed destinations are under `/home/tenki/`, `/workspace/`, or `/app/`. Files are private, owned by tenki, and replaced atomically. Duplicate destinations, unsafe paths, missing references, and injection-only plaintext delivery fail startup. Limits: 64 KiB per secret, 256 KiB per source/output file, 1 MiB total source/output, 32 files, and 64 references across environment and files.
 
 Guest values remain frozen across retries, restart, and ordinary resume; replacement Sessions adopt updates. Escape a file marker as `\secrets://NAME` to preserve `secrets://NAME` for separately authorized outbound injection; the marker grants no authority by itself. See [the file delivery contract](../../../docs/sandbox-secret-files.md) for lifecycle and path details.
+
+## HTTPS header secrets
+
+```typescript
+const sandbox = await client.create({
+  workspaceId,
+  secretHeaders: [
+    {
+      name: "token",
+      secretName: "API_TOKEN",
+      origin: "https://api.example.com",
+      methods: ["POST"],
+      pathPrefix: "/v1/",
+      header: "Authorization",
+    },
+  ],
+});
+```
+
+Send `Authorization: Bearer secrets://token` from the sandbox to that origin.
+The host replaces the placeholder after authorizing the whole request; the value
+is never delivered to the guest. Explicit values and absent headers are unchanged.
+The same `secretHeaders` option works in template `start`, `startArgs`, and
+`processCompose` options. Template launches can use `secretOverrides` to select a
+different workspace secret.
+
+Every request uses the active version and checks the secret's current destination
+policy and revocation state, including reused connections. An unset destination policy
+denies injection; injection-only secrets are supported. Existing sandbox egress
+rules still apply. Unavailable authorization or KMS fails the affected request
+closed, without forwarding it upstream.
+
+Origins must be exact HTTPS DNS origins on port 443 (omit the port). Methods and
+header names are explicit; paths must be canonical and unescaped. At most 64
+bindings and 8 KiB per substituted value are supported. Hop-by-hop, routing, and
+framing headers cannot contain placeholders. Bodies and query strings are not
+substituted. Redirects receive a fresh authorization check at their destination.
+
+This requires an injection-capable node with HTTPS interception enabled and its
+CA trusted by the application. A trusted destination can reflect a credential in
+its response: injection protects guest storage, not against an upstream that
+returns the secret to its caller. Do not send credentials to untrusted origins or
+broad diagnostic/echo endpoints.

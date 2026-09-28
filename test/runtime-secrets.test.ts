@@ -128,3 +128,46 @@ it("discovers literal file references consistently", () => {
   for (const text of ["secrets://", "secrets://9bad", "secrets://" + "a".repeat(129), "bad\u0000"])
     expect(secretFileNames(text)).toBeNull();
 });
+
+describe("transparent header bindings", () => {
+  const rule = {
+    name: "token",
+    secretName: "API_TOKEN",
+    origin: "https://api.example.com",
+    methods: ["POST"],
+    pathPrefix: "/v1/",
+    header: "Authorization",
+  };
+  it.each(["start", "argv", "compose"])("roundtrips %s rules independently of caller mutation", (kind) => {
+    const headers = [{ ...rule, methods: [...rule.methods] }];
+    const spec =
+      kind === "compose"
+        ? new TemplateSpec().processCompose("compose.yaml", { secretHeaders: headers })
+        : kind === "argv"
+          ? new TemplateSpec().startArgs(["app"], { secretHeaders: headers })
+          : new TemplateSpec().start("app", { secretHeaders: headers });
+    headers[0]!.methods.push("DELETE");
+    expect(TemplateSpec.fromJSON(spec.toJSON()).toProto().runtime?.secretHeaders[0]).toMatchObject(rule);
+    expect(spec.toDirectRuntimeProto().secretHeaders[0]?.methods).toEqual(["POST"]);
+  });
+  it("sends direct bindings without a managed runtime", async () => {
+    const client = new TenkiSandbox({
+      authToken: "tk_test",
+      transport: createRouterTransport((router) =>
+        router.service(SandboxService, {
+          createSession(request) {
+            expect(request.runtime).toBeUndefined();
+            expect(request.secretHeaders).toHaveLength(1);
+            expect(request.secretHeaders[0]).toMatchObject(rule);
+            return { session: { id: "session", state: SessionState.RUNNING } };
+          },
+        }),
+      ),
+    });
+    try {
+      await client.create({ secretHeaders: [rule], waitReady: false });
+    } finally {
+      await client.close();
+    }
+  });
+});

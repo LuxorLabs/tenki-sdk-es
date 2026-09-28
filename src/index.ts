@@ -199,3 +199,5 @@ export type {
 } from "./workspace-secrets.js";
 
 export type { RuntimeSecretFile, RuntimeSecretReference } from "./secret-files.js";
+
+export type { SecretHeaderBinding } from "./secret-headers.js";

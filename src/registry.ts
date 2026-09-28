@@ -16,6 +16,7 @@ import {
 } from "./internal/proto/tenki/sandbox/v1/registry_pb.js";
 import { RuntimeSecretFileSchema } from "./internal/proto/tenki/sandbox/v1/secret_file_pb.js";
 import type { RuntimeSecretFile } from "./secret-files.js";
+import type { SecretHeaderBinding } from "./secret-headers.js";
 
 export type RegistryImageKind = "template" | "snapshot";
 export type RegistryVisibility = "private" | "public" | "shared";
@@ -67,6 +68,7 @@ export interface RegistryImageSummary {
 
 export interface RegistryImageDetail {
   runtimeSecretEnv: Record<string, string>;
+  runtimeSecretHeaders: SecretHeaderBinding[];
   runtimeSecretFiles: RuntimeSecretFile[];
   image?: RegistryImage;
   resolvedSnapshotId?: string;
@@ -243,6 +245,14 @@ export function registryImageDetailFromProto(proto: ProtoRegistryImageDetail | u
   return {
     image: proto?.image ? registryImageFromProto(proto.image) : undefined,
     runtimeSecretEnv: { ...(proto?.runtimeSecretEnv ?? {}) },
+    runtimeSecretHeaders: (proto?.runtimeSecretHeaders ?? []).map((r) => ({
+      name: r.name,
+      secretName: r.secretName,
+      origin: r.origin,
+      methods: [...r.methods],
+      pathPrefix: r.pathPrefix,
+      header: r.header,
+    })),
     runtimeSecretFiles: (proto?.runtimeSecretFiles ?? []).map(
       (file) => toJson(RuntimeSecretFileSchema, file) as unknown as RuntimeSecretFile,
     ),
