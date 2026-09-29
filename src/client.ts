@@ -137,6 +137,7 @@ import type { SSHCert } from "./ssh-cert.js";
 import { issueSandboxSSHCert } from "./ssh-cert.js";
 import type { SSHConnection, SSHConnectOptions } from "./ssh.js";
 import { connectSSH, deriveGatewayAddress, discoverSSHGatewayUrl } from "./ssh.js";
+import { tailnetAttachmentToProto } from "./tailnet.js";
 import type { TemplateSpec, TemplateSpecViolation } from "./template-spec.js";
 import type {
   Template,
@@ -288,6 +289,7 @@ export class TenkiSandbox implements AsyncDisposable {
 
     const workspaceId = options?.workspaceId?.trim();
     if (workspaceId) req.workspaceId = workspaceId;
+    if (options?.tailnet) req.tailnet = tailnetAttachmentToProto(options.tailnet);
 
     if (options?.volumes?.length) {
       req.volumes = options.volumes.map((v) =>

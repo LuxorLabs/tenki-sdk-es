@@ -5,6 +5,15 @@ export { SandboxWarningCodes, type SandboxWarning, type SandboxWarningCode, type
 export { PreviewUrlClient } from "./preview-url.js";
 export type { PreviewUrl, PreviewUrlListOptions, PreviewUrlOptions } from "./preview-url.js";
 export { isReady, isTerminal } from "./session.js";
+export { TailnetAuthKey } from "./tailnet.js";
+export type {
+  TailnetAttachmentOptions,
+  TailnetEphemeralPausePolicy,
+  TailnetExitPolicy,
+  TailnetProvider,
+  TailnetState,
+  TailnetStatus,
+} from "./tailnet.js";
 export { validateCreateResources } from "./resources.js";
 export { Stream } from "./stream.js";
 export { Git } from "./git.js";

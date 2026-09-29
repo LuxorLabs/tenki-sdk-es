@@ -88,6 +88,7 @@ import type { CommandStatus, ExecResult } from "./result.js";
 import { snapshotFromProto, type Snapshot } from "./snapshot.js";
 import { connectSSH, type SSHConnection, type SSHConnectOptions } from "./ssh.js";
 import { Stream } from "./stream.js";
+import { tailnetStatusFromProto, type TailnetStatus } from "./tailnet.js";
 import {
   exposeHostPortResilient,
   resilientHostPortTunnel,
@@ -154,7 +155,7 @@ export interface SessionFs {
   list(path: string, options?: FsListOptions): Promise<FileInfo[]>;
 }
 
-/** Outbound allowlist echoed back on a session. Both lists empty means unrestricted. */
+/** Empty allowlists follow the session's tailnet policy when attached; otherwise they are unrestricted. */
 export interface SessionEgressPolicy {
   allowDomains: string[];
   allowCidrs: string[];
@@ -210,6 +211,7 @@ export class Session implements SessionHandle, AsyncDisposable {
   public readonly sourceRegistryRef?: string;
   public readonly sourceTemplateId?: string;
   public readonly warnings: SandboxWarning[];
+  tailnetStatus?: TailnetStatus;
 
   #authToken: string;
   private gatewayAddress: string;
@@ -281,6 +283,7 @@ export class Session implements SessionHandle, AsyncDisposable {
     this.sourceRegistryRef = proto.sourceRegistryRef || undefined;
     this.sourceTemplateId = proto.sourceTemplateId || undefined;
     this.warnings = [...warnings];
+    this.tailnetStatus = tailnetStatusFromProto(proto.tailnetStatus);
 
     this.git = new Git(this);
     this.fs = {
@@ -515,6 +518,7 @@ export class Session implements SessionHandle, AsyncDisposable {
     this.runtimeSecretsPresent = proto.hasRuntimeSecrets;
     this.runtimeError = proto.runtimeError || undefined;
     this.sticky = proto.sticky;
+    this.tailnetStatus = tailnetStatusFromProto(proto.tailnetStatus);
   }
 
   async exec(command: string | string[], options?: ExecOptions): Promise<ExecResult> {

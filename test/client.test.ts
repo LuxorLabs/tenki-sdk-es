@@ -10,10 +10,14 @@ import {
   SandboxWarningCode,
   SandboxWarningSchema,
   SessionState,
+  TailnetEphemeralPausePolicy,
+  TailnetExitPolicy,
+  TailnetStatusSchema,
   TerminateSessionResponseSchema,
   UpdateSessionResponseSchema,
   WaitSessionResponseSchema,
 } from "../src/internal/proto/tenki/sandbox/v1/sandbox_pb.js";
+import { TailnetAuthKey, tailnetStatusFromProto } from "../src/tailnet.js";
 import { SandboxWarningCodes } from "../src/warning.js";
 
 const connectMock = vi.hoisted(() => ({
@@ -566,6 +570,136 @@ describe("TenkiSandbox client TLS options", () => {
       allowCidrs: ["10.0.0.0/8"],
     });
   });
+
+  it("serializes a direct-key tailnet request and maps its status", async () => {
+    const createSession = vi.fn(async () =>
+      create(CreateSessionResponseSchema, {
+        session: create(SandboxSessionSchema, {
+          id: "session-1",
+          state: SessionState.RUNNING,
+          tailnetStatus: {
+            provider: "tailscale",
+            state: "online",
+            nodeId: "node-1",
+            fqdn: "sandbox.example.ts.net",
+            ips: ["100.64.0.1", "fd7a:115c:a1e0::1"],
+            tags: ["tag:sandbox"],
+            owner: "tag:sandbox",
+            deviceRetained: true,
+          },
+        }),
+      }),
+    );
+    connectMock.createClient.mockReturnValue({ createSession });
+    const client = new TenkiSandbox({ authToken: "tk_test" });
+
+    const session = await client.create({
+      waitReady: false,
+      tailnet: {
+        authKey: new TailnetAuthKey("tskey-auth-secret"),
+        hostname: "sandbox-1",
+        tags: ["tag:sandbox"],
+        ephemeral: true,
+        controlUrl: "https://control.example.com",
+        exitNode: "auto",
+        acceptRoutes: true,
+        wakeOnConnect: true,
+        exposePorts: [3000, 8080],
+        waitForOnline: true,
+        exitPolicy: "exit_node_managed",
+        ephemeralPausePolicy: "recreate_on_resume",
+      },
+    });
+
+    const tailnet = createSession.mock.calls[0]?.[0].tailnet;
+    if (!tailnet) throw new Error("tailnet request missing");
+    const { credential, ...nonSecretTailnet } = tailnet;
+    expect(nonSecretTailnet).toEqual(
+      expect.objectContaining({
+        provider: "tailscale",
+        hostname: "sandbox-1",
+        tags: ["tag:sandbox"],
+        ephemeral: true,
+        controlUrl: "https://control.example.com",
+        exitNode: "auto",
+        acceptRoutes: true,
+        wakeOnConnect: true,
+        exposePorts: [3000, 8080],
+        waitForOnline: true,
+        exitPolicy: TailnetExitPolicy.EXIT_NODE_MANAGED,
+        ephemeralPausePolicy: TailnetEphemeralPausePolicy.RECREATE_ON_RESUME,
+      }),
+    );
+    expect(credential.case).toBe("authKey");
+    if (credential.case !== "authKey") throw new Error("tailnet auth key credential missing");
+    expect(credential.value.length).toBe(17);
+    expect(session.tailnetStatus).toEqual({
+      provider: "tailscale",
+      state: "online",
+      nodeId: "node-1",
+      fqdn: "sandbox.example.ts.net",
+      ips: ["100.64.0.1", "fd7a:115c:a1e0::1"],
+      tags: ["tag:sandbox"],
+      owner: "tag:sandbox",
+      error: "",
+      deviceRetained: true,
+    });
+  });
+
+  it("redacts tailnet auth keys from string, JSON, and debug formatting", async () => {
+    const { inspect } = await import("node:util");
+    const key = new TailnetAuthKey("tskey-auth-secret");
+
+    expect(String(key)).toBe("[REDACTED]");
+    expect(JSON.stringify(key)).toBe('"[REDACTED]"');
+    expect(inspect(key)).toBe("TailnetAuthKey([REDACTED])");
+    expect(`${String(key)} ${JSON.stringify(key)} ${inspect(key)}`).not.toContain("tskey-auth-secret");
+  });
+
+  it("defaults legacy tailnet status to tailscale", () => {
+    expect(tailnetStatusFromProto(create(TailnetStatusSchema, { state: "joining" }))?.provider).toBe("tailscale");
+  });
+
+  it("keeps an unknown response provider", () => {
+    expect(tailnetStatusFromProto(create(TailnetStatusSchema, { provider: "future", state: "online" }))?.provider).toBe(
+      "future",
+    );
+  });
+
+  it("inherits workspace tailnet policies when options are omitted", async () => {
+    const createSession = vi.fn(async () =>
+      create(CreateSessionResponseSchema, {
+        session: create(SandboxSessionSchema, { id: "session-1", state: SessionState.RUNNING }),
+      }),
+    );
+    connectMock.createClient.mockReturnValue({ createSession });
+
+    await new TenkiSandbox({ authToken: "tk_test" }).create({
+      waitReady: false,
+      tailnet: { authKey: new TailnetAuthKey("tskey-auth-secret") },
+    });
+
+    expect(createSession.mock.calls[0]?.[0].tailnet?.exitPolicy).toBe(TailnetExitPolicy.UNSPECIFIED);
+    expect(createSession.mock.calls[0]?.[0].tailnet?.ephemeralPausePolicy).toBe(
+      TailnetEphemeralPausePolicy.UNSPECIFIED,
+    );
+  });
+
+  it.each(["exitPolicy", "ephemeralPausePolicy", "provider"] as const)(
+    "rejects an unknown tailnet %s before sending",
+    async (policy) => {
+      const createSession = vi.fn();
+      connectMock.createClient.mockReturnValue({ createSession });
+
+      await expect(
+        new TenkiSandbox({ authToken: "tk_test" }).create({
+          waitReady: false,
+          tailnet: { authKey: new TailnetAuthKey("tskey-auth-secret"), [policy]: "invalid" } as never,
+        }),
+      ).rejects.toThrow("unsupported tailnet");
+      expect(createSession).not.toHaveBeenCalled();
+    },
+  );
 
   it("routes primary session and snapshot lists through Workspace RPCs", async () => {
     const listWorkspaceSandboxes = vi.fn(async () => ({ sessions: [] }));

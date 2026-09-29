@@ -33,6 +33,29 @@ try {
 
 `Session` also implements `AsyncDisposable`, so `await using` works in runtimes that support explicit resource management.
 
+### Tailnet attachment
+
+Use `TailnetAuthKey` so string, JSON, and Node debug formatting redact the credential.
+`waitForOnline` keeps the session in creation until Tenki verifies the registered node.
+
+```typescript
+import { TailnetAuthKey, TenkiSandbox } from "@tenkicloud/sandbox";
+
+const session = await new TenkiSandbox().create({
+  tailnet: {
+    authKey: new TailnetAuthKey(process.env.TAILNET_AUTH_KEY!),
+    tags: ["tag:sandbox"],
+    exposePorts: [3000],
+    acceptRoutes: true,
+    waitForOnline: true,
+  },
+});
+console.log(session.tailnetStatus?.state, session.tailnetStatus?.fqdn);
+```
+
+The direct key is write-only and never appears on `Session`.
+The server may reject options from later milestones, including wake-on-connect and recreate-on-resume.
+
 ## Authentication
 
 Pass an API key or service token starting with `tk_` explicitly, or set `TENKI_AUTH_TOKEN` or `TENKI_API_KEY`:
