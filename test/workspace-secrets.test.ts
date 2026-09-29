@@ -6,17 +6,15 @@ import { Code, ConnectError } from "@connectrpc/connect";
 import { connectNodeAdapter } from "@connectrpc/connect-node";
 import { describe, expect, it } from "vitest";
 
-import { WorkspaceClient, type SecretPolicy } from "../src/index.js";
+import { WorkspaceClient } from "../src/index.js";
 import * as pb from "../src/internal/proto/tenki/cloud/workspace/v1beta1/secrets_pb.js";
 
-const policy: SecretPolicy = { deliveryMode: "guest_and_injection", destinationMode: "unset" };
 const secret = create(pb.SecretSchema, {
   id: "secret",
   workspaceId: "workspace",
   name: "TOKEN",
   revision: 2,
   activeVersion: 1,
-  policy: { deliveryMode: pb.SecretDeliveryMode.GUEST_AND_INJECTION, destinationMode: pb.SecretDestinationMode.UNSET },
 });
 
 describe("workspace secrets wire contract", () => {
@@ -68,8 +66,8 @@ describe("workspace secrets wire contract", () => {
     });
     try {
       const value = new Uint8Array([0, 255, 10, 128]);
-      const result = await client.secrets.create("TOKEN", value, policy, "00000000-0000-4000-8000-000000000001");
-      await client.secrets.create("EMPTY", new Uint8Array(), policy);
+      const result = await client.secrets.create("TOKEN", value, "00000000-0000-4000-8000-000000000001");
+      await client.secrets.create("EMPTY", new Uint8Array());
       await client.secrets.update("secret", { expectedRevision: 2 });
       await client.secrets.update("secret", {
         expectedRevision: 2,
@@ -114,7 +112,7 @@ describe("workspace secrets wire contract", () => {
       for (const request of requests) expect(request).toMatchObject({ workspaceId });
       expect(result).not.toHaveProperty("value");
       expect(result).not.toHaveProperty("ciphertext");
-      expect(result.policy).toEqual({ ...policy, allowedHosts: [] });
+      expect(result).not.toHaveProperty("policy");
     } finally {
       await client[Symbol.asyncDispose]();
       await new Promise<void>((resolve) => server.close(() => resolve()));

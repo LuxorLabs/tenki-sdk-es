@@ -4,6 +4,7 @@ import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { Code, ConnectError, type Client } from "@connectrpc/connect";
 
 import * as pb from "./internal/proto/tenki/cloud/workspace/v1beta1/secrets_pb.js";
+import { SecretPolicies } from "./secret-policies.js";
 
 export class WorkspaceSecretError extends Error {
   constructor(
@@ -15,25 +16,17 @@ export class WorkspaceSecretError extends Error {
     this.name = "WorkspaceSecretError";
   }
 }
-function workspaceSecretError(error: unknown): Error {
+export function workspaceSecretError(error: unknown): Error {
   if (!(error instanceof ConnectError)) return error instanceof Error ? error : new Error(String(error));
   return new WorkspaceSecretError(error.rawMessage, error.code, { cause: error });
 }
 
-export type SecretDeliveryMode = "guest_and_injection" | "injection_only";
-export type SecretDestinationMode = "unset" | "allowlist" | "allow_any";
-export interface SecretPolicy {
-  deliveryMode: SecretDeliveryMode;
-  destinationMode: SecretDestinationMode;
-  allowedHosts?: string[];
-}
 export interface WorkspaceSecret {
   id: string;
   workspaceId: string;
   name: string;
   activeVersion: number;
   revision: number;
-  policy: SecretPolicy;
   createdAt?: Date;
   updatedAt?: Date;
   revokedAt?: Date;
@@ -51,7 +44,6 @@ export interface SecretMutationOptions {
 export interface UpdateSecretOptions extends SecretMutationOptions {
   /** Omitted retains the value; an empty array creates an empty value. */
   value?: Uint8Array;
-  policy?: SecretPolicy;
   activeVersion?: number;
 }
 export interface SecretPageOptions {
@@ -59,42 +51,14 @@ export interface SecretPageOptions {
   cursor?: string;
 }
 
-function policyToProto(policy: SecretPolicy): pb.SecretPolicy {
-  const deliveryMode = {
-    guest_and_injection: pb.SecretDeliveryMode.GUEST_AND_INJECTION,
-    injection_only: pb.SecretDeliveryMode.INJECTION_ONLY,
-  }[policy.deliveryMode];
-  const destinationMode = {
-    unset: pb.SecretDestinationMode.UNSET,
-    allowlist: pb.SecretDestinationMode.ALLOWLIST,
-    allow_any: pb.SecretDestinationMode.ALLOW_ANY,
-  }[policy.destinationMode];
-  if (deliveryMode === undefined || destinationMode === undefined) throw new Error("Invalid secret policy mode");
-  return create(pb.SecretPolicySchema, { deliveryMode, destinationMode, allowedHosts: policy.allowedHosts ?? [] });
-}
 function metadata(secret: pb.Secret | undefined): WorkspaceSecret {
-  if (!secret?.policy) throw new Error("Missing secret metadata");
-  const deliveryMode = (
-    {
-      [pb.SecretDeliveryMode.GUEST_AND_INJECTION]: "guest_and_injection",
-      [pb.SecretDeliveryMode.INJECTION_ONLY]: "injection_only",
-    } as const
-  )[secret.policy.deliveryMode as 1 | 2];
-  const destinationMode = (
-    {
-      [pb.SecretDestinationMode.UNSET]: "unset",
-      [pb.SecretDestinationMode.ALLOWLIST]: "allowlist",
-      [pb.SecretDestinationMode.ALLOW_ANY]: "allow_any",
-    } as const
-  )[secret.policy.destinationMode as 1 | 2 | 3];
-  if (!deliveryMode || !destinationMode) throw new Error("Unknown secret policy mode");
+  if (!secret) throw new Error("Missing secret metadata");
   return {
     id: secret.id,
     workspaceId: secret.workspaceId,
     name: secret.name,
     activeVersion: secret.activeVersion,
     revision: secret.revision,
-    policy: { deliveryMode, destinationMode, allowedHosts: [...secret.policy.allowedHosts] },
     createdAt: secret.createdAt && timestampDate(secret.createdAt),
     updatedAt: secret.updatedAt && timestampDate(secret.updatedAt),
     revokedAt: secret.revokedAt && timestampDate(secret.revokedAt),
@@ -104,16 +68,14 @@ function metadata(secret: pb.Secret | undefined): WorkspaceSecret {
 
 /** Access through WorkspaceClient.secrets. Reads return metadata only. */
 export class Secrets {
+  readonly policies: SecretPolicies;
   constructor(
     private readonly workspaceId: string,
     private readonly rpc: Client<typeof pb.WorkspaceSecretsService>,
-  ) {}
-  async create(
-    name: string,
-    value: Uint8Array,
-    policy: SecretPolicy,
-    requestId = randomUUID(),
-  ): Promise<WorkspaceSecret> {
+  ) {
+    this.policies = new SecretPolicies(workspaceId, rpc);
+  }
+  async create(name: string, value: Uint8Array, requestId = randomUUID()): Promise<WorkspaceSecret> {
     try {
       return metadata(
         (
@@ -122,7 +84,6 @@ export class Secrets {
               workspaceId: this.workspaceId,
               name,
               value,
-              policy: policyToProto(policy),
               requestId,
             }),
           )
@@ -137,7 +98,6 @@ export class Secrets {
       workspaceId: this.workspaceId,
       secretId,
       value: options.value,
-      policy: options.policy && policyToProto(options.policy),
       activeVersion: options.activeVersion,
       expectedRevision: options.expectedRevision,
       requestId: options.requestId ?? randomUUID(),

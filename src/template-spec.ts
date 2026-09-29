@@ -38,7 +38,6 @@ import {
   TemplateWriteFileStepSchema,
 } from "./internal/proto/tenki/sandbox/v1/template_pb.js";
 import { secretFileToProto, validSecretFiles, type RuntimeSecretFile } from "./secret-files.js";
-import { secretRequestToProto, type SecretRequestBinding } from "./secret-requests.js";
 
 export const TEMPLATE_SPEC_VERSION = "tenki.template.v1";
 
@@ -98,7 +97,7 @@ export type TemplateRestartPolicyOption = "never" | "on-failure" | "always";
 export type TemplateSnapshotModeOption = "filesystem" | "memory";
 
 export interface TemplateRuntimeOptions {
-  secretRequests?: SecretRequestBinding[];
+  secretPolicies?: string[];
   /** Environment targets mapped to secret names in the launching workspace. */
   secretEnv?: Record<string, string>;
   secretFiles?: RuntimeSecretFile[];
@@ -578,7 +577,7 @@ function ensureRuntime(p: ProtoTemplateBuildSpec): ProtoTemplateRuntime {
 function applyRuntimeOptions(runtime: ProtoTemplateRuntime, options?: TemplateRuntimeOptions): void {
   if (!options) return;
   if (options.secretFiles !== undefined) runtime.secretFiles = options.secretFiles.map(secretFileToProto);
-  if (options.secretRequests !== undefined) runtime.secretRequests = options.secretRequests.map(secretRequestToProto);
+  if (options.secretPolicies !== undefined) runtime.secretPolicies = [...options.secretPolicies];
   if (options.secretEnv !== undefined) runtime.secretEnv = { ...options.secretEnv };
   if (options.runAt !== undefined) {
     runtime.runAt =

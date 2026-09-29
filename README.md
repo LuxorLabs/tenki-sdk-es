@@ -593,15 +593,7 @@ import { GB, GiB, KB, KiB, MB, MiB, TB, TiB } from "@tenkicloud/sandbox";
 import { WorkspaceClient } from "@tenkicloud/sandbox";
 
 await using workspace = new WorkspaceClient({ workspaceId });
-const secret = await workspace.secrets.create(
-  "TOKEN",
-  valueBytes,
-  {
-    deliveryMode: "guest_and_injection",
-    destinationMode: "unset",
-  },
-  requestId,
-);
+const secret = await workspace.secrets.create("TOKEN", valueBytes, requestId);
 ```
 
 Authentication uses `TENKI_AUTH_TOKEN` or `TENKI_API_KEY`. Set `baseUrl` or
@@ -661,49 +653,33 @@ const session = await client.create({
 
 Rendering performs one literal pass, without YAML/JSON/dotenv escaping, environment expansion, or recursive substitution. A backslash before a marker escapes it. Authors must ensure the actual consumer accepts the result; do not shell-source rendered secret text. Use a raw reference for exact-byte credentials, including binary values.
 
-Allowed destinations are under `/home/tenki/`, `/workspace/`, or `/app/`. Files are private, owned by tenki, and replaced atomically. Duplicate destinations, unsafe paths, missing references, and injection-only plaintext delivery fail startup. Limits: 64 KiB per secret, 256 KiB per source/output file, 1 MiB total source/output, 32 files, and 64 references across environment and files.
+Allowed destinations are under `/home/tenki/`, `/workspace/`, or `/app/`. Files are private, owned by tenki, and replaced atomically. Duplicate destinations, unsafe paths, and missing references fail startup. Limits: 64 KiB per secret, 256 KiB per source/output file, 1 MiB total source/output, 32 files, and 64 references across environment and files.
 
 Guest values remain frozen across retries, restart, and ordinary resume; replacement Sessions adopt updates. Escape a file marker as `\secrets://NAME` to preserve `secrets://NAME` for separately authorized outbound injection; the marker grants no authority by itself. See [the file delivery contract](../../../docs/sandbox-secret-files.md) for lifecycle and path details.
 
-## HTTPS header secrets
+## Transparent HTTPS secrets
+
+Create `API_TOKEN` through the workspace Secrets client, then save and select a request policy:
 
 ```typescript
-const sandbox = await client.create({
-  workspaceId,
-  secretRequests: [
-    {
-      name: "token",
-      secretName: "API_TOKEN",
-      origin: "https://api.example.com",
-      methods: ["POST"],
-      pathPrefix: "/v1/",
-      header: "Authorization",
-    },
-  ],
-});
+await workspaceClient.secrets.policies.create("example", [
+  {
+    origin: "https://api.example.com",
+    methods: ["POST"],
+    pathPrefix: "/v1/",
+    header: "Authorization",
+    secrets: ["API_TOKEN"],
+  },
+]);
+const sandbox = await client.create({ secretPolicies: ["example"] });
 ```
 
-Send `Authorization: Bearer secrets://token` from the sandbox to that origin.
-The host replaces the placeholder after authorizing the whole request; the value
-is never delivered to the guest. Explicit values and absent headers are unchanged.
-The same `secretRequests` option works in template `start`, `startArgs`, and
-`processCompose` options. Template launches can use `secretOverrides` to select a
-different workspace secret.
+Use `secretPolicies` in template `start`, `startArgs`, or `processCompose` options for required policies.
 
-Every request uses the active version and checks the secret's current destination
-policy and revocation state, including reused connections. An unset destination policy
-denies injection; injection-only secrets are supported. Existing sandbox egress
-rules still apply. Unavailable authorization or KMS fails the affected request
-closed, without forwarding it upstream.
+Send `Authorization: Bearer secrets://API_TOKEN` from the sandbox. The reference uses the actual secret name. No alias or injection override is required. Rules can instead select a `queryParameter` or `jsonPointer`, with one location per rule and one or more names in `secrets`.
 
-Origins must be exact HTTPS DNS origins on port 443 (omit the port). Methods and
-header names are explicit; paths must be canonical and unescaped. At most 64
-bindings and 8 KiB per substituted value are supported. Hop-by-hop, routing, and
-framing headers cannot contain placeholders. Bodies and query strings are not
-substituted. Redirects receive a fresh authorization check at their destination.
+Policies belong to a workspace and apply only to sessions that select them. Template-required names resolve in the launching workspace; explicit selections add to them. Policy edits and deletion affect subsequent requests on attached sessions. Rotation uses the active value, and revoked or deleted secrets are denied. Deleting and recreating a name does not retarget existing bindings.
 
-This requires an injection-capable node with HTTPS interception enabled and its
-CA trusted by the application. A trusted destination can reflect a credential in
-its response: injection protects guest storage, not against an upstream that
-returns the secret to its caller. Do not send credentials to untrusted origins or
-broad diagnostic/echo endpoints.
+Every referenced location must match a selected policy before the request is forwarded. Existing egress rules still apply. An unavailable resolver fails closed. Ordinary values and absent fields remain unchanged.
+
+HTTPS interception requires a capable node and guest trust in the managed CA. Permit only trusted origins and paths: an upstream that echoes credentials can expose a value to the guest. See the [workspace secrets guide](../../../docs/src/product/workspace-secrets.md) for location limits and lifecycle behavior.

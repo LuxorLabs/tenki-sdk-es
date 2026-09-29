@@ -129,7 +129,6 @@ import {
 } from "./registry.js";
 import { validateCreateResources, validateTemplateResources } from "./resources.js";
 import { secretFileToProto, validSecretFiles } from "./secret-files.js";
-import { secretRequestToProto } from "./secret-requests.js";
 import { isReady, isTerminal, Session } from "./session.js";
 import type { Snapshot, SnapshotDownloadURL } from "./snapshot.js";
 import { snapshotFromProto, snapshotIsReady, snapshotIsTerminal } from "./snapshot.js";
@@ -231,7 +230,7 @@ export class TenkiSandbox implements AsyncDisposable {
       runtime: options?.directRuntime?.toDirectRuntimeProto(),
       secretOverrides: { ...(options?.secretOverrides ?? {}) },
       secretFiles: (options?.secretFiles ?? []).map(secretFileToProto),
-      secretRequests: (options?.secretRequests ?? []).map(secretRequestToProto),
+      secretPolicies: [...(options?.secretPolicies ?? [])],
     });
 
     if (!validSecretFiles(req.secretFiles, 0) || req.secretFiles.some((file) => file.format.case === "source")) {

@@ -197,9 +197,6 @@ export {
 export { WorkspaceClient, type WorkspaceOptions } from "./workspace.js";
 export { WorkspaceSecretError } from "./workspace-secrets.js";
 export type {
-  SecretDeliveryMode,
-  SecretDestinationMode,
-  SecretPolicy,
   WorkspaceSecret,
   WorkspaceSecretVersion,
   SecretMutationOptions,
@@ -209,4 +206,4 @@ export type {
 
 export type { RuntimeSecretFile, RuntimeSecretReference } from "./secret-files.js";
 
-export type { SecretRequestBinding } from "./secret-requests.js";
+export type { SecretRequestRule, WorkspaceSecretPolicy } from "./secret-policies.js";
