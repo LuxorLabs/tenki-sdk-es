@@ -605,7 +605,8 @@ other callers must specify one.
 metadata only. Values are `Uint8Array`; omitting `value` on update retains it, while
 an empty array creates an empty value. Update, revoke, and delete require
 `expectedRevision`. To select an existing version, update `activeVersion` with
-`value` omitted. Revoking without `version` irreversibly revokes the entire secret.
+`value` omitted. Revoking without `version` revokes every version. Revoking the active version revokes
+the secret until a new value or an unrevoked version is made active.
 
 Mutations generate a request ID when none is supplied. For retries after an
 uncertain result, supply and reuse the same request ID and identical arguments.

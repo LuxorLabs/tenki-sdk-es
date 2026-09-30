@@ -390,7 +390,8 @@ export const ListSecretVersionsResponseSchema: GenMessage<ListSecretVersionsResp
   messageDesc(file_tenki_cloud_workspace_v1beta1_secrets, 11);
 
 /**
- * Omitted version revokes the entire secret. Revocation is irreversible.
+ * Omitted version revokes every version. Revoking the active version marks the secret revoked
+ * until a new value or an unrevoked version is made active. Revoked versions stay revoked.
  *
  * @generated from message tenki.cloud.workspace.v1beta1.RevokeSecretRequest
  */
