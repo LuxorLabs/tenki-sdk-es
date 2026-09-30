@@ -159,6 +159,7 @@ export {
   InvalidResourceConfigError,
   SnapshotNotFoundError,
   SnapshotFailedError,
+  SnapshotWaitTimeoutError,
   SnapshotNotDurableError,
   ResumeFailedError,
   PauseFailedError,

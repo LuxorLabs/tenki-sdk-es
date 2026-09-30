@@ -111,6 +111,15 @@ export class SnapshotNotFoundError extends SandboxError {
 }
 export class SnapshotFailedError extends SandboxError {
   name = "SnapshotFailedError";
+  readonly failureReason?: string;
+
+  constructor(message: string, options?: ErrorOptions & { failureReason?: string }) {
+    super(message, options);
+    this.failureReason = options?.failureReason;
+  }
+}
+export class SnapshotWaitTimeoutError extends SandboxError {
+  name = "SnapshotWaitTimeoutError";
 }
 export class SnapshotNotDurableError extends SandboxError {
   name = "SnapshotNotDurableError";

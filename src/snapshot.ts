@@ -33,6 +33,8 @@ export interface Snapshot {
   diskSizeGb: number;
   rawImageAvailable: boolean;
   readonly hasRuntimeSecrets: boolean;
+  /** Set when state is FAILED. */
+  failureReason?: string;
 }
 
 export function snapshotStateFromProto(state: ProtoSnapshotState): SnapshotState {
@@ -93,5 +95,6 @@ export function snapshotFromProto(proto: ProtoSnapshot): Snapshot {
     diskSizeGb: proto.diskSizeGb,
     rawImageAvailable: proto.rawImageAvailable,
     hasRuntimeSecrets: proto.hasRuntimeSecrets,
+    failureReason: proto.failureReason || undefined,
   };
 }

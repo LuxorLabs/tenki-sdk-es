@@ -22,6 +22,8 @@ import {
 import {
   InvalidTemplateSpecError,
   mapError,
+  SnapshotFailedError,
+  SnapshotWaitTimeoutError,
   TemplateBuildFailedError,
   TemplateRuntimeFailedError,
   VolumeSyncPendingError,
@@ -549,7 +551,8 @@ export class TenkiSandbox implements AsyncDisposable {
     sessionId: string,
     options?: CreateSnapshotOptions & { timeoutMs?: number },
   ): Promise<Snapshot> {
-    const snap = await this.createSnapshot(sessionId, options);
+    // Submit asynchronously so a slow capture cannot outlive a gateway timeout.
+    const snap = await this.createSnapshot(sessionId, { ...options, async: true });
     return this.waitSnapshotReady(snap.id, options?.timeoutMs ?? DEFAULT_SNAPSHOT_CREATE_TIMEOUT_MS);
   }
 
@@ -676,13 +679,21 @@ export class TenkiSandbox implements AsyncDisposable {
       signal?.throwIfAborted();
       const snap = await this.getSnapshot(snapshotId);
       if (snapshotIsReady(snap.state)) return snap;
+      if (snap.state === "FAILED") {
+        const reason = snap.failureReason ? `: ${snap.failureReason}` : "";
+        throw new SnapshotFailedError(`snapshot entered terminal state: FAILED${reason}`, {
+          failureReason: snap.failureReason,
+        });
+      }
       if (snapshotIsTerminal(snap.state)) {
         throw new Error(`snapshot entered terminal state: ${snap.state}`);
       }
       await sleep(pollBackoffMs(attempt), signal);
       attempt++;
     }
-    throw new Error(`timeout waiting for snapshot ${snapshotId} to become ready`);
+    throw new SnapshotWaitTimeoutError(
+      `timeout waiting for snapshot ${snapshotId} to become ready; it is still being created, call waitSnapshotReady("${snapshotId}") to keep waiting`,
+    );
   }
 
   // -- Volumes --

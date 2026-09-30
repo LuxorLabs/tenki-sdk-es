@@ -210,9 +210,12 @@ export function run(_session: Session, _argv: string[], _options?: ProcessRunOpt
       let receivedResponse = false;
       try {
         for await (const frame of activeResponses) {
-          if (!receivedResponse) traceRunTiming(session.id, runStartedAt, "first_response", { attempt });
-          receivedResponse = true;
-          session.markDataPlaneServing(dataPlane);
+          // Keepalives are not a response: keep the establishment retry open.
+          if (frame.payload.case !== "keepalive") {
+            if (!receivedResponse) traceRunTiming(session.id, runStartedAt, "first_response", { attempt });
+            receivedResponse = true;
+            session.markDataPlaneServing(dataPlane);
+          }
           yield frame;
         }
         return;
@@ -271,6 +274,9 @@ export function run(_session: Session, _argv: string[], _options?: ProcessRunOpt
     try {
       for await (const frame of responses) {
         switch (frame.payload.case) {
+          case "keepalive":
+            // Keepalives only keep a quiet stream active; they carry no output.
+            break;
           case "started":
             receivedStarted = true;
             resolvePid(Number(frame.payload.value.pid));

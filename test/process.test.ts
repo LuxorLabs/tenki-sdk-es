@@ -582,3 +582,71 @@ describe("run() exit-reason routing", () => {
     writer.releaseLock();
   });
 });
+
+describe("run() keepalive frames", () => {
+  it("ignores keepalives between output frames", async () => {
+    const frame = (payload: unknown) => ({ frame: create(RunResponseSchema, { payload } as never) });
+    const dataPlaneClient = {
+      run: vi.fn(() =>
+        (async function* () {
+          yield frame({ case: "started", value: { pid: 42n } });
+          yield frame({ case: "keepalive", value: true });
+          yield frame({ case: "stdout", value: new TextEncoder().encode("out\n") });
+          yield frame({ case: "keepalive", value: true });
+          yield frame({
+            case: "exit",
+            value: { exitCode: 0, signal: "", timedOut: false, durationMs: 0n, reason: "exit", errno: 0 },
+          });
+        })(),
+      ),
+    };
+    const proto = create(SandboxSessionSchema, {
+      id: "session-1",
+      state: SessionState.RUNNING,
+      ownerType: "SERVICE",
+      ownerId: "self",
+    });
+    const session = new Session({} as never, proto, "tk_test", "wss://gateway.tenki.test", undefined, 5);
+    (session as any).dataPlaneClient = dataPlaneClient;
+
+    const result = await run(session, ["echo"]);
+
+    expect(result.exitCode).toBe(0);
+    expect(new TextDecoder().decode(result.stdout)).toBe("out\n");
+  });
+});
+
+describe("run() keepalive before started", () => {
+  it("retries a reset that follows a lone keepalive", async () => {
+    let calls = 0;
+    const frame = (payload: unknown) => ({ frame: create(RunResponseSchema, { payload } as never) });
+    const runMock = vi.fn(() =>
+      (async function* () {
+        calls++;
+        if (calls === 1) {
+          yield frame({ case: "keepalive", value: true });
+          throw new ConnectError("read ECONNRESET", Code.Aborted);
+        }
+        yield frame({ case: "started", value: { pid: 1n } });
+        yield frame({
+          case: "exit",
+          value: { exitCode: 0, signal: "", timedOut: false, durationMs: 1n, reason: "exit", errno: 0 },
+        });
+      })(),
+    );
+    const proto = create(SandboxSessionSchema, {
+      id: "session-1",
+      state: SessionState.RUNNING,
+      ownerType: "SERVICE",
+      ownerId: "self",
+    });
+    const session = new Session({} as never, proto, "tk_test", "wss://gateway.tenki.test", undefined, 100);
+    (session as any).dataPlaneClient = { run: runMock };
+
+    const proc = run(session, ["echo"]);
+    await proc.stdin.close();
+
+    await expect(proc).resolves.toMatchObject({ exitCode: 0 });
+    expect(runMock).toHaveBeenCalledTimes(2);
+  });
+});
