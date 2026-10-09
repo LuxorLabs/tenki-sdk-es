@@ -33,6 +33,18 @@ export interface VolumeMountConfig {
   state?: string;
 }
 
+/**
+ * Admits matching HTTP requests on an intercepting session. Domains take the allowDomains grammar plus "*",
+ * empty methods match any method, and at most one path field may be set; pathRegex is RE2 and must match the whole path.
+ */
+export interface EgressHttpRule {
+  domains: string[];
+  methods?: string[];
+  pathExact?: string;
+  pathPrefix?: string;
+  pathRegex?: string;
+}
+
 export interface CreateOptions {
   /** Explicit scope for trusted service credentials; Workspace API keys infer it. */
   workspaceId?: string;
@@ -43,6 +55,13 @@ export interface CreateOptions {
   allowDomains?: string[];
   /** Restricts outbound access to these IPv4 CIDRs. No effect if allowOutbound is false. */
   allowCidrs?: string[];
+  /**
+   * Terminates the session's port-443 TLS at the egress proxy with a managed CA the guest trusts,
+   * so each request's Host must match the TLS server name. Requires allowDomains.
+   */
+  interceptHttps?: boolean;
+  /** Refuses with 403 every HTTP request on ports 80 and 443 that matches none of these rules. Requires interceptHttps. */
+  httpRules?: EgressHttpRule[];
   maxDurationMs?: number;
   /**
    * Ignored: sandboxes do not auto-pause on idle.

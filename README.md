@@ -384,6 +384,33 @@ Unless the sandbox uses outbound secret injection, HTTPS is not decrypted, so an
 Ports other than 80 and 443 are open to any address an allowed name resolved to.
 Read the allowlist back from `session.egress`.
 
+### Inspecting HTTPS requests
+
+With `interceptHttps: true`, the egress proxy terminates the session's HTTPS with a managed CA the guest trusts, and a request whose `Host` differs from the TLS server name gets 421.
+It requires `allowDomains`.
+The `httpRules` then decide which requests pass: each HTTP request must match one rule's domains, methods and path, or it gets 403 `egress_http_rule_denied`.
+Domains use the allowlist grammar plus `*`, empty methods match any method, and the path is exact, a prefix, or an RE2 regex that must match the whole escaped path (the query is not matched).
+Without rules, every request to an allowed domain passes.
+
+Read-only access to package registries, plus `git clone` (but not `git push`) from GitHub:
+
+```typescript
+const session = await client.create({
+  allowDomains: ["github.com", "codeload.github.com", "pypi.org", "files.pythonhosted.org"],
+  interceptHttps: true,
+  httpRules: [
+    { domains: ["github.com", "codeload.github.com", "pypi.org", "files.pythonhosted.org"], methods: ["GET", "HEAD"] },
+    { domains: ["github.com"], methods: ["POST"], pathRegex: "^/[^/]+/[^/]+(\\.git)?/git-upload-pack$" },
+  ],
+});
+```
+
+HTTP rules apply only to ports 80 and 443; other ports follow the domain and CIDR allowlist alone.
+Interception speaks HTTP/1.1 only, and WebSocket upgrades get 501.
+Git smart HTTP, pip, npm, cargo, Go modules and Maven all work over HTTP/1.1.
+The CA is installed at `/usr/local/share/ca-certificates/tenki-egress.crt` and added to the system bundle; unless you set them, `NODE_EXTRA_CA_CERTS` points at the CA and `SSL_CERT_FILE` and `REQUESTS_CA_BUNDLE` at the system bundle.
+The JVM reads none of those: for Maven or Gradle, import the CA into the JVM truststore (`keytool -importcert -cacerts -noprompt -alias tenki-egress -file /usr/local/share/ca-certificates/tenki-egress.crt`) or pass a truststore that has it through `JAVA_TOOL_OPTIONS`.
+
 Expose a sandbox port:
 
 ```typescript

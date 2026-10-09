@@ -110,6 +110,7 @@ export type {
   ClientOptions,
   RootCertificates,
   CreateOptions,
+  EgressHttpRule,
   ExecOptions,
   Output,
   ExposePortOptions,

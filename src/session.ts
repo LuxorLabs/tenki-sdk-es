@@ -38,7 +38,7 @@ import {
   type WriteStreamOptions,
 } from "./fs.js";
 import { Git } from "./git.js";
-import type { SandboxSession } from "./internal/proto/tenki/sandbox/v1/sandbox_pb.js";
+import type { SandboxSession, SessionEgressHttpRule } from "./internal/proto/tenki/sandbox/v1/sandbox_pb.js";
 import {
   AttachVolumeRequestSchema,
   CreateSessionCredentialRequestSchema,
@@ -60,6 +60,7 @@ import {
   SandboxSessionDataPlaneServiceReadFileRequestSchema,
   SandboxSessionDataPlaneServiceStatRequestSchema,
   SandboxSessionDataPlaneServiceWriteFileRequestSchema,
+  SessionEgressHttpRuleSchema,
   StatRequestSchema,
   TerminateSessionRequestSchema,
   UnexposePortRequestSchema,
@@ -74,6 +75,7 @@ import type { SessionMetrics } from "./metrics.js";
 import { sessionMetricsFromProto } from "./metrics.js";
 import type {
   DetachVolumeOptions,
+  EgressHttpRule,
   ExecOptions,
   ExposePortOptions,
   Output,
@@ -159,13 +161,37 @@ export interface SessionFs {
 export interface SessionEgressPolicy {
   allowDomains: string[];
   allowCidrs: string[];
+  interceptHttps: boolean;
+  httpRules: EgressHttpRule[];
 }
 
 function egressFromProto(proto: SandboxSession): SessionEgressPolicy {
   return {
     allowDomains: [...(proto.egress?.allowDomains ?? [])],
     allowCidrs: [...(proto.egress?.allowCidrs ?? [])],
+    interceptHttps: proto.egress?.interceptHttps ?? false,
+    httpRules: (proto.egress?.httpRules ?? []).map(egressHttpRuleFromProto),
   };
+}
+
+function egressHttpRuleFromProto(rule: SessionEgressHttpRule): EgressHttpRule {
+  const result: EgressHttpRule = { domains: [...rule.domains], methods: [...rule.methods] };
+  if (rule.path.case === "exact") result.pathExact = rule.path.value;
+  if (rule.path.case === "prefix") result.pathPrefix = rule.path.value;
+  if (rule.path.case === "regex") result.pathRegex = rule.path.value;
+  return result;
+}
+
+export function egressHttpRuleToProto(rule: EgressHttpRule): SessionEgressHttpRule {
+  const paths = [rule.pathExact, rule.pathPrefix, rule.pathRegex].filter(Boolean);
+  if (paths.length > 1) {
+    throw new Error("An egress HTTP rule may set only one of pathExact, pathPrefix, pathRegex");
+  }
+  let path: SessionEgressHttpRule["path"] = { case: undefined };
+  if (rule.pathExact) path = { case: "exact", value: rule.pathExact };
+  if (rule.pathPrefix) path = { case: "prefix", value: rule.pathPrefix };
+  if (rule.pathRegex) path = { case: "regex", value: rule.pathRegex };
+  return create(SessionEgressHttpRuleSchema, { domains: [...rule.domains], methods: [...(rule.methods ?? [])], path });
 }
 
 export class Session implements SessionHandle, AsyncDisposable {

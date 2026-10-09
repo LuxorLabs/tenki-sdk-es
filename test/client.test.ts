@@ -16,6 +16,7 @@ import {
   TerminateSessionResponseSchema,
   UpdateSessionResponseSchema,
   WaitSessionResponseSchema,
+  type SessionEgressPolicy,
 } from "../src/internal/proto/tenki/sandbox/v1/sandbox_pb.js";
 import { TailnetAuthKey, tailnetStatusFromProto } from "../src/tailnet.js";
 import { SandboxWarningCodes } from "../src/warning.js";
@@ -568,7 +569,70 @@ describe("TenkiSandbox client TLS options", () => {
     expect(session.egress).toEqual({
       allowDomains: ["*.pypi.org", "files.pythonhosted.org"],
       allowCidrs: ["10.0.0.0/8"],
+      interceptHttps: false,
+      httpRules: [],
     });
+  });
+
+  it("sends HTTPS interception and HTTP rules, and echoes them on the session", async () => {
+    const createSession = vi.fn(async (req: { egress?: unknown }) =>
+      create(CreateSessionResponseSchema, {
+        session: create(SandboxSessionSchema, {
+          id: "session-1",
+          state: SessionState.CREATING,
+          ownerType: "SERVICE",
+          ownerId: "self",
+          egress: req.egress as never,
+        }),
+      }),
+    );
+    connectMock.createClient.mockReturnValue({ createSession });
+    const client = new TenkiSandbox({ authToken: "tk_test" });
+    const httpRules = [
+      { domains: ["github.com", "pypi.org"], methods: ["GET", "HEAD"] },
+      { domains: ["github.com"], methods: ["POST"], pathRegex: "^/[^/]+/[^/]+(\\.git)?/git-upload-pack$" },
+      { domains: ["*"], methods: [], pathPrefix: "/simple/" },
+      { domains: ["*.example.com"], methods: [], pathExact: "/exact" },
+    ];
+
+    const session = await client.create({
+      allowDomains: ["github.com", "pypi.org"],
+      interceptHttps: true,
+      httpRules,
+      waitReady: false,
+    });
+
+    const egress = createSession.mock.calls[0]?.[0].egress as SessionEgressPolicy;
+    expect(egress.interceptHttps).toBe(true);
+    expect(egress.httpRules.map((rule) => rule.path)).toEqual([
+      { case: undefined },
+      { case: "regex", value: "^/[^/]+/[^/]+(\\.git)?/git-upload-pack$" },
+      { case: "prefix", value: "/simple/" },
+      { case: "exact", value: "/exact" },
+    ]);
+    expect(egress.httpRules[0]?.methods).toEqual(["GET", "HEAD"]);
+    expect(session.egress).toEqual({
+      allowDomains: ["github.com", "pypi.org"],
+      allowCidrs: [],
+      interceptHttps: true,
+      httpRules,
+    });
+  });
+
+  it("rejects an HTTP rule with more than one path before calling the API", async () => {
+    const createSession = vi.fn();
+    connectMock.createClient.mockReturnValue({ createSession });
+    const client = new TenkiSandbox({ authToken: "tk_test" });
+
+    await expect(
+      client.create({
+        allowDomains: ["github.com"],
+        interceptHttps: true,
+        httpRules: [{ domains: ["github.com"], pathExact: "/a", pathPrefix: "/b" }],
+        waitReady: false,
+      }),
+    ).rejects.toThrow("only one of");
+    expect(createSession).not.toHaveBeenCalled();
   });
 
   it("serializes a direct-key tailnet request and maps its status", async () => {
