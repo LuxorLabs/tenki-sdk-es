@@ -163,14 +163,24 @@ export interface SessionEgressPolicy {
   allowCidrs: string[];
   interceptHttps: boolean;
   httpRules: EgressHttpRule[];
+  /** Named workspace egress policies pinned at create; the other fields hold their merged expansion. */
+  policyNames: string[];
 }
 
 function egressFromProto(proto: SandboxSession): SessionEgressPolicy {
+  return egressPolicyFromProto(proto.egress, proto.egressPolicies);
+}
+
+export function egressPolicyFromProto(
+  egress: SandboxSession["egress"],
+  policyNames: readonly string[] = [],
+): SessionEgressPolicy {
   return {
-    allowDomains: [...(proto.egress?.allowDomains ?? [])],
-    allowCidrs: [...(proto.egress?.allowCidrs ?? [])],
-    interceptHttps: proto.egress?.interceptHttps ?? false,
-    httpRules: (proto.egress?.httpRules ?? []).map(egressHttpRuleFromProto),
+    allowDomains: [...(egress?.allowDomains ?? [])],
+    allowCidrs: [...(egress?.allowCidrs ?? [])],
+    interceptHttps: egress?.interceptHttps ?? false,
+    httpRules: (egress?.httpRules ?? []).map(egressHttpRuleFromProto),
+    policyNames: [...policyNames],
   };
 }
 

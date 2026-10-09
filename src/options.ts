@@ -62,6 +62,11 @@ export interface CreateOptions {
   interceptHttps?: boolean;
   /** Refuses with 403 every HTTP request on ports 80 and 443 that matches none of these rules. Requires interceptHttps. */
   httpRules?: EgressHttpRule[];
+  /**
+   * Named workspace egress policies, merged with the other egress options at create.
+   * Later edits or deletes of a named policy do not change the session.
+   */
+  egressPolicies?: string[];
   maxDurationMs?: number;
   /**
    * Ignored: sandboxes do not auto-pause on idle.

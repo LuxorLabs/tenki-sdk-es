@@ -20,6 +20,13 @@ import {
   pollBackoffMs,
 } from "./constants.js";
 import {
+  egressPolicyFromMessage,
+  egressPolicySpecToProto,
+  workspaceScope,
+  type EgressPolicy,
+  type EgressPolicySpec,
+} from "./egress-policies.js";
+import {
   InvalidTemplateSpecError,
   mapError,
   SnapshotFailedError,
@@ -44,12 +51,15 @@ import {
   UnshareRegistryImageRequestSchema,
 } from "./internal/proto/tenki/sandbox/v1/registry_pb.js";
 import {
+  CreateEgressPolicyRequestSchema,
   CreateSessionRequestSchema,
   CreateSnapshotRequestSchema,
   CreateVolumeRequestSchema,
   DataPlaneRouteStatus,
+  DeleteEgressPolicyRequestSchema,
   DeleteSnapshotRequestSchema,
   DeleteVolumeRequestSchema,
+  GetEgressPolicyRequestSchema,
   GetSessionMetricsRequestSchema,
   GetSessionRequestSchema,
   GetSnapshotDownloadURLRequestSchema,
@@ -57,6 +67,7 @@ import {
   GetVolumeRequestSchema,
   GetWorkspaceSandboxUsageRequestSchema,
   ListDanglingSnapshotsRequestSchema,
+  ListEgressPoliciesRequestSchema,
   ListSessionSnapshotsRequestSchema,
   ListVolumesRequestSchema,
   ListWorkspaceSandboxesRequestSchema,
@@ -65,6 +76,7 @@ import {
   SandboxService,
   SessionEgressPolicySchema,
   TemplateRuntimeFailureSchema,
+  UpdateEgressPolicyRequestSchema,
   UpdateSessionRequestSchema,
   UpdateSnapshotRequestSchema,
   UpdateVolumeRequestSchema,
@@ -233,6 +245,7 @@ export class TenkiSandbox implements AsyncDisposable {
       secretOverrides: { ...(options?.secretOverrides ?? {}) },
       secretFiles: (options?.secretFiles ?? []).map(secretFileToProto),
       secretPolicies: [...(options?.secretPolicies ?? [])],
+      egressPolicies: [...(options?.egressPolicies ?? [])],
     });
 
     if (!validSecretFiles(req.secretFiles, 0) || req.secretFiles.some((file) => file.format.case === "source")) {
@@ -701,6 +714,101 @@ export class TenkiSandbox implements AsyncDisposable {
     throw new SnapshotWaitTimeoutError(
       `timeout waiting for snapshot ${snapshotId} to become ready; it is still being created, call waitSnapshotReady("${snapshotId}") to keep waiting`,
     );
+  }
+
+  // -- Egress policies --
+
+  /** Saves spec under name in the workspace; the server checks it like an inline session policy. */
+  async createEgressPolicy(
+    name: string,
+    spec: EgressPolicySpec,
+    options?: WorkspaceScopeOptions,
+  ): Promise<EgressPolicy> {
+    const egress = egressPolicySpecToProto(spec);
+    try {
+      const resp = await this.rpcClient.createEgressPolicy(
+        create(CreateEgressPolicyRequestSchema, { workspaceId: workspaceScope(options), name, egress }),
+      );
+      return egressPolicyFromMessage(resp.policy);
+    } catch (err) {
+      throw mapError(err);
+    }
+  }
+
+  /** Replaces the policy body when expectedRevision is current; existing sessions keep the policy they were created with. */
+  async updateEgressPolicy(
+    nameOrId: string,
+    expectedRevision: number,
+    spec: EgressPolicySpec,
+    options?: WorkspaceScopeOptions,
+  ): Promise<EgressPolicy> {
+    const egress = egressPolicySpecToProto(spec);
+    try {
+      const resp = await this.rpcClient.updateEgressPolicy(
+        create(UpdateEgressPolicyRequestSchema, {
+          workspaceId: workspaceScope(options),
+          policyId: nameOrId,
+          expectedRevision,
+          egress,
+        }),
+      );
+      return egressPolicyFromMessage(resp.policy);
+    } catch (err) {
+      throw mapError(err);
+    }
+  }
+
+  async getEgressPolicy(nameOrId: string, options?: WorkspaceScopeOptions): Promise<EgressPolicy> {
+    try {
+      const resp = await this.rpcClient.getEgressPolicy(
+        create(GetEgressPolicyRequestSchema, { workspaceId: workspaceScope(options), policyId: nameOrId }),
+      );
+      return egressPolicyFromMessage(resp.policy);
+    } catch (err) {
+      throw mapError(err);
+    }
+  }
+
+  /** Returns every live policy in the workspace, ordered by name. */
+  async listEgressPolicies(options?: WorkspaceScopeOptions): Promise<EgressPolicy[]> {
+    try {
+      const policies: EgressPolicy[] = [];
+      let cursor = "";
+      do {
+        const resp = await this.rpcClient.listEgressPolicies(
+          create(ListEgressPoliciesRequestSchema, {
+            workspaceId: workspaceScope(options),
+            pageSize: automaticPageSize(),
+            cursor,
+          }),
+        );
+        policies.push(...resp.policies.map(egressPolicyFromMessage));
+        cursor = advancePageToken(cursor, resp.nextCursor);
+      } while (cursor);
+      return policies;
+    } catch (err) {
+      throw mapError(err);
+    }
+  }
+
+  /** Soft-deletes the policy when expectedRevision is current; sessions that pinned it keep their merged policy. */
+  async deleteEgressPolicy(
+    nameOrId: string,
+    expectedRevision: number,
+    options?: WorkspaceScopeOptions,
+  ): Promise<EgressPolicy> {
+    try {
+      const resp = await this.rpcClient.deleteEgressPolicy(
+        create(DeleteEgressPolicyRequestSchema, {
+          workspaceId: workspaceScope(options),
+          policyId: nameOrId,
+          expectedRevision,
+        }),
+      );
+      return egressPolicyFromMessage(resp.policy);
+    } catch (err) {
+      throw mapError(err);
+    }
   }
 
   // -- Volumes --

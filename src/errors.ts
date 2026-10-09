@@ -133,6 +133,9 @@ export class PauseFailedError extends SandboxError {
 export class TemplateNotFoundError extends SandboxError {
   name = "TemplateNotFoundError";
 }
+export class EgressPolicyNotFoundError extends SandboxError {
+  name = "EgressPolicyNotFoundError";
+}
 export class RegistryImageNotFoundError extends SandboxError {
   name = "RegistryImageNotFoundError";
 }
@@ -301,6 +304,9 @@ export function mapError(err: unknown): SandboxError {
     case Code.PermissionDenied:
       return new PermissionDeniedError(connectErr.message, { cause });
     case Code.NotFound:
+      // Matched as a prefix first: the message ends with caller-chosen policy names.
+      if (connectErr.rawMessage.toLowerCase().startsWith("egress polic"))
+        return new EgressPolicyNotFoundError(connectErr.message, { cause });
       if (msg.includes("template build")) return new TemplateBuildNotFoundError(connectErr.message, { cause });
       if (msg.includes("template")) return new TemplateNotFoundError(connectErr.message, { cause });
       if (msg.includes("registry image")) return new RegistryImageNotFoundError(connectErr.message, { cause });

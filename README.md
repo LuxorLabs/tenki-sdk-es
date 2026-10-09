@@ -411,6 +411,34 @@ Git smart HTTP, pip, npm, cargo, Go modules and Maven all work over HTTP/1.1.
 The CA is installed at `/usr/local/share/ca-certificates/tenki-egress.crt` and added to the system bundle; unless you set them, `NODE_EXTRA_CA_CERTS` points at the CA and `SSL_CERT_FILE` and `REQUESTS_CA_BUNDLE` at the system bundle.
 The JVM reads none of those: for Maven or Gradle, import the CA into the JVM truststore (`keytool -importcert -cacerts -noprompt -alias tenki-egress -file /usr/local/share/ca-certificates/tenki-egress.crt`) or pass a truststore that has it through `JAVA_TOOL_OPTIONS`.
 
+### Named egress policies
+
+Save a policy once per workspace, from the SDK or with `tenki sandbox egress-policies create`:
+
+```typescript
+const policy = await client.createEgressPolicy("registries", {
+  allowDomains: ["github.com", "pypi.org", "files.pythonhosted.org"],
+  interceptHttps: true,
+  httpRules: [{ domains: ["*"], methods: ["GET", "HEAD"] }],
+});
+```
+
+`getEgressPolicy`, `listEgressPolicies`, `updateEgressPolicy` and `deleteEgressPolicy` take a name or ID; update and delete need the current `revision` and fail with `Aborted` when another change landed first.
+Then pin policies by name:
+
+```typescript
+const session = await client.create({
+  egressPolicies: ["registries", "github-read"],
+  allowDomains: ["api.example.com"],
+});
+```
+
+The server merges the named policies with the inline options: domains and CIDRs are combined, HTTPS interception is on if any of them asks for it, and the HTTP rules are concatenated.
+The merged policy must pass the same checks and limits as an inline one.
+An unknown name fails the create with `NotFound` naming every missing policy.
+The session keeps the merged copy, so editing or deleting a named policy later does not change it.
+`session.egress.policyNames` reads the pinned names back, and the other fields of `session.egress` hold the merged policy.
+
 Expose a sandbox port:
 
 ```typescript

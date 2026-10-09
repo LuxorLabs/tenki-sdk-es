@@ -571,6 +571,7 @@ describe("TenkiSandbox client TLS options", () => {
       allowCidrs: ["10.0.0.0/8"],
       interceptHttps: false,
       httpRules: [],
+      policyNames: [],
     });
   });
 
@@ -616,7 +617,61 @@ describe("TenkiSandbox client TLS options", () => {
       allowCidrs: [],
       interceptHttps: true,
       httpRules,
+      policyNames: [],
     });
+  });
+
+  it("sends egress policy names and reads them back with the merged policy", async () => {
+    const createSession = vi.fn(async (req: { egressPolicies: string[] }) =>
+      create(CreateSessionResponseSchema, {
+        session: create(SandboxSessionSchema, {
+          id: "session-1",
+          state: SessionState.CREATING,
+          ownerType: "SERVICE",
+          ownerId: "self",
+          egress: { allowDomains: ["github.com", "pypi.org"] },
+          egressPolicies: req.egressPolicies,
+        }),
+      }),
+    );
+    connectMock.createClient.mockReturnValue({ createSession });
+    const client = new TenkiSandbox({ authToken: "tk_test" });
+
+    const session = await client.create({
+      egressPolicies: ["registries", "github-read"],
+      allowDomains: ["pypi.org"],
+      waitReady: false,
+    });
+
+    const request = createSession.mock.calls[0]?.[0] as { egressPolicies: string[]; egress?: SessionEgressPolicy };
+    expect(request.egressPolicies).toEqual(["registries", "github-read"]);
+    expect(request.egress?.allowDomains).toEqual(["pypi.org"]);
+    expect(session.egress).toEqual({
+      allowDomains: ["github.com", "pypi.org"],
+      allowCidrs: [],
+      interceptHttps: false,
+      httpRules: [],
+      policyNames: ["registries", "github-read"],
+    });
+  });
+
+  it("sends only egress policy names when no inline egress option is set", async () => {
+    const createSession = vi.fn(async () =>
+      create(CreateSessionResponseSchema, {
+        session: create(SandboxSessionSchema, { id: "session-1", state: SessionState.CREATING }),
+      }),
+    );
+    connectMock.createClient.mockReturnValue({ createSession });
+    const client = new TenkiSandbox({ authToken: "tk_test" });
+
+    await client.create({ egressPolicies: ["registries"], waitReady: false });
+
+    const request = createSession.mock.calls[0]?.[0] as { egressPolicies: string[]; egress?: unknown };
+    expect(request.egressPolicies).toEqual(["registries"]);
+    expect(request.egress).toBeUndefined();
+    expect(
+      toBinary(CreateSessionRequestSchema, create(CreateSessionRequestSchema, { egressPolicies: ["registries"] })),
+    ).toEqual(new Uint8Array([0xca, 0x02, 0x0a, ...new TextEncoder().encode("registries")]));
   });
 
   it("rejects an HTTP rule with more than one path before calling the API", async () => {
