@@ -152,6 +152,8 @@ export interface ExposePortOptions {
 }
 
 export interface DetachVolumeOptions {
+  /** Detach without the guest's consent: release a SYNC_PENDING attachment at once, or unplug an attached
+   * volume even if the guest cannot unmount it (writes it has not flushed are lost). */
   force?: boolean;
   waitTimeoutMs?: number;
   signal?: AbortSignal;

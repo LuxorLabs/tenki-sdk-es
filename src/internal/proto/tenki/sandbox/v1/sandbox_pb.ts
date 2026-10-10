@@ -2608,6 +2608,9 @@ export type DetachVolumeRequest = Message<"tenki.sandbox.v1.DetachVolumeRequest"
   volumeId: string;
 
   /**
+   * Releases a SYNC_PENDING attachment at once, or unplugs an attached volume
+   * the guest cannot unmount; writes the guest has not flushed are lost.
+   *
    * @generated from field: bool force_detach = 3;
    */
   forceDetach: boolean;
