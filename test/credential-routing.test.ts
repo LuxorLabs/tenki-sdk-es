@@ -38,9 +38,7 @@ describe("data-plane credential routing", () => {
     const credentials = credentialManager("cred-for-node-B", NODE_B);
     const client = createDataPlaneClient(NODE_A, credentials, "session-1");
 
-    await expect(
-      client.stat({ request: { sessionId: "session-1", path: "/home/tenki" } } as never),
-    ).rejects.toSatisfy(
+    await expect(client.stat({ request: { sessionId: "session-1", path: "/home/tenki" } } as never)).rejects.toSatisfy(
       (err: unknown) =>
         err instanceof ConnectError &&
         err.code === Code.PermissionDenied &&
@@ -52,9 +50,7 @@ describe("data-plane credential routing", () => {
     const credentials = credentialManager("cred-for-node-A", NODE_A);
     const client = createDataPlaneClient(NODE_A, credentials, "session-1");
 
-    await expect(
-      client.stat({ request: { sessionId: "session-2", path: "/home/tenki" } } as never),
-    ).rejects.toSatisfy(
+    await expect(client.stat({ request: { sessionId: "session-2", path: "/home/tenki" } } as never)).rejects.toSatisfy(
       (err: unknown) =>
         err instanceof ConnectError &&
         err.code === Code.PermissionDenied &&
