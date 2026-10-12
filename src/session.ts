@@ -332,6 +332,48 @@ export class Session implements SessionHandle, AsyncDisposable {
     };
   }
 
+  // Allowlist so JSON logging never serializes transport state or credentials.
+  toJSON(): Record<string, unknown> {
+    return {
+      id: this.id,
+      name: this.name,
+      state: this.state,
+      ownerType: this.ownerType,
+      ownerId: this.ownerId,
+      workspaceId: this.workspaceId,
+      inboundEnabled: this.inboundEnabled,
+      outboundEnabled: this.outboundEnabled,
+      cpuCores: this.cpuCores,
+      memoryMb: this.memoryMb,
+      diskSizeGb: this.diskSizeGb,
+      timeoutAt: this.timeoutAt,
+      idleTimeoutMinutes: this.idleTimeoutMinutes,
+      lastActivityAt: this.lastActivityAt,
+      pausedAt: this.pausedAt,
+      pauseSnapshotId: this.pauseSnapshotId,
+      pauseRetentionMs: this.pauseRetentionMs,
+      pauseExpiresAt: this.pauseExpiresAt,
+      metadata: this.metadata,
+      tags: this.tags,
+      egress: this.egress,
+      volumeMounts: this.volumeMounts,
+      pauseSnapshot: this.pauseSnapshot,
+      lastResumeError: this.lastResumeError,
+      terminalError: this.terminalError,
+      runtimeState: this.runtimeState,
+      hasRuntimeSecrets: this.hasRuntimeSecrets,
+      runtimeError: this.runtimeError,
+      sticky: this.sticky,
+      sourceRegistryImageId: this.sourceRegistryImageId,
+      sourceSnapshotId: this.sourceSnapshotId,
+      sourceRegistryWorkspaceId: this.sourceRegistryWorkspaceId,
+      sourceRegistryRef: this.sourceRegistryRef,
+      sourceTemplateId: this.sourceTemplateId,
+      warnings: this.warnings,
+      tailnetStatus: this.tailnetStatus,
+    };
+  }
+
   dataPlaneRPC(): Client<typeof SandboxSessionDataPlaneService> | undefined {
     return this.dataPlaneClient;
   }

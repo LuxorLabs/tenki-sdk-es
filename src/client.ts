@@ -167,10 +167,13 @@ import { volumeFromProto, volumeIsReady, volumeIsTerminal } from "./volume.js";
 import { defaultWarningHandler, emitWarnings, sandboxWarningsFromProto, type WarningHandler } from "./warning.js";
 import type { Identity } from "./whoami.js";
 
+const inspectCustom = Symbol.for("nodejs.util.inspect.custom");
+
 export class TenkiSandbox implements AsyncDisposable {
   private rpcClient: Client<typeof SandboxService>;
   private sshGatewayClient: Client<typeof SSHGatewayClientService>;
   #authToken: string;
+  private readonly baseUrl: string;
   private gatewayAddress: string;
   private sshOptions?: SSHConnectOptions;
   private dataPlaneReadyTimeoutMs: number;
@@ -185,6 +188,7 @@ export class TenkiSandbox implements AsyncDisposable {
 
     // URL resolution
     const baseUrl = options?.baseUrl?.trim() || env(ENV_API_ENDPOINT) || env(ENV_API_URL) || DEFAULT_BASE_URL;
+    this.baseUrl = baseUrl;
 
     // Explicit SSH gateway overrides disable automatic gateway discovery.
     const pinnedGateway = options?.gatewayAddress?.trim() || env(ENV_GATEWAY_URL) || "";
@@ -221,6 +225,14 @@ export class TenkiSandbox implements AsyncDisposable {
       ...(pinnedGateway ? {} : { discoverGateway: (sid: string) => discoverSSHGatewayUrl(this.sshGatewayClient, sid) }),
     };
     this.sshOptions = Object.keys(sshOptions).length > 0 ? sshOptions : undefined;
+  }
+
+  toJSON(): { baseUrl: string; authToken: string } {
+    return { baseUrl: this.baseUrl, authToken: "[REDACTED]" };
+  }
+
+  [inspectCustom](): string {
+    return `TenkiSandbox { baseUrl: ${JSON.stringify(this.baseUrl)}, authToken: [REDACTED] }`;
   }
 
   // -- Sessions --
