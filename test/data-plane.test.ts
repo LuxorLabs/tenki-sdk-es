@@ -17,7 +17,11 @@ describe("DataPlaneCredentialManager", () => {
 
   it("closes the session manager with the data-plane client", () => {
     const abort = vi.spyOn(Http2SessionManager.prototype, "abort");
-    const client = createDataPlaneClient("https://sandbox.example.com", { current: () => "credential" } as never);
+    const client = createDataPlaneClient(
+      "https://sandbox.example.com",
+      { current: () => "credential" } as never,
+      "session-1",
+    );
 
     closeDataPlaneConnection(client);
     closeDataPlaneConnection(client);
@@ -27,8 +31,16 @@ describe("DataPlaneCredentialManager", () => {
 
   it("shares one session manager for clients on the same origin", () => {
     const abort = vi.spyOn(Http2SessionManager.prototype, "abort");
-    const first = createDataPlaneClient("https://sandbox.example.com", { current: () => "first" } as never);
-    const second = createDataPlaneClient("https://sandbox.example.com/", { current: () => "second" } as never);
+    const first = createDataPlaneClient(
+      "https://sandbox.example.com",
+      { current: () => "first" } as never,
+      "session-1",
+    );
+    const second = createDataPlaneClient(
+      "https://sandbox.example.com/",
+      { current: () => "second" } as never,
+      "session-2",
+    );
 
     closeDataPlaneConnection(first);
     expect(abort).not.toHaveBeenCalled();

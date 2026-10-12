@@ -1,5 +1,5 @@
 import { timestampDate } from "@bufbuild/protobuf/wkt";
-import { createClient, type Client, type Interceptor } from "@connectrpc/connect";
+import { Code, ConnectError, createClient, type Client, type Interceptor } from "@connectrpc/connect";
 import { createGrpcTransport, type Http2SessionManager } from "@connectrpc/connect-node";
 
 import { pollBackoffMs } from "./constants.js";
@@ -72,6 +72,12 @@ export class DataPlaneEndpointHints {
 
 export class DataPlaneCredentialManager {
   #credential = "";
+  // #endpoint is the endpoint #credential was minted for. A data-plane
+  // credential authorizes one session on one node, so it is only ever handed
+  // to a client aimed at that endpoint. An empty value means the engine
+  // returned a credential before the endpoint was known, and the first
+  // endpoint the session resolves to adopts it.
+  #endpoint = "";
   private expiresAt?: Date;
   private timer?: ReturnType<typeof setTimeout>;
   private stopped = false;
@@ -79,17 +85,31 @@ export class DataPlaneCredentialManager {
   constructor(
     private readonly session: Session,
     initial?: SessionCredential,
+    endpoint = "",
   ) {
-    this.set(initial);
+    this.set(initial, endpoint);
   }
 
   current(): string {
     return this.#credential;
   }
 
-  set(credential?: SessionCredential): void {
-    if (!credential?.credential) return;
+  /** The credential, but only for the endpoint it was minted for. */
+  currentFor(endpoint: string): { credential: string; bound: true } | { bound: false } {
+    if (!this.#credential) return { credential: "", bound: true };
+    if (this.#endpoint !== endpoint) return { bound: false };
+    return { credential: this.#credential, bound: true };
+  }
+
+  /** Bind an unbound credential to the first endpoint the session resolves to. */
+  adoptEndpoint(endpoint: string): void {
+    if (this.#credential && !this.#endpoint) this.#endpoint = endpoint;
+  }
+
+  set(credential?: SessionCredential, endpoint = ""): void {
+    if (!credential?.credential || this.stopped) return;
     this.#credential = credential.credential;
+    this.#endpoint = endpoint;
     this.expiresAt = credential.expiresAt ? timestampDate(credential.expiresAt) : undefined;
     this.schedule();
   }
@@ -133,11 +153,22 @@ export class DataPlaneCredentialManager {
 export function createDataPlaneClient(
   endpoint: string,
   credentials: DataPlaneCredentialManager,
+  sessionId: string,
 ): Client<typeof SandboxSessionDataPlaneService> {
+  // The interceptor is bound to the session and endpoint this client targets.
+  // A credential minted for another node, or a request naming another session,
+  // is refused here rather than sent to the wrong destination.
   const credentialInterceptor: Interceptor = (next) => async (req) => {
-    const credential = credentials.current();
-    if (credential) req.header.set(dataPlaneCredentialHeader, credential);
-    return next(req);
+    if (!req.stream) validateRequestSession(req.message, sessionId);
+    const current = credentials.currentFor(endpoint);
+    if (!current.bound) {
+      throw new ConnectError(
+        `sandbox: refusing to send a data-plane credential to the wrong destination: credential was minted for another endpoint, not ${endpoint}`,
+        Code.PermissionDenied,
+      );
+    }
+    if (current.credential) req.header.set(dataPlaneCredentialHeader, current.credential);
+    return req.stream ? next({ ...req, message: validateStreamRequests(req.message, sessionId) }) : next(req);
   };
   // refusedStreamRetry is outermost so a retried attempt re-runs the credential
   // interceptor (fresh connection re-applies auth).
@@ -160,6 +191,36 @@ export function createDataPlaneClient(
   const client = createClient(SandboxSessionDataPlaneService, transport);
   dataPlaneSessionManagers.set(client, sharedSessionManager);
   return client;
+}
+
+function validateRequestSession(message: unknown, sessionId: string): void {
+  const requested = requestSessionId(message);
+  if (requested && requested !== sessionId) {
+    throw new ConnectError(
+      `sandbox: refusing to send a data-plane credential to the wrong destination: request targets session ${requested} on a client credentialed for session ${sessionId}`,
+      Code.PermissionDenied,
+    );
+  }
+}
+
+async function* validateStreamRequests<T>(messages: AsyncIterable<T>, sessionId: string): AsyncGenerator<T> {
+  for await (const message of messages) {
+    validateRequestSession(message, sessionId);
+    yield message;
+  }
+}
+
+function requestSessionId(message: unknown, depth = 3): string | undefined {
+  if (typeof message !== "object" || message === null || ArrayBuffer.isView(message)) return undefined;
+  const direct = (message as { sessionId?: unknown }).sessionId;
+  if (typeof direct === "string" && direct) return direct;
+  if (depth <= 0) return undefined;
+  for (const value of Object.values(message)) {
+    if (Array.isArray(value)) continue;
+    const nested = requestSessionId(value, depth - 1);
+    if (nested) return nested;
+  }
+  return undefined;
 }
 
 export async function warmDataPlaneConnection(client: Client<typeof SandboxSessionDataPlaneService>) {

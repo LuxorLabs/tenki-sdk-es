@@ -259,6 +259,16 @@ export class Session implements SessionHandle, AsyncDisposable {
   private dataPlaneVerifiedClient?: Client<typeof SandboxSessionDataPlaneService>;
   private dataPlaneEndpointFromHint = false;
   private readonly dataPlaneEndpointHints = new DataPlaneEndpointHints();
+  // Set by close(). A renewal or data-plane response that lands afterwards
+  // must not re-arm the session: without it a response in flight across close
+  // revives both the renewal loop and a pooled transport for a session that is
+  // already terminated.
+  private dataPlaneClosed = false;
+  // closeDone short-circuits every close() after the first that succeeds;
+  // closing joins callers onto the one in flight. A failed close stays
+  // retryable.
+  private closeDone = false;
+  private closing?: Promise<void>;
 
   constructor(
     rpcClient: Client<typeof SandboxService>,
@@ -275,9 +285,9 @@ export class Session implements SessionHandle, AsyncDisposable {
     this.#authToken = authToken;
     this.gatewayAddress = gatewayAddress;
     this.sshOptions = sshOptions;
+    this.id = proto.id;
     this.applyDataPlaneResponse(dataPlane?.endpoint, dataPlane?.credential, dataPlane?.routeStatus);
 
-    this.id = proto.id;
     this.name = proto.name;
     this.state = sessionStateFromProto(proto.state);
     this.ownerType = proto.ownerType;
@@ -460,19 +470,26 @@ export class Session implements SessionHandle, AsyncDisposable {
   private configureDataPlane(dataPlane?: DataPlaneConfig, endpointFromHint = false): void {
     const endpoint = dataPlane?.endpoint?.trim();
     if (!endpoint) return;
+    // A terminated session must not acquire a transport or a renewal loop,
+    // however late the response that got here.
+    if (this.dataPlaneClosed) return;
     if (endpoint === this.dataPlaneEndpoint && this.dataPlaneCredential) {
-      this.dataPlaneCredential.set(dataPlane?.credential);
+      this.dataPlaneCredential.set(dataPlane?.credential, endpoint);
       this.dataPlaneEndpointFromHint = endpointFromHint;
       return;
     }
     closeDataPlaneConnection(this.dataPlaneClient);
     this.dataPlaneEndpoint = endpoint;
     if (!this.dataPlaneCredential) {
-      this.dataPlaneCredential = new DataPlaneCredentialManager(this, dataPlane?.credential);
+      this.dataPlaneCredential = new DataPlaneCredentialManager(this, dataPlane?.credential, endpoint);
     } else {
-      this.dataPlaneCredential.set(dataPlane?.credential);
+      this.dataPlaneCredential.set(dataPlane?.credential, endpoint);
+      // A credential the engine handed back before the endpoint was known is
+      // unbound; this endpoint adopts it. One already bound to another node is
+      // left alone, and the interceptor refuses to attach it here.
+      this.dataPlaneCredential.adoptEndpoint(endpoint);
     }
-    this.dataPlaneClient = createDataPlaneClient(endpoint, this.dataPlaneCredential);
+    this.dataPlaneClient = createDataPlaneClient(endpoint, this.dataPlaneCredential, this.id);
     this.dataPlaneEndpointFromHint = endpointFromHint;
   }
 
@@ -494,16 +511,22 @@ export class Session implements SessionHandle, AsyncDisposable {
     routeStatus?: DataPlaneRouteStatus,
   ): void {
     if (routeStatus === DataPlaneRouteStatus.FAILED) return;
+    if (this.dataPlaneClosed) return;
+    const resolved = endpoint?.trim();
     if (credential) {
+      // A credential that arrives without an endpoint belongs to the endpoint
+      // already in force; one that arrives with an endpoint is bound to it by
+      // configureDataPlane below.
+      const boundTo = resolved || this.dataPlaneEndpoint;
       if (!this.dataPlaneCredential) {
-        this.dataPlaneCredential = new DataPlaneCredentialManager(this, credential);
+        this.dataPlaneCredential = new DataPlaneCredentialManager(this, credential, boundTo);
       } else {
-        this.dataPlaneCredential.set(credential);
+        this.dataPlaneCredential.set(credential, boundTo);
       }
     }
-    if (endpoint?.trim()) {
-      this.dataPlaneEndpointHints.remember(endpoint);
-      this.configureDataPlane({ endpoint, credential });
+    if (resolved) {
+      this.dataPlaneEndpointHints.remember(resolved);
+      this.configureDataPlane({ endpoint: resolved, credential });
     }
     this.startDataPlaneWarm();
     if (routeStatus === DataPlaneRouteStatus.VERIFIED && this.dataPlaneClient) {
@@ -538,11 +561,7 @@ export class Session implements SessionHandle, AsyncDisposable {
             await sleepReadyBackoff(attempt, deadline);
             continue;
           default:
-            if (resp.dataPlaneEndpoint?.trim()) {
-              this.applyDataPlaneResponse(resp.dataPlaneEndpoint, resp.credential, resp.routeStatus);
-            } else {
-              this.dataPlaneCredential?.set(resp.credential);
-            }
+            this.applyDataPlaneResponse(resp.dataPlaneEndpoint, resp.credential, resp.routeStatus);
             return true;
         }
       } catch (err) {
@@ -865,11 +884,35 @@ export class Session implements SessionHandle, AsyncDisposable {
     return new Error(`session entered terminal state: ${this.state}${suffix}`);
   }
 
+  /**
+   * Terminate this session. Idempotent and safe to call concurrently: the
+   * first successful call terminates and every later one is a no-op, while
+   * concurrent callers join the call already in flight. A call that fails
+   * leaves the session closeable again, so a caller can retry.
+   */
   async close(): Promise<void> {
+    if (this.closeDone) return;
+    if (this.closing) return this.closing;
+    this.closing = this.closeOnce();
+    try {
+      await this.closing;
+    } finally {
+      this.closing = undefined;
+    }
+  }
+
+  private async closeOnce(): Promise<void> {
+    // Latch the data plane shut and stop renewal before terminating, so a
+    // response in flight cannot revive either.
+    this.dataPlaneClosed = true;
+    this.dataPlaneCredential?.stop();
     try {
       const resp = await this.rpcClient.terminateSession(create(TerminateSessionRequestSchema, { sessionId: this.id }));
+      this.closeDone = true;
       if (resp.session) this.applyProto(resp.session);
     } catch (err) {
+      // Let a failed close be retried.
+      this.dataPlaneClosed = false;
       throw mapError(err);
     } finally {
       this.resetDataPlane();
