@@ -213,6 +213,12 @@ describe("mapError", () => {
       );
     });
 
+    it("maps unconfigured session metrics to InvalidStateError", () => {
+      expect(
+        mapError(connectErr(Code.FailedPrecondition, "sandbox session metrics are not configured")),
+      ).toBeInstanceOf(InvalidStateError);
+    });
+
     it("maps a transient git failure to a retryable GitOperationFailedError", () => {
       const mapped = mapError(
         connectErr(
