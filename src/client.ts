@@ -237,7 +237,7 @@ export class TenkiSandbox implements AsyncDisposable {
 
   // -- Sessions --
 
-  /** cpuCores is 1-128 and memoryMb 128-524288 (even); the workspace's size limit may be lower. */
+  /** cpuCores is 1-128 and memoryMb 128-524288 MiB (even); the workspace's size limit may be lower. */
   async create(options?: CreateOptions): Promise<Session> {
     const req = create(CreateSessionRequestSchema, {
       ownerType: "SERVICE",
