@@ -14,6 +14,8 @@ export interface EgressPolicySpec {
   allowDomains?: string[];
   allowCidrs?: string[];
   interceptHttps?: boolean;
+  /** Extra public TCP ports bypass HTTP inspection and still require an allowed destination. */
+  allowedPorts?: number[];
   httpRules?: EgressHttpRule[];
 }
 
@@ -37,6 +39,7 @@ export function egressPolicySpecToProto(spec: EgressPolicySpec): SessionEgressPo
     allowDomains: [...(spec.allowDomains ?? [])],
     allowCidrs: [...(spec.allowCidrs ?? [])],
     interceptHttps: spec.interceptHttps ?? false,
+    allowedPorts: [...(spec.allowedPorts ?? [])],
     httpRules: (spec.httpRules ?? []).map(egressHttpRuleToProto),
   });
 }

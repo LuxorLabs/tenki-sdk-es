@@ -60,6 +60,8 @@ export interface CreateOptions {
    * so each request's Host must match the TLS server name. Requires allowDomains.
    */
   interceptHttps?: boolean;
+  /** Extra public TCP ports bypass HTTP inspection and still require an allowed destination. */
+  allowedPorts?: number[];
   /** Refuses with 403 every HTTP request on ports 80 and 443 that matches none of these rules. Requires interceptHttps. */
   httpRules?: EgressHttpRule[];
   /**

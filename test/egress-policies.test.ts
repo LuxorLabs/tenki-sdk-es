@@ -47,7 +47,7 @@ function policy(name: string) {
     name,
     revision: 3,
     activeSessionCount: 2,
-    egress: { allowDomains: ["github.com"], interceptHttps: true },
+    egress: { allowDomains: ["github.com"], interceptHttps: true, allowedPorts: [22, 8443] },
     createdAt: timestampFromDate(createdAt),
     updatedAt: timestampFromDate(createdAt),
   });
@@ -82,6 +82,7 @@ describe("egress policy CRUD", () => {
       allowDomains: ["github.com"],
       allowCidrs: ["10.0.0.0/8"],
       interceptHttps: true,
+      allowedPorts: [22, 8443],
       httpRules: [{ domains: ["github.com"], methods: ["GET"], pathPrefix: "/repos/" }],
     };
 
@@ -97,7 +98,14 @@ describe("egress policy CRUD", () => {
       name: "registries",
       revision: 3,
       activeSessionCount: 2,
-      egress: { allowDomains: ["github.com"], allowCidrs: [], interceptHttps: true, httpRules: [], policyNames: [] },
+      egress: {
+        allowDomains: ["github.com"],
+        allowCidrs: [],
+        interceptHttps: true,
+        allowedPorts: [22, 8443],
+        httpRules: [],
+        policyNames: [],
+      },
       createdAt,
       updatedAt: createdAt,
       deletedAt: undefined,
@@ -108,6 +116,7 @@ describe("egress policy CRUD", () => {
       allowDomains: ["github.com"],
       allowCidrs: ["10.0.0.0/8"],
       interceptHttps: true,
+      allowedPorts: [22, 8443],
       httpRules: [{ domains: ["github.com"], methods: ["GET"], path: { case: "prefix", value: "/repos/" } }],
     });
     const updateReq = rpc.updateEgressPolicy.mock.calls[0]?.[0] as { workspaceId?: string };
@@ -164,6 +173,7 @@ describe("egress policy CRUD", () => {
       client.createEgressPolicy("registries", {
         allowDomains: ["github.com"],
         interceptHttps: true,
+        allowedPorts: [22, 8443],
         httpRules: [{ domains: ["github.com"], pathExact: "/a", pathRegex: "b" }],
       }),
     ).rejects.toThrow("only one of");

@@ -570,6 +570,7 @@ describe("TenkiSandbox client TLS options", () => {
       allowDomains: ["*.pypi.org", "files.pythonhosted.org"],
       allowCidrs: ["10.0.0.0/8"],
       interceptHttps: false,
+      allowedPorts: [],
       httpRules: [],
       policyNames: [],
     });
@@ -599,12 +600,14 @@ describe("TenkiSandbox client TLS options", () => {
     const session = await client.create({
       allowDomains: ["github.com", "pypi.org"],
       interceptHttps: true,
+      allowedPorts: [22, 8443],
       httpRules,
       waitReady: false,
     });
 
     const egress = createSession.mock.calls[0]?.[0].egress as SessionEgressPolicy;
     expect(egress.interceptHttps).toBe(true);
+    expect(egress.allowedPorts).toEqual([22, 8443]);
     expect(egress.httpRules.map((rule) => rule.path)).toEqual([
       { case: undefined },
       { case: "regex", value: "^/[^/]+/[^/]+(\\.git)?/git-upload-pack$" },
@@ -616,6 +619,7 @@ describe("TenkiSandbox client TLS options", () => {
       allowDomains: ["github.com", "pypi.org"],
       allowCidrs: [],
       interceptHttps: true,
+      allowedPorts: [22, 8443],
       httpRules,
       policyNames: [],
     });
@@ -650,6 +654,7 @@ describe("TenkiSandbox client TLS options", () => {
       allowDomains: ["github.com", "pypi.org"],
       allowCidrs: [],
       interceptHttps: false,
+      allowedPorts: [],
       httpRules: [],
       policyNames: ["registries", "github-read"],
     });

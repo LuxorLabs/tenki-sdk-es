@@ -269,12 +269,14 @@ export class TenkiSandbox implements AsyncDisposable {
       options?.allowDomains?.length ||
       options?.allowCidrs?.length ||
       options?.interceptHttps ||
+      options?.allowedPorts?.length ||
       options?.httpRules?.length
     ) {
       req.egress = create(SessionEgressPolicySchema, {
         allowDomains: options?.allowDomains ?? [],
         allowCidrs: options?.allowCidrs ?? [],
         interceptHttps: options?.interceptHttps ?? false,
+        allowedPorts: [...(options?.allowedPorts ?? [])],
         httpRules: (options?.httpRules ?? []).map(egressHttpRuleToProto),
       });
     }
