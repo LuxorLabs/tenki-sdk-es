@@ -29,6 +29,8 @@ export interface ProcessRunOptions {
   env?: Record<string, string>;
   stdin?: ReadableStream<Uint8Array>;
   privileged?: boolean;
+  // Stream output without result capture; both readable streams must be drained.
+  streamOnly?: boolean;
   /**
    * Wall-clock budget for the run; omitted or `0` means unbounded. Enforced by
    * the guest-agent, which resolves a spent budget with `timedOut: true` rather
@@ -255,10 +257,8 @@ export function run(_session: Session, _argv: string[], _options?: ProcessRunOpt
       }
     }
   })();
-  const stdoutChunks: Uint8Array[] = [];
-  const stderrChunks: Uint8Array[] = [];
-  let stdoutController: ReadableStreamDefaultController<Uint8Array> | undefined;
-  let stderrController: ReadableStreamDefaultController<Uint8Array> | undefined;
+  const stdout = new RunOutput(options?.streamOnly ?? false);
+  const stderr = new RunOutput(options?.streamOnly ?? false);
   let resolvePid: (pid: number) => void = () => {};
   let rejectPid: (err: unknown) => void = () => {};
   const pid = new Promise<number>((resolve, reject) => {
@@ -282,12 +282,10 @@ export function run(_session: Session, _argv: string[], _options?: ProcessRunOpt
             resolvePid(Number(frame.payload.value.pid));
             break;
           case "stdout":
-            stdoutChunks.push(frame.payload.value);
-            stdoutController?.enqueue(frame.payload.value);
+            await stdout.push(frame.payload.value);
             break;
           case "stderr":
-            stderrChunks.push(frame.payload.value);
-            stderrController?.enqueue(frame.payload.value);
+            await stderr.push(frame.payload.value);
             break;
           case "exit": {
             const exit = frame.payload.value;
@@ -303,16 +301,14 @@ export function run(_session: Session, _argv: string[], _options?: ProcessRunOpt
                 terminationCause: sessionTerminationCause(exit.reason),
               });
             }
-            stdoutController?.close();
-            stderrController?.close();
-            stdoutController = undefined;
-            stderrController = undefined;
+            stdout.close();
+            stderr.close();
             return {
               exitCode: exit.exitCode,
               signal: exit.signal || undefined,
               durationMs: Number(exit.durationMs),
-              stdout: concatUint8Arrays(stdoutChunks),
-              stderr: concatUint8Arrays(stderrChunks),
+              stdout: stdout.read(),
+              stderr: stderr.read(),
               reason: exit.reason,
               errno: exit.errno,
               timedOut: exit.timedOut,
@@ -332,8 +328,8 @@ export function run(_session: Session, _argv: string[], _options?: ProcessRunOpt
         err = mapError(err);
       }
       rejectPid(err);
-      stdoutController?.error(err);
-      stderrController?.error(err);
+      stdout.fail(err);
+      stderr.fail(err);
       throw err;
     } finally {
       outbound.close();
@@ -357,17 +353,6 @@ export function run(_session: Session, _argv: string[], _options?: ProcessRunOpt
     abort(reason) {
       replayable = false;
       outbound.fail(reason);
-    },
-  });
-
-  const stdout = new ReadableStream<Uint8Array>({
-    start(controller) {
-      stdoutController = controller;
-    },
-  });
-  const stderr = new ReadableStream<Uint8Array>({
-    start(controller) {
-      stderrController = controller;
     },
   });
 
@@ -400,8 +385,8 @@ export function run(_session: Session, _argv: string[], _options?: ProcessRunOpt
     // not wait for an exit frame, which may never arrive.
     sendSignal("TERM");
     rejectPid(err);
-    stdoutController?.error(err);
-    stderrController?.error(err);
+    stdout.fail(err);
+    stderr.fail(err);
     rejectAbandoned(err);
     outbound.close();
     rpcAbort.abort(err);
@@ -421,8 +406,8 @@ export function run(_session: Session, _argv: string[], _options?: ProcessRunOpt
     .catch(() => {});
 
   return {
-    stdout,
-    stderr,
+    stdout: stdout.stream,
+    stderr: stderr.stream,
     stdin,
     get pid() {
       return pid;
@@ -438,6 +423,63 @@ export function run(_session: Session, _argv: string[], _options?: ProcessRunOpt
       return settled.then(onfulfilled, onrejected);
     },
   } as ProcessRunHandle & { readonly pid: Promise<number> };
+}
+
+// Streaming-only queues apply backpressure instead of retaining unlimited unread output.
+class RunOutput {
+  readonly stream: ReadableStream<Uint8Array>;
+  private controller?: ReadableStreamDefaultController<Uint8Array>;
+  private capacityAvailable?: () => void;
+  private chunks: Uint8Array[] = [];
+
+  constructor(private readonly streamOnly: boolean) {
+    this.stream = new ReadableStream<Uint8Array>(
+      {
+        start: (controller) => {
+          this.controller = controller;
+        },
+        pull: () => {
+          this.releaseCapacity();
+        },
+        cancel: () => {
+          this.controller = undefined;
+          this.releaseCapacity();
+        },
+      },
+      { highWaterMark: 64 * 1024, size: (chunk) => chunk?.byteLength ?? 0 },
+    );
+  }
+
+  async push(data: Uint8Array): Promise<void> {
+    if (!this.streamOnly) this.chunks.push(data);
+    this.controller?.enqueue(data);
+    if (this.streamOnly && this.controller && (this.controller.desiredSize ?? 0) <= 0) {
+      await new Promise<void>((resolve) => {
+        this.capacityAvailable = resolve;
+      });
+    }
+  }
+
+  close(): void {
+    this.controller?.close();
+    this.controller = undefined;
+    this.releaseCapacity();
+  }
+
+  fail(err: unknown): void {
+    this.controller?.error(err);
+    this.controller = undefined;
+    this.releaseCapacity();
+  }
+
+  read(): Uint8Array {
+    return concatUint8Arrays(this.chunks);
+  }
+
+  private releaseCapacity(): void {
+    this.capacityAvailable?.();
+    this.capacityAvailable = undefined;
+  }
 }
 
 function abortReason(signal: AbortSignal | undefined): unknown {

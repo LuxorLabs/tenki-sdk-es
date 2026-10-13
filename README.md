@@ -10,6 +10,24 @@ npm install @tenkicloud/sandbox
 
 Requires Node.js 18 or newer. Bun 1.3 or newer also works.
 
+## Streaming without retaining output
+
+Pass `{ streamOnly: true }` to `session.run(argv, options)` to receive stdout and stderr chunks without retaining them in the final result.
+Consume both readable streams while the command runs.
+Streaming-only mode bounds each unread output queue and pauses the producer when that queue is full until its reader frees capacity.
+Waiting without consuming stdout and stderr can block completion.
+Cancel an unused readable stream with `proc.stdout.cancel()` or `proc.stderr.cancel()`, or pass an `AbortSignal` to abandon the run.
+Awaiting the handle still returns exit status, timing, and disk metadata, with empty stdout and stderr.
+The default remains output collection, including `session.exec(...)`.
+
+## Releasing a session handle
+
+Call `session.release()` after finishing active commands to stop credential renewal and free this handle's local data-plane connection while the sandbox keeps running.
+Release is idempotent and prevents `await using` disposal from terminating the sandbox.
+The released handle cannot start new data-plane operations; use `client.get(session.id)` to obtain another handle.
+An explicit `session.close()` still terminates the sandbox after release.
+Release does not close the shared SDK client.
+
 ## Quick Start
 
 ```typescript

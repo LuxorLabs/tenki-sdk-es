@@ -268,6 +268,7 @@ export class Session implements SessionHandle, AsyncDisposable {
   // closing joins callers onto the one in flight. A failed close stays
   // retryable.
   private closeDone = false;
+  private released = false;
   private closing?: Promise<void>;
 
   constructor(
@@ -411,6 +412,7 @@ export class Session implements SessionHandle, AsyncDisposable {
 
   // Bootstrap the data-plane client via CreateSessionCredential if not resolved yet.
   async ensureDataPlane(verifyServing = true): Promise<Client<typeof SandboxSessionDataPlaneService> | undefined> {
+    if (this.dataPlaneClosed) throw new Error("sandbox: session handle closed or released");
     if (!this.dataPlaneClient && this.dataPlaneCredential?.current()) {
       const hintedEndpoint = await this.dataPlaneEndpointHints.resolve(async () => {
         await this.renewDataPlaneCredential();
@@ -542,13 +544,15 @@ export class Session implements SessionHandle, AsyncDisposable {
   }
 
   async renewDataPlaneCredential(): Promise<boolean> {
+    if (this.dataPlaneClosed) return false;
     const deadline = Date.now() + this.dataPlaneReadyTimeoutMs;
     let lastErr: unknown;
-    for (let attempt = 0; Date.now() < deadline; attempt++) {
+    for (let attempt = 0; !this.dataPlaneClosed && Date.now() < deadline; attempt++) {
       try {
         const resp = await this.rpcClient.createSessionCredential(
           create(CreateSessionCredentialRequestSchema, { sessionId: this.id }),
         );
+        if (this.dataPlaneClosed) return false;
         switch (resp.routeStatus) {
           case DataPlaneRouteStatus.FAILED:
             throw terminalDataPlaneNotReadyError();
@@ -565,6 +569,7 @@ export class Session implements SessionHandle, AsyncDisposable {
             return true;
         }
       } catch (err) {
+        if (this.dataPlaneClosed) return false;
         const mapped = mapError(err);
         if (mapped instanceof DataPlaneNotReadyError || mapped instanceof InvalidStateError) {
           if (isPausedSessionStateError(mapped)) throw mapped;
@@ -576,6 +581,7 @@ export class Session implements SessionHandle, AsyncDisposable {
         throw mapped;
       }
     }
+    if (this.dataPlaneClosed) return false;
     throw dataPlaneNotReadyError(lastErr);
   }
 
@@ -884,6 +890,13 @@ export class Session implements SessionHandle, AsyncDisposable {
     return new Error(`session entered terminal state: ${this.state}${suffix}`);
   }
 
+  // Permanently free this handle's local data plane without terminating the sandbox.
+  release(): void {
+    this.released = true;
+    this.dataPlaneClosed = true;
+    this.resetDataPlane();
+  }
+
   /**
    * Terminate this session. Idempotent and safe to call concurrently: the
    * first successful call terminates and every later one is a no-op, while
@@ -912,7 +925,7 @@ export class Session implements SessionHandle, AsyncDisposable {
       if (resp.session) this.applyProto(resp.session);
     } catch (err) {
       // Let a failed close be retried.
-      this.dataPlaneClosed = false;
+      this.dataPlaneClosed = this.released;
       throw mapError(err);
     } finally {
       this.resetDataPlane();
@@ -1167,6 +1180,7 @@ export class Session implements SessionHandle, AsyncDisposable {
   }
 
   async [Symbol.asyncDispose](): Promise<void> {
+    if (this.released) return;
     await this.closeIfOpen();
   }
 }
