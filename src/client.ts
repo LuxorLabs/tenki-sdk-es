@@ -4,6 +4,7 @@ import { ConnectError, createClient, type Client } from "@connectrpc/connect";
 import { createGrpcTransport, type Http2SessionManager } from "@connectrpc/connect-node";
 
 import { createAuthInterceptor, resolveAuthToken } from "./auth.js";
+import type { CIRunnerSizes } from "./ci-runner-sizes.js";
 import {
   DEFAULT_BASE_URL,
   DEFAULT_CPU_CORES,
@@ -66,6 +67,7 @@ import {
   GetSnapshotRequestSchema,
   GetVolumeRequestSchema,
   GetWorkspaceSandboxUsageRequestSchema,
+  ListCIRunnerSizesRequestSchema,
   ListDanglingSnapshotsRequestSchema,
   ListEgressPoliciesRequestSchema,
   ListSessionSnapshotsRequestSchema,
@@ -1372,6 +1374,23 @@ export class TenkiSandbox implements AsyncDisposable {
           id: ws.workspaceId,
           name: ws.name,
         })),
+      };
+    } catch (err) {
+      throw mapError(err);
+    }
+  }
+
+  /** Tenki CI runner sizes for the API key's workspace, within its job-size limits, smallest first. */
+  async listCIRunnerSizes(): Promise<CIRunnerSizes> {
+    try {
+      const resp = await this.rpcClient.listCIRunnerSizes(create(ListCIRunnerSizesRequestSchema, {}));
+      return {
+        sizes: (resp.sizes ?? []).map((size) => ({
+          runsOnLabel: size.runsOnLabel,
+          cpu: size.cpu,
+          memoryGiB: size.memory,
+        })),
+        defaultRunsOnLabel: resp.defaultRunsOnLabel,
       };
     } catch (err) {
       throw mapError(err);

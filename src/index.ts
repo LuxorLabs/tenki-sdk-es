@@ -112,6 +112,7 @@ export type {
   TemplateWriteFileOptions,
 } from "./template-spec.js";
 export type { Identity, IdentityWorkspace } from "./whoami.js";
+export type { CIRunnerSize, CIRunnerSizes } from "./ci-runner-sizes.js";
 export type { WorkspaceUsageLimit, WorkspaceUsageUnit } from "./usage.js";
 export type { SessionCPUUsageAverage, SessionMemoryUsageAverage, SessionMetrics } from "./metrics.js";
 
