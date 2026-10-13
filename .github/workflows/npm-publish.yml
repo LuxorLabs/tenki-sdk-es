@@ -1,9 +1,23 @@
 name: Publish
 
-# Real publishes happen only on a v* tag push. workflow_dispatch is a dry run:
-# it builds and checks the package but never publishes, so who can release is
-# exactly who can push a v* tag (enforced by a tag ruleset), not who can click
-# "Run workflow".
+# Publishes @tenkicloud/sandbox to npm. Only a pushed v* tag publishes, and the
+# tag must match package.json's version and point at a commit on main. Bump the
+# version in a PR (npm version 1.4.2 --no-git-tag-version), then tag the merge:
+#
+#   git fetch origin main
+#   git tag -a v1.4.2 -m "@tenkicloud/sandbox 1.4.2" origin/main
+#   git push origin v1.4.2
+#
+# The publish job stages the version through npm trusted publishing (GitHub
+# OIDC, no token). It goes live only when a maintainer of @tenkicloud/sandbox
+# approves it with 2FA: `npm stage approve <stage-id>`, or Staged Packages on
+# npmjs.com. The trusted publisher on npmjs.com names this workflow file
+# (npm-publish.yml) and the npm-publish environment.
+#
+# The build job runs every gate and packs the tarball without id-token, since it
+# runs dependency code. The publish job installs nothing and stages that
+# tarball. Running the workflow from the Actions tab is always a dry run: only
+# the build job runs.
 
 on:
   push:
@@ -14,107 +28,206 @@ permissions:
   contents: read
 
 concurrency:
-  group: npm-publish-${{ github.ref }}
+  # Repo-wide, not per-ref: serialize all releases so two tag pushes can't
+  # stage/publish concurrently.
+  group: npm-publish
   cancel-in-progress: false
 
 jobs:
-  # Always runs. On workflow_dispatch this is the whole thing (a dry run). On a
-  # v* tag push it also gates the publish job: the tag has to match the packaged
-  # version and the build + checks have to pass before anything is published.
-  # The packed tarball it uploads is exactly what gets published, so the bytes
-  # that reach npm are the bytes that were tested here.
   build:
     name: Build and check
     runs-on: tenki-standard-small-2c-4g
+    timeout-minutes: 30
+    permissions:
+      contents: read
     outputs:
-      published: ${{ steps.version.outputs.published }}
+      npm_name: ${{ steps.ver.outputs.npm_name }}
+      version: ${{ steps.ver.outputs.version }}
+      tarball: ${{ steps.pack.outputs.tarball }}
+      sha256: ${{ steps.pack.outputs.sha256 }}
+
     steps:
       - name: Checkout
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          fetch-depth: 0 # the "tag is on main" check needs origin/main
 
       - name: Setup Node
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
-          node-version: 24.13.0
-          registry-url: https://registry.npmjs.org
-          package-manager-cache: false
+          node-version: "24"
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Typecheck
-        run: npm run typecheck
+      - name: Verify the tag matches package.json
+        id: ver
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "push" ]; then
+            TAG="${GITHUB_REF_NAME#v}"
+          else
+            TAG=$(node -p "require('./package.json').version")
+          fi
+          node - "$TAG" "${{ github.event_name }}" <<'JS'
+          const [tag, event] = process.argv.slice(2);
+          const pkg = require("./package.json");
+          if (pkg.version !== tag) {
+            console.error(`::error::package.json version ${pkg.version} != tag ${tag}`);
+            process.exitCode = 1;
+          }
+          if (pkg.private) {
+            const level = event === "push" ? "error" : "warning";
+            console.error(`::${level}::package.json has "private": true; remove it to publish`);
+            if (level === "error") process.exitCode = 1;
+          }
+          JS
+          echo "version=$TAG" >> "$GITHUB_OUTPUT"
+          echo "npm_name=$(node -p 'require("./package.json").name')" >> "$GITHUB_OUTPUT"
 
-      - name: Test
-        run: npm test
+      - name: Refuse a tag that isn't on main
+        run: |
+          set -euo pipefail
+          git merge-base --is-ancestor HEAD origin/main && exit 0
+          if [ "${{ github.event_name }}" = "push" ]; then
+            echo "::error::${GITHUB_REF_NAME} doesn't point at a commit on main"
+            exit 1
+          fi
+          echo "::warning::${GITHUB_REF_NAME} isn't on main; a tag here would be refused"
+
+      - name: Refuse a version that is already on npm
+        env:
+          PKG: ${{ steps.ver.outputs.npm_name }}
+          VERSION: ${{ steps.ver.outputs.version }}
+        run: |
+          set -euo pipefail
+          code=$(curl -sS -o /dev/null -w '%{http_code}' "https://registry.npmjs.org/${PKG}/${VERSION}" || true)
+          code=${code:-000}
+          case "$code" in
+            404) ;;
+            200)
+              # Event-aware like the sibling gates: a tag push can't publish an
+              # existing version, but a manual dispatch is always a dry run.
+              if [ "${{ github.event_name }}" = "push" ]; then
+                echo "::error::${PKG}@${VERSION} is already published; bump the version"; exit 1
+              fi
+              echo "::warning::${PKG}@${VERSION} is already published; a tag here would be refused" ;;
+            *) echo "::error::couldn't check npm for ${PKG}@${VERSION} (HTTP ${code}); rerun"; exit 1 ;;
+          esac
 
       - name: Build
         run: npm run build
 
-      - name: Verify tag matches version
-        if: github.event_name == 'push'
+      # Packed right after the build so the tarball is exactly the built dist/,
+      # before the gates below run. --ignore-scripts because the build already
+      # ran; no lifecycle script re-runs here.
+      - name: Pack the tarball that will be published
+        id: pack
         run: |
           set -euo pipefail
-          tag="${GITHUB_REF_NAME#v}"
-          version=$(node -p 'require("./package.json").version')
-          echo "tag=${tag} package-version=${version}"
-          if [ "${tag}" != "${version}" ]; then
-            echo "::error::tag v${tag} does not match package.json version ${version}"
-            exit 1
-          fi
+          tarball=$(npm pack --ignore-scripts | tail -1)
+          echo "tarball=${tarball}" >> "$GITHUB_OUTPUT"
+          echo "sha256=$(sha256sum "$tarball" | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
 
-      - name: Check if version is already published
-        id: version
-        run: |
-          set -euo pipefail
-          NAME=$(node -p 'require("./package.json").name')
-          VERSION=$(node -p 'require("./package.json").version')
-          if npm view "${NAME}@${VERSION}" version >/dev/null 2>&1; then
-            echo "${NAME}@${VERSION} already published, skipping"
-            echo "published=true" >> "${GITHUB_OUTPUT}"
-          else
-            echo "published=false" >> "${GITHUB_OUTPUT}"
-          fi
-
-      - name: Pack
-        run: npm pack
-
-      - name: Dry-run publish
-        if: github.event_name == 'workflow_dispatch'
-        run: npm publish ./*.tgz --access public --dry-run
-
-      - name: Upload package tarball
+      - name: Upload the packed tarball
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: npm-package
-          path: "*.tgz"
+          path: ${{ steps.pack.outputs.tarball }}
           retention-days: 1
           if-no-files-found: error
 
-  # Real publish. Only a v* tag push reaches this job, and it is the only one
-  # bound to the npm-publish environment / OIDC trusted publisher. It runs no
-  # install or build before the publish: it downloads the exact tarball the
-  # build job packed and tested, and publishes that.
+      - name: Dry-run publish
+        if: github.event_name == 'workflow_dispatch'
+        run: npm publish "./${{ steps.pack.outputs.tarball }}" --access public --dry-run
+
+      - name: Typecheck and test
+        run: |
+          npm run typecheck
+          npm test
+
+      - name: Dependency audit (production deps)
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: Dry run summary
+        if: always() && github.event_name != 'push'
+        run: |
+          {
+            echo "### @tenkicloud/sandbox release (dry run)"
+            echo ""
+            echo "- gates: ${{ job.status }}"
+            echo "- tarball: \`${{ steps.pack.outputs.tarball }}\`"
+            echo "- published: no; only a pushed v* tag publishes"
+          } >> "$GITHUB_STEP_SUMMARY"
+
   publish:
-    name: Publish to npm
+    name: Stage on npm
     needs: build
-    if: ${{ github.event_name == 'push' && needs.build.outputs.published == 'false' }}
-    runs-on: tenki-standard-small-2c-4g
+    if: github.event_name == 'push'
+    # GitHub-hosted on purpose: npm supports neither provenance nor trusted
+    # publishing from self-hosted runners.
+    runs-on: ubuntu-latest
     environment: npm-publish
+    timeout-minutes: 15
     permissions:
-      id-token: write
+      contents: read
+      id-token: write # trusted publishing and provenance
+    env:
+      # npm doesn't support provenance from private repositories.
+      PROVENANCE: ${{ github.event.repository.private && '--no-provenance' || '--provenance' }}
+      PKG: ${{ needs.build.outputs.npm_name }}
+      VERSION: ${{ needs.build.outputs.version }}
+      TARBALL: ${{ needs.build.outputs.tarball }}
+      SHA256: ${{ needs.build.outputs.sha256 }}
+
     steps:
       - name: Setup Node
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
-          node-version: 24.13.0
+          node-version: "24.x"
           registry-url: https://registry.npmjs.org
-          package-manager-cache: false
 
-      - name: Download package tarball
+      - name: Download the packed tarball
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: npm-package
 
-      - name: Publish to npm
-        run: npm publish ./*.tgz --access public
+      - name: Verify the tarball is the one the build packed
+        run: echo "${SHA256}  ${TARBALL}" | sha256sum -c -
+
+      # Nothing goes live from here: npm keeps the version staged until a
+      # maintainer approves it with 2FA, and a stage can be rejected instead.
+      - name: Stage on npm (trusted publishing)
+        id: stage
+        run: |
+          set -euo pipefail
+          # Staged publishing needs npm >= 11.15.0; Node 24 bundles npm 11. Fail
+          # loudly rather than falling back to a plain publish.
+          node -e 'const p=s=>s.split(/[.-]/).slice(0,3).map(Number),[x,y]=[p(process.argv[1]),p("11.15.0")];
+            for(let i=0;i<3;i++){if(x[i]>y[i])process.exit(0);if(x[i]<y[i]){
+              console.error(`::error::npm ${process.argv[1]} < 11.15.0; staged publishing unavailable`);process.exit(1);}}' "$(npm --version)"
+          npm stage publish "./${TARBALL}" "$PROVENANCE" --access public --ignore-scripts | tee "$RUNNER_TEMP/stage.out"
+          echo "stage_id=$(sed -n 's/.*(staged with id \([0-9a-f-]*\)).*/\1/p' "$RUNNER_TEMP/stage.out")" >> "$GITHUB_OUTPUT"
+
+      - name: Release summary
+        if: always()
+        env:
+          STAGE_ID: ${{ steps.stage.outputs.stage_id }}
+        run: |
+          {
+            echo "### @tenkicloud/sandbox ${VERSION}"
+            echo ""
+            echo "- staged: ${{ steps.stage.outcome == 'success' && 'yes' || 'no' }}"
+            echo "- provenance: \`${PROVENANCE}\`"
+            if [ -n "${STAGE_ID}" ]; then
+              echo ""
+              echo "Not live yet. A maintainer of ${PKG} approves it with 2FA:"
+              echo ""
+              echo "    npm stage approve ${STAGE_ID}"
+              echo ""
+              echo "or under Staged Packages on npmjs.com. Reject it with \`npm stage reject ${STAGE_ID}\`."
+            elif [ "${{ steps.stage.outcome }}" = "success" ]; then
+              echo ""
+              echo "Not live yet. Find the stage id with \`npm stage list ${PKG}\` and approve it with 2FA."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
