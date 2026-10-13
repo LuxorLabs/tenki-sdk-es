@@ -43,6 +43,14 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Check LICENSE is packaged
+        run: |
+          set -euo pipefail
+          if ! npm pack --dry-run --json | node -e 'const [p] = JSON.parse(require("fs").readFileSync(0, "utf8")); process.exit(p.files.some((f) => f.path === "LICENSE") ? 0 : 1)'; then
+            echo "::error::npm package does not include LICENSE"
+            exit 1
+          fi
+
       - name: Publish if version is new
         env:
           DRY_RUN: ${{ inputs.dry_run }}
