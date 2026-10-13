@@ -1,0 +1,69 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "enabled": true,
+  "extends": ["config:recommended"],
+  "schedule": ["every weekend"],
+  "labels": ["dependencies", "renovate"],
+  "configMigration": true,
+  "rebaseWhen": "conflicted",
+  "lockFileMaintenance": {
+    "description": [
+      "Refresh package-lock.json on its own schedule. A refresh is only true of the tree it resolved against, so every merge to main leaves this branch describing a package.json that has moved; rebasing on the base branch regenerates it, keeping its green check a statement about the merge someone is actually about to make.",
+      "No age gate on the refresh itself: npm resolves the transitive versions here, and it is the only side that sees them."
+    ],
+    "enabled": true,
+    "schedule": ["every weekend"],
+    "minimumReleaseAge": null,
+    "rebaseWhen": "behind-base-branch"
+  },
+  "prConcurrentLimit": 5,
+  "minimumReleaseAge": "14 days",
+  "internalChecksFilter": "strict",
+  "osvVulnerabilityAlerts": true,
+  "vulnerabilityAlerts": {
+    "labels": ["security"]
+  },
+  "packageRules": [
+    {
+      "description": "A major needs a proper read of its changelog, which rarely happens the week it lands. Park it on the dashboard so it stops holding a concurrency slot, and tick it there when someone is ready to do that work.",
+      "matchUpdateTypes": ["major"],
+      "dependencyDashboardApproval": true
+    },
+    {
+      "description": "A lock file refresh carries no update anyone is waiting on, so it takes a concurrency slot only when a real update does not need it.",
+      "matchUpdateTypes": ["lockFileMaintenance"],
+      "prPriority": -1
+    },
+    {
+      "description": "Manage github-actions SHA pins manually; a digest-bump PR would run CI with the new SHA before anyone reviews it.",
+      "matchManagers": ["github-actions"],
+      "enabled": false
+    },
+    {
+      "description": "Batch non-major updates into one PR to keep the weekend run quiet.",
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "non-major dependencies"
+    },
+    {
+      "description": "A 0.x release makes no compatibility promise, so a minor or a patch there can break like a major does. Each gets its own PR rather than riding in a batch, where one broken member holds up the safe ones.",
+      "matchUpdateTypes": ["minor", "patch"],
+      "matchCurrentVersion": "<1.0.0",
+      "groupName": null
+    },
+    {
+      "description": "connect and connect-node are one release line, and both are built on @bufbuild/protobuf, so they move together.",
+      "groupName": "connectrpc + protobuf",
+      "matchPackageNames": ["@connectrpc/connect", "@connectrpc/connect-node", "@bufbuild/protobuf"]
+    },
+    {
+      "description": "@types/* track their runtime; batch them.",
+      "groupName": "types",
+      "matchPackageNames": ["@types/node", "@types/ws"]
+    },
+    {
+      "description": "typescript and @typescript/native are pinned to deliberately chosen preview builds (npm aliases of the TS 6/7 previews); do not auto-PR them, surface them on the dashboard so a bump is a conscious choice. tsup and vitest batch with the other non-major updates.",
+      "matchPackageNames": ["typescript", "@typescript/native"],
+      "dependencyDashboardApproval": true
+    }
+  ]
+}
