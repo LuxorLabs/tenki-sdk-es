@@ -12,7 +12,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file tenki/cloud/workspace/v1beta1/secrets.proto.
  */
 export const file_tenki_cloud_workspace_v1beta1_secrets: GenFile = /*@__PURE__*/
-  fileDesc("Cit0ZW5raS9jbG91ZC93b3Jrc3BhY2UvdjFiZXRhMS9zZWNyZXRzLnByb3RvEh10ZW5raS5jbG91ZC53b3Jrc3BhY2UudjFiZXRhMSKiAgoGU2VjcmV0EgoKAmlkGAEgASgJEhQKDHdvcmtzcGFjZV9pZBgCIAEoCRIMCgRuYW1lGAMgASgJEhYKDmFjdGl2ZV92ZXJzaW9uGAQgASgNEhAKCHJldmlzaW9uGAUgASgNEi4KCmNyZWF0ZWRfYXQYByABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEi4KCnVwZGF0ZWRfYXQYCCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEi4KCnJldm9rZWRfYXQYCSABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEi4KCmRlbGV0ZWRfYXQYCiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wIoABCg1TZWNyZXRWZXJzaW9uEg8KB3ZlcnNpb24YASABKA0SLgoKY3JlYXRlZF9hdBgCIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASLgoKcmV2b2tlZF9hdBgDIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXAiawoTQ3JlYXRlU2VjcmV0UmVxdWVzdBIUCgx3b3Jrc3BhY2VfaWQYASABKAkSDAoEbmFtZRgCIAEoCRISCgV2YWx1ZRgDIAEoDEgAiAEBEhIKCnJlcXVlc3RfaWQYBSABKAlCCAoGX3ZhbHVlIk0KFENyZWF0ZVNlY3JldFJlc3BvbnNlEjUKBnNlY3JldBgBIAEoCzIlLnRlbmtpLmNsb3VkLndvcmtzcGFjZS52MWJldGExLlNlY3JldCK7AQoTVXBkYXRlU2VjcmV0UmVxdWVzdBIUCgx3b3Jrc3BhY2VfaWQYASABKAkSEQoJc2VjcmV0X2lkGAIgASgJEhIKBXZhbHVlGAMgASgMSACIAQESGQoRZXhwZWN0ZWRfcmV2aXNpb24YBSABKA0SEgoKcmVxdWVzdF9pZBgGIAEoCRIbCg5hY3RpdmVfdmVyc2lvbhgHIAEoDUgBiAEBQggKBl92YWx1ZUIRCg9fYWN0aXZlX3ZlcnNpb24iTQoUVXBkYXRlU2VjcmV0UmVzcG9uc2USNQoGc2VjcmV0GAEgASgLMiUudGVua2kuY2xvdWQud29ya3NwYWNlLnYxYmV0YTEuU2VjcmV0IjsKEEdldFNlY3JldFJlcXVlc3QSFAoMd29ya3NwYWNlX2lkGAEgASgJEhEKCXNlY3JldF9pZBgCIAEoCSJKChFHZXRTZWNyZXRSZXNwb25zZRI1CgZzZWNyZXQYASABKAsyJS50ZW5raS5jbG91ZC53b3Jrc3BhY2UudjFiZXRhMS5TZWNyZXQiwQEKEkxpc3RTZWNyZXRzUmVxdWVzdBIUCgx3b3Jrc3BhY2VfaWQYASABKAkSEQoJcGFnZV9zaXplGAIgASgNEg4KBmN1cnNvchgDIAEoCRIOCgZzZWFyY2gYBCABKAkSPwoHc29ydF9ieRgFIAEoDjIuLnRlbmtpLmNsb3VkLndvcmtzcGFjZS52MWJldGExLlNlY3JldFNvcnRGaWVsZBIRCglzb3J0X2Rlc2MYBiABKAgSDgoGb2Zmc2V0GAcgASgNIncKE0xpc3RTZWNyZXRzUmVzcG9uc2USNgoHc2VjcmV0cxgBIAMoCzIlLnRlbmtpLmNsb3VkLndvcmtzcGFjZS52MWJldGExLlNlY3JldBITCgtuZXh0X2N1cnNvchgCIAEoCRITCgt0b3RhbF9jb3VudBgDIAEoDSJnChlMaXN0U2VjcmV0VmVyc2lvbnNSZXF1ZXN0EhQKDHdvcmtzcGFjZV9pZBgBIAEoCRIRCglzZWNyZXRfaWQYAiABKAkSEQoJcGFnZV9zaXplGAMgASgNEg4KBmN1cnNvchgEIAEoCSJxChpMaXN0U2VjcmV0VmVyc2lvbnNSZXNwb25zZRI+Cgh2ZXJzaW9ucxgBIAMoCzIsLnRlbmtpLmNsb3VkLndvcmtzcGFjZS52MWJldGExLlNlY3JldFZlcnNpb24SEwoLbmV4dF9jdXJzb3IYAiABKAkijwEKE1Jldm9rZVNlY3JldFJlcXVlc3QSFAoMd29ya3NwYWNlX2lkGAEgASgJEhEKCXNlY3JldF9pZBgCIAEoCRIUCgd2ZXJzaW9uGAMgASgNSACIAQESGQoRZXhwZWN0ZWRfcmV2aXNpb24YBCABKA0SEgoKcmVxdWVzdF9pZBgFIAEoCUIKCghfdmVyc2lvbiJNChRSZXZva2VTZWNyZXRSZXNwb25zZRI1CgZzZWNyZXQYASABKAsyJS50ZW5raS5jbG91ZC53b3Jrc3BhY2UudjFiZXRhMS5TZWNyZXQibQoTRGVsZXRlU2VjcmV0UmVxdWVzdBIUCgx3b3Jrc3BhY2VfaWQYASABKAkSEQoJc2VjcmV0X2lkGAIgASgJEhkKEWV4cGVjdGVkX3JldmlzaW9uGAMgASgNEhIKCnJlcXVlc3RfaWQYBCABKAkiTQoURGVsZXRlU2VjcmV0UmVzcG9uc2USNQoGc2VjcmV0GAEgASgLMiUudGVua2kuY2xvdWQud29ya3NwYWNlLnYxYmV0YTEuU2VjcmV0IscCChJTZWNyZXRBY2Nlc3NQb2xpY3kSCgoCaWQYASABKAkSFAoMd29ya3NwYWNlX2lkGAIgASgJEgwKBG5hbWUYAyABKAkSEAoIcmV2aXNpb24YBCABKA0SPwoFcnVsZXMYBSADKAsyMC50ZW5raS5jbG91ZC53b3Jrc3BhY2UudjFiZXRhMS5TZWNyZXRSZXF1ZXN0UnVsZRIuCgpjcmVhdGVkX2F0GAYgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIuCgp1cGRhdGVkX2F0GAcgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIuCgpkZWxldGVkX2F0GAggASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIeChZhdHRhY2hlZF9zZXNzaW9uX2NvdW50GAkgASgNIpQBChlDcmVhdGVTZWNyZXRQb2xpY3lSZXF1ZXN0EhQKDHdvcmtzcGFjZV9pZBgBIAEoCRIMCgRuYW1lGAIgASgJEj8KBXJ1bGVzGAMgAygLMjAudGVua2kuY2xvdWQud29ya3NwYWNlLnYxYmV0YTEuU2VjcmV0UmVxdWVzdFJ1bGUSEgoKcmVxdWVzdF9pZBgEIAEoCSJfChpDcmVhdGVTZWNyZXRQb2xpY3lSZXNwb25zZRJBCgZwb2xpY3kYASABKAsyMS50ZW5raS5jbG91ZC53b3Jrc3BhY2UudjFiZXRhMS5TZWNyZXRBY2Nlc3NQb2xpY3kitAEKGVVwZGF0ZVNlY3JldFBvbGljeVJlcXVlc3QSFAoMd29ya3NwYWNlX2lkGAEgASgJEhEKCXBvbGljeV9pZBgCIAEoCRI/CgVydWxlcxgDIAMoCzIwLnRlbmtpLmNsb3VkLndvcmtzcGFjZS52MWJldGExLlNlY3JldFJlcXVlc3RSdWxlEhkKEWV4cGVjdGVkX3JldmlzaW9uGAQgASgNEhIKCnJlcXVlc3RfaWQYBSABKAkiXwoaVXBkYXRlU2VjcmV0UG9saWN5UmVzcG9uc2USQQoGcG9saWN5GAEgASgLMjEudGVua2kuY2xvdWQud29ya3NwYWNlLnYxYmV0YTEuU2VjcmV0QWNjZXNzUG9saWN5InMKGURlbGV0ZVNlY3JldFBvbGljeVJlcXVlc3QSFAoMd29ya3NwYWNlX2lkGAEgASgJEhEKCXBvbGljeV9pZBgCIAEoCRIZChFleHBlY3RlZF9yZXZpc2lvbhgDIAEoDRISCgpyZXF1ZXN0X2lkGAQgASgJIl8KGkRlbGV0ZVNlY3JldFBvbGljeVJlc3BvbnNlEkEKBnBvbGljeRgBIAEoCzIxLnRlbmtpLmNsb3VkLndvcmtzcGFjZS52MWJldGExLlNlY3JldEFjY2Vzc1BvbGljeSJBChZHZXRTZWNyZXRQb2xpY3lSZXF1ZXN0EhQKDHdvcmtzcGFjZV9pZBgBIAEoCRIRCglwb2xpY3lfaWQYAiABKAkiXAoXR2V0U2VjcmV0UG9saWN5UmVzcG9uc2USQQoGcG9saWN5GAEgASgLMjEudGVua2kuY2xvdWQud29ya3NwYWNlLnYxYmV0YTEuU2VjcmV0QWNjZXNzUG9saWN5IlQKGUxpc3RTZWNyZXRQb2xpY2llc1JlcXVlc3QSFAoMd29ya3NwYWNlX2lkGAEgASgJEhEKCXBhZ2Vfc2l6ZRgCIAEoDRIOCgZjdXJzb3IYAyABKAkidgoaTGlzdFNlY3JldFBvbGljaWVzUmVzcG9uc2USQwoIcG9saWNpZXMYASADKAsyMS50ZW5raS5jbG91ZC53b3Jrc3BhY2UudjFiZXRhMS5TZWNyZXRBY2Nlc3NQb2xpY3kSEwoLbmV4dF9jdXJzb3IYAiABKAkimQEKEVNlY3JldFJlcXVlc3RSdWxlEg4KBm9yaWdpbhgBIAEoCRIPCgdtZXRob2RzGAIgAygJEhMKC3BhdGhfcHJlZml4GAMgASgJEg4KBmhlYWRlchgEIAEoCRIXCg9xdWVyeV9wYXJhbWV0ZXIYBSABKAkSFAoManNvbl9wb2ludGVyGAYgASgJEg8KB3NlY3JldHMYByADKAkqkAEKD1NlY3JldFNvcnRGaWVsZBIhCh1TRUNSRVRfU09SVF9GSUVMRF9VTlNQRUNJRklFRBAAEhoKFlNFQ1JFVF9TT1JUX0ZJRUxEX05BTUUQARIcChhTRUNSRVRfU09SVF9GSUVMRF9TVEFUVVMQAhIgChxTRUNSRVRfU09SVF9GSUVMRF9VUERBVEVEX0FUEAQyogwKF1dvcmtzcGFjZVNlY3JldHNTZXJ2aWNlEokBChJDcmVhdGVTZWNyZXRQb2xpY3kSOC50ZW5raS5jbG91ZC53b3Jrc3BhY2UudjFiZXRhMS5DcmVhdGVTZWNyZXRQb2xpY3lSZXF1ZXN0GjkudGVua2kuY2xvdWQud29ya3NwYWNlLnYxYmV0YTEuQ3JlYXRlU2VjcmV0UG9saWN5UmVzcG9uc2USiQEKElVwZGF0ZVNlY3JldFBvbGljeRI4LnRlbmtpLmNsb3VkLndvcmtzcGFjZS52MWJldGExLlVwZGF0ZVNlY3JldFBvbGljeVJlcXVlc3QaOS50ZW5raS5jbG91ZC53b3Jrc3BhY2UudjFiZXRhMS5VcGRhdGVTZWNyZXRQb2xpY3lSZXNwb25zZRKAAQoPR2V0U2VjcmV0UG9saWN5EjUudGVua2kuY2xvdWQud29ya3NwYWNlLnYxYmV0YTEuR2V0U2VjcmV0UG9saWN5UmVxdWVzdBo2LnRlbmtpLmNsb3VkLndvcmtzcGFjZS52MWJldGExLkdldFNlY3JldFBvbGljeVJlc3BvbnNlEokBChJMaXN0U2VjcmV0UG9saWNpZXMSOC50ZW5raS5jbG91ZC53b3Jrc3BhY2UudjFiZXRhMS5MaXN0U2VjcmV0UG9saWNpZXNSZXF1ZXN0GjkudGVua2kuY2xvdWQud29ya3NwYWNlLnYxYmV0YTEuTGlzdFNlY3JldFBvbGljaWVzUmVzcG9uc2USiQEKEkRlbGV0ZVNlY3JldFBvbGljeRI4LnRlbmtpLmNsb3VkLndvcmtzcGFjZS52MWJldGExLkRlbGV0ZVNlY3JldFBvbGljeVJlcXVlc3QaOS50ZW5raS5jbG91ZC53b3Jrc3BhY2UudjFiZXRhMS5EZWxldGVTZWNyZXRQb2xpY3lSZXNwb25zZRJ3CgxDcmVhdGVTZWNyZXQSMi50ZW5raS5jbG91ZC53b3Jrc3BhY2UudjFiZXRhMS5DcmVhdGVTZWNyZXRSZXF1ZXN0GjMudGVua2kuY2xvdWQud29ya3NwYWNlLnYxYmV0YTEuQ3JlYXRlU2VjcmV0UmVzcG9uc2USdwoMVXBkYXRlU2VjcmV0EjIudGVua2kuY2xvdWQud29ya3NwYWNlLnYxYmV0YTEuVXBkYXRlU2VjcmV0UmVxdWVzdBozLnRlbmtpLmNsb3VkLndvcmtzcGFjZS52MWJldGExLlVwZGF0ZVNlY3JldFJlc3BvbnNlEm4KCUdldFNlY3JldBIvLnRlbmtpLmNsb3VkLndvcmtzcGFjZS52MWJldGExLkdldFNlY3JldFJlcXVlc3QaMC50ZW5raS5jbG91ZC53b3Jrc3BhY2UudjFiZXRhMS5HZXRTZWNyZXRSZXNwb25zZRJ0CgtMaXN0U2VjcmV0cxIxLnRlbmtpLmNsb3VkLndvcmtzcGFjZS52MWJldGExLkxpc3RTZWNyZXRzUmVxdWVzdBoyLnRlbmtpLmNsb3VkLndvcmtzcGFjZS52MWJldGExLkxpc3RTZWNyZXRzUmVzcG9uc2USiQEKEkxpc3RTZWNyZXRWZXJzaW9ucxI4LnRlbmtpLmNsb3VkLndvcmtzcGFjZS52MWJldGExLkxpc3RTZWNyZXRWZXJzaW9uc1JlcXVlc3QaOS50ZW5raS5jbG91ZC53b3Jrc3BhY2UudjFiZXRhMS5MaXN0U2VjcmV0VmVyc2lvbnNSZXNwb25zZRJ3CgxSZXZva2VTZWNyZXQSMi50ZW5raS5jbG91ZC53b3Jrc3BhY2UudjFiZXRhMS5SZXZva2VTZWNyZXRSZXF1ZXN0GjMudGVua2kuY2xvdWQud29ya3NwYWNlLnYxYmV0YTEuUmV2b2tlU2VjcmV0UmVzcG9uc2USdwoMRGVsZXRlU2VjcmV0EjIudGVua2kuY2xvdWQud29ya3NwYWNlLnYxYmV0YTEuRGVsZXRlU2VjcmV0UmVxdWVzdBozLnRlbmtpLmNsb3VkLndvcmtzcGFjZS52MWJldGExLkRlbGV0ZVNlY3JldFJlc3BvbnNlQrECCiFjb20udGVua2kuY2xvdWQud29ya3NwYWNlLnYxYmV0YTFCDFNlY3JldHNQcm90b1ABWmdnaXRodWIuY29tL0x1eG9yTGFicy90ZW5raS1zZGstZ28vc2FuZGJveC9pbnRlcm5hbC9wcm90by90ZW5raS9jbG91ZC93b3Jrc3BhY2UvdjFiZXRhMTt3b3Jrc3BhY2V2MWJldGExogIDVENXqgIdVGVua2kuQ2xvdWQuV29ya3NwYWNlLlYxYmV0YTHKAh1UZW5raVxDbG91ZFxXb3Jrc3BhY2VcVjFiZXRhMeICKVRlbmtpXENsb3VkXFdvcmtzcGFjZVxWMWJldGExXEdQQk1ldGFkYXRh6gIgVGVua2k6OkNsb3VkOjpXb3Jrc3BhY2U6OlYxYmV0YTFiBnByb3RvMw", [file_google_protobuf_timestamp]);
+  fileDesc("Cit0ZW5raS9jbG91ZC93b3Jrc3BhY2UvdjFiZXRhMS9zZWNyZXRzLnByb3RvEh10ZW5raS5jbG91ZC53b3Jrc3BhY2UudjFiZXRhMSK2AgoGU2VjcmV0EgoKAmlkGAEgASgJEhQKDHdvcmtzcGFjZV9pZBgCIAEoCRIMCgRuYW1lGAMgASgJEhYKDmFjdGl2ZV92ZXJzaW9uGAQgASgNEhAKCHJldmlzaW9uGAUgASgNEi4KCmNyZWF0ZWRfYXQYByABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEi4KCnVwZGF0ZWRfYXQYCCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEi4KCnJldm9rZWRfYXQYCSABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEi4KCmRlbGV0ZWRfYXQYCiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEhIKCnJlcG9zaXRvcnkYCyABKAkigAEKDVNlY3JldFZlcnNpb24SDwoHdmVyc2lvbhgBIAEoDRIuCgpjcmVhdGVkX2F0GAIgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIuCgpyZXZva2VkX2F0GAMgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcCJ/ChNDcmVhdGVTZWNyZXRSZXF1ZXN0EhQKDHdvcmtzcGFjZV9pZBgBIAEoCRIMCgRuYW1lGAIgASgJEhIKBXZhbHVlGAMgASgMSACIAQESEgoKcmVxdWVzdF9pZBgFIAEoCRISCgpyZXBvc2l0b3J5GAYgASgJQggKBl92YWx1ZSJNChRDcmVhdGVTZWNyZXRSZXNwb25zZRI1CgZzZWNyZXQYASABKAsyJS50ZW5raS5jbG91ZC53b3Jrc3BhY2UudjFiZXRhMS5TZWNyZXQiuwEKE1VwZGF0ZVNlY3JldFJlcXVlc3QSFAoMd29ya3NwYWNlX2lkGAEgASgJEhEKCXNlY3JldF9pZBgCIAEoCRISCgV2YWx1ZRgDIAEoDEgAiAEBEhkKEWV4cGVjdGVkX3JldmlzaW9uGAUgASgNEhIKCnJlcXVlc3RfaWQYBiABKAkSGwoOYWN0aXZlX3ZlcnNpb24YByABKA1IAYgBAUIICgZfdmFsdWVCEQoPX2FjdGl2ZV92ZXJzaW9uIk0KFFVwZGF0ZVNlY3JldFJlc3BvbnNlEjUKBnNlY3JldBgBIAEoCzIlLnRlbmtpLmNsb3VkLndvcmtzcGFjZS52MWJldGExLlNlY3JldCI7ChBHZXRTZWNyZXRSZXF1ZXN0EhQKDHdvcmtzcGFjZV9pZBgBIAEoCRIRCglzZWNyZXRfaWQYAiABKAkiSgoRR2V0U2VjcmV0UmVzcG9uc2USNQoGc2VjcmV0GAEgASgLMiUudGVua2kuY2xvdWQud29ya3NwYWNlLnYxYmV0YTEuU2VjcmV0IsEBChJMaXN0U2VjcmV0c1JlcXVlc3QSFAoMd29ya3NwYWNlX2lkGAEgASgJEhEKCXBhZ2Vfc2l6ZRgCIAEoDRIOCgZjdXJzb3IYAyABKAkSDgoGc2VhcmNoGAQgASgJEj8KB3NvcnRfYnkYBSABKA4yLi50ZW5raS5jbG91ZC53b3Jrc3BhY2UudjFiZXRhMS5TZWNyZXRTb3J0RmllbGQSEQoJc29ydF9kZXNjGAYgASgIEg4KBm9mZnNldBgHIAEoDSJ3ChNMaXN0U2VjcmV0c1Jlc3BvbnNlEjYKB3NlY3JldHMYASADKAsyJS50ZW5raS5jbG91ZC53b3Jrc3BhY2UudjFiZXRhMS5TZWNyZXQSEwoLbmV4dF9jdXJzb3IYAiABKAkSEwoLdG90YWxfY291bnQYAyABKA0iaAodTGlzdFNlY3JldFJlcG9zaXRvcmllc1JlcXVlc3QSFAoMd29ya3NwYWNlX2lkGAEgASgJEhEKCXBhZ2Vfc2l6ZRgCIAEoDRIOCgZjdXJzb3IYAyABKAkSDgoGc2VhcmNoGAQgASgJInwKHkxpc3RTZWNyZXRSZXBvc2l0b3JpZXNSZXNwb25zZRJFCgxyZXBvc2l0b3JpZXMYASADKAsyLy50ZW5raS5jbG91ZC53b3Jrc3BhY2UudjFiZXRhMS5TZWNyZXRSZXBvc2l0b3J5EhMKC25leHRfY3Vyc29yGAIgASgJIiUKEFNlY3JldFJlcG9zaXRvcnkSEQoJZnVsbF9uYW1lGAEgASgJImcKGUxpc3RTZWNyZXRWZXJzaW9uc1JlcXVlc3QSFAoMd29ya3NwYWNlX2lkGAEgASgJEhEKCXNlY3JldF9pZBgCIAEoCRIRCglwYWdlX3NpemUYAyABKA0SDgoGY3Vyc29yGAQgASgJInEKGkxpc3RTZWNyZXRWZXJzaW9uc1Jlc3BvbnNlEj4KCHZlcnNpb25zGAEgAygLMiwudGVua2kuY2xvdWQud29ya3NwYWNlLnYxYmV0YTEuU2VjcmV0VmVyc2lvbhITCgtuZXh0X2N1cnNvchgCIAEoCSKPAQoTUmV2b2tlU2VjcmV0UmVxdWVzdBIUCgx3b3Jrc3BhY2VfaWQYASABKAkSEQoJc2VjcmV0X2lkGAIgASgJEhQKB3ZlcnNpb24YAyABKA1IAIgBARIZChFleHBlY3RlZF9yZXZpc2lvbhgEIAEoDRISCgpyZXF1ZXN0X2lkGAUgASgJQgoKCF92ZXJzaW9uIk0KFFJldm9rZVNlY3JldFJlc3BvbnNlEjUKBnNlY3JldBgBIAEoCzIlLnRlbmtpLmNsb3VkLndvcmtzcGFjZS52MWJldGExLlNlY3JldCJtChNEZWxldGVTZWNyZXRSZXF1ZXN0EhQKDHdvcmtzcGFjZV9pZBgBIAEoCRIRCglzZWNyZXRfaWQYAiABKAkSGQoRZXhwZWN0ZWRfcmV2aXNpb24YAyABKA0SEgoKcmVxdWVzdF9pZBgEIAEoCSJNChREZWxldGVTZWNyZXRSZXNwb25zZRI1CgZzZWNyZXQYASABKAsyJS50ZW5raS5jbG91ZC53b3Jrc3BhY2UudjFiZXRhMS5TZWNyZXQixwIKElNlY3JldEFjY2Vzc1BvbGljeRIKCgJpZBgBIAEoCRIUCgx3b3Jrc3BhY2VfaWQYAiABKAkSDAoEbmFtZRgDIAEoCRIQCghyZXZpc2lvbhgEIAEoDRI/CgVydWxlcxgFIAMoCzIwLnRlbmtpLmNsb3VkLndvcmtzcGFjZS52MWJldGExLlNlY3JldFJlcXVlc3RSdWxlEi4KCmNyZWF0ZWRfYXQYBiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEi4KCnVwZGF0ZWRfYXQYByABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEi4KCmRlbGV0ZWRfYXQYCCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEh4KFmF0dGFjaGVkX3Nlc3Npb25fY291bnQYCSABKA0ilAEKGUNyZWF0ZVNlY3JldFBvbGljeVJlcXVlc3QSFAoMd29ya3NwYWNlX2lkGAEgASgJEgwKBG5hbWUYAiABKAkSPwoFcnVsZXMYAyADKAsyMC50ZW5raS5jbG91ZC53b3Jrc3BhY2UudjFiZXRhMS5TZWNyZXRSZXF1ZXN0UnVsZRISCgpyZXF1ZXN0X2lkGAQgASgJIl8KGkNyZWF0ZVNlY3JldFBvbGljeVJlc3BvbnNlEkEKBnBvbGljeRgBIAEoCzIxLnRlbmtpLmNsb3VkLndvcmtzcGFjZS52MWJldGExLlNlY3JldEFjY2Vzc1BvbGljeSK0AQoZVXBkYXRlU2VjcmV0UG9saWN5UmVxdWVzdBIUCgx3b3Jrc3BhY2VfaWQYASABKAkSEQoJcG9saWN5X2lkGAIgASgJEj8KBXJ1bGVzGAMgAygLMjAudGVua2kuY2xvdWQud29ya3NwYWNlLnYxYmV0YTEuU2VjcmV0UmVxdWVzdFJ1bGUSGQoRZXhwZWN0ZWRfcmV2aXNpb24YBCABKA0SEgoKcmVxdWVzdF9pZBgFIAEoCSJfChpVcGRhdGVTZWNyZXRQb2xpY3lSZXNwb25zZRJBCgZwb2xpY3kYASABKAsyMS50ZW5raS5jbG91ZC53b3Jrc3BhY2UudjFiZXRhMS5TZWNyZXRBY2Nlc3NQb2xpY3kicwoZRGVsZXRlU2VjcmV0UG9saWN5UmVxdWVzdBIUCgx3b3Jrc3BhY2VfaWQYASABKAkSEQoJcG9saWN5X2lkGAIgASgJEhkKEWV4cGVjdGVkX3JldmlzaW9uGAMgASgNEhIKCnJlcXVlc3RfaWQYBCABKAkiXwoaRGVsZXRlU2VjcmV0UG9saWN5UmVzcG9uc2USQQoGcG9saWN5GAEgASgLMjEudGVua2kuY2xvdWQud29ya3NwYWNlLnYxYmV0YTEuU2VjcmV0QWNjZXNzUG9saWN5IkEKFkdldFNlY3JldFBvbGljeVJlcXVlc3QSFAoMd29ya3NwYWNlX2lkGAEgASgJEhEKCXBvbGljeV9pZBgCIAEoCSJcChdHZXRTZWNyZXRQb2xpY3lSZXNwb25zZRJBCgZwb2xpY3kYASABKAsyMS50ZW5raS5jbG91ZC53b3Jrc3BhY2UudjFiZXRhMS5TZWNyZXRBY2Nlc3NQb2xpY3kiVAoZTGlzdFNlY3JldFBvbGljaWVzUmVxdWVzdBIUCgx3b3Jrc3BhY2VfaWQYASABKAkSEQoJcGFnZV9zaXplGAIgASgNEg4KBmN1cnNvchgDIAEoCSJ2ChpMaXN0U2VjcmV0UG9saWNpZXNSZXNwb25zZRJDCghwb2xpY2llcxgBIAMoCzIxLnRlbmtpLmNsb3VkLndvcmtzcGFjZS52MWJldGExLlNlY3JldEFjY2Vzc1BvbGljeRITCgtuZXh0X2N1cnNvchgCIAEoCSKZAQoRU2VjcmV0UmVxdWVzdFJ1bGUSDgoGb3JpZ2luGAEgASgJEg8KB21ldGhvZHMYAiADKAkSEwoLcGF0aF9wcmVmaXgYAyABKAkSDgoGaGVhZGVyGAQgASgJEhcKD3F1ZXJ5X3BhcmFtZXRlchgFIAEoCRIUCgxqc29uX3BvaW50ZXIYBiABKAkSDwoHc2VjcmV0cxgHIAMoCSqQAQoPU2VjcmV0U29ydEZpZWxkEiEKHVNFQ1JFVF9TT1JUX0ZJRUxEX1VOU1BFQ0lGSUVEEAASGgoWU0VDUkVUX1NPUlRfRklFTERfTkFNRRABEhwKGFNFQ1JFVF9TT1JUX0ZJRUxEX1NUQVRVUxACEiAKHFNFQ1JFVF9TT1JUX0ZJRUxEX1VQREFURURfQVQQBDK6DQoXV29ya3NwYWNlU2VjcmV0c1NlcnZpY2USiQEKEkNyZWF0ZVNlY3JldFBvbGljeRI4LnRlbmtpLmNsb3VkLndvcmtzcGFjZS52MWJldGExLkNyZWF0ZVNlY3JldFBvbGljeVJlcXVlc3QaOS50ZW5raS5jbG91ZC53b3Jrc3BhY2UudjFiZXRhMS5DcmVhdGVTZWNyZXRQb2xpY3lSZXNwb25zZRKJAQoSVXBkYXRlU2VjcmV0UG9saWN5EjgudGVua2kuY2xvdWQud29ya3NwYWNlLnYxYmV0YTEuVXBkYXRlU2VjcmV0UG9saWN5UmVxdWVzdBo5LnRlbmtpLmNsb3VkLndvcmtzcGFjZS52MWJldGExLlVwZGF0ZVNlY3JldFBvbGljeVJlc3BvbnNlEoABCg9HZXRTZWNyZXRQb2xpY3kSNS50ZW5raS5jbG91ZC53b3Jrc3BhY2UudjFiZXRhMS5HZXRTZWNyZXRQb2xpY3lSZXF1ZXN0GjYudGVua2kuY2xvdWQud29ya3NwYWNlLnYxYmV0YTEuR2V0U2VjcmV0UG9saWN5UmVzcG9uc2USiQEKEkxpc3RTZWNyZXRQb2xpY2llcxI4LnRlbmtpLmNsb3VkLndvcmtzcGFjZS52MWJldGExLkxpc3RTZWNyZXRQb2xpY2llc1JlcXVlc3QaOS50ZW5raS5jbG91ZC53b3Jrc3BhY2UudjFiZXRhMS5MaXN0U2VjcmV0UG9saWNpZXNSZXNwb25zZRKJAQoSRGVsZXRlU2VjcmV0UG9saWN5EjgudGVua2kuY2xvdWQud29ya3NwYWNlLnYxYmV0YTEuRGVsZXRlU2VjcmV0UG9saWN5UmVxdWVzdBo5LnRlbmtpLmNsb3VkLndvcmtzcGFjZS52MWJldGExLkRlbGV0ZVNlY3JldFBvbGljeVJlc3BvbnNlEncKDENyZWF0ZVNlY3JldBIyLnRlbmtpLmNsb3VkLndvcmtzcGFjZS52MWJldGExLkNyZWF0ZVNlY3JldFJlcXVlc3QaMy50ZW5raS5jbG91ZC53b3Jrc3BhY2UudjFiZXRhMS5DcmVhdGVTZWNyZXRSZXNwb25zZRJ3CgxVcGRhdGVTZWNyZXQSMi50ZW5raS5jbG91ZC53b3Jrc3BhY2UudjFiZXRhMS5VcGRhdGVTZWNyZXRSZXF1ZXN0GjMudGVua2kuY2xvdWQud29ya3NwYWNlLnYxYmV0YTEuVXBkYXRlU2VjcmV0UmVzcG9uc2USbgoJR2V0U2VjcmV0Ei8udGVua2kuY2xvdWQud29ya3NwYWNlLnYxYmV0YTEuR2V0U2VjcmV0UmVxdWVzdBowLnRlbmtpLmNsb3VkLndvcmtzcGFjZS52MWJldGExLkdldFNlY3JldFJlc3BvbnNlEnQKC0xpc3RTZWNyZXRzEjEudGVua2kuY2xvdWQud29ya3NwYWNlLnYxYmV0YTEuTGlzdFNlY3JldHNSZXF1ZXN0GjIudGVua2kuY2xvdWQud29ya3NwYWNlLnYxYmV0YTEuTGlzdFNlY3JldHNSZXNwb25zZRKVAQoWTGlzdFNlY3JldFJlcG9zaXRvcmllcxI8LnRlbmtpLmNsb3VkLndvcmtzcGFjZS52MWJldGExLkxpc3RTZWNyZXRSZXBvc2l0b3JpZXNSZXF1ZXN0Gj0udGVua2kuY2xvdWQud29ya3NwYWNlLnYxYmV0YTEuTGlzdFNlY3JldFJlcG9zaXRvcmllc1Jlc3BvbnNlEokBChJMaXN0U2VjcmV0VmVyc2lvbnMSOC50ZW5raS5jbG91ZC53b3Jrc3BhY2UudjFiZXRhMS5MaXN0U2VjcmV0VmVyc2lvbnNSZXF1ZXN0GjkudGVua2kuY2xvdWQud29ya3NwYWNlLnYxYmV0YTEuTGlzdFNlY3JldFZlcnNpb25zUmVzcG9uc2USdwoMUmV2b2tlU2VjcmV0EjIudGVua2kuY2xvdWQud29ya3NwYWNlLnYxYmV0YTEuUmV2b2tlU2VjcmV0UmVxdWVzdBozLnRlbmtpLmNsb3VkLndvcmtzcGFjZS52MWJldGExLlJldm9rZVNlY3JldFJlc3BvbnNlEncKDERlbGV0ZVNlY3JldBIyLnRlbmtpLmNsb3VkLndvcmtzcGFjZS52MWJldGExLkRlbGV0ZVNlY3JldFJlcXVlc3QaMy50ZW5raS5jbG91ZC53b3Jrc3BhY2UudjFiZXRhMS5EZWxldGVTZWNyZXRSZXNwb25zZUKxAgohY29tLnRlbmtpLmNsb3VkLndvcmtzcGFjZS52MWJldGExQgxTZWNyZXRzUHJvdG9QAVpnZ2l0aHViLmNvbS9MdXhvckxhYnMvdGVua2ktc2RrLWdvL3NhbmRib3gvaW50ZXJuYWwvcHJvdG8vdGVua2kvY2xvdWQvd29ya3NwYWNlL3YxYmV0YTE7d29ya3NwYWNldjFiZXRhMaICA1RDV6oCHVRlbmtpLkNsb3VkLldvcmtzcGFjZS5WMWJldGExygIdVGVua2lcQ2xvdWRcV29ya3NwYWNlXFYxYmV0YTHiAilUZW5raVxDbG91ZFxXb3Jrc3BhY2VcVjFiZXRhMVxHUEJNZXRhZGF0YeoCIFRlbmtpOjpDbG91ZDo6V29ya3NwYWNlOjpWMWJldGExYgZwcm90bzM", [file_google_protobuf_timestamp]);
 
 /**
  * Metadata only. Values and encrypted values are never returned publicly.
@@ -64,6 +64,13 @@ export type Secret = Message<"tenki.cloud.workspace.v1beta1.Secret"> & {
    * @generated from field: google.protobuf.Timestamp deleted_at = 10;
    */
   deletedAt?: Timestamp;
+
+  /**
+   * Full name (owner/name) of the repository whose CI jobs get this secret; empty for a workspace secret.
+   *
+   * @generated from field: string repository = 11;
+   */
+  repository: string;
 };
 
 /**
@@ -123,6 +130,13 @@ export type CreateSecretRequest = Message<"tenki.cloud.workspace.v1beta1.CreateS
    * @generated from field: string request_id = 5;
    */
   requestId: string;
+
+  /**
+   * Creates a repository secret; must be one of ListSecretRepositories. Empty creates a workspace secret.
+   *
+   * @generated from field: string repository = 6;
+   */
+  repository: string;
 };
 
 /**
@@ -336,6 +350,85 @@ export const ListSecretsResponseSchema: GenMessage<ListSecretsResponse> = /*@__P
   messageDesc(file_tenki_cloud_workspace_v1beta1_secrets, 9);
 
 /**
+ * @generated from message tenki.cloud.workspace.v1beta1.ListSecretRepositoriesRequest
+ */
+export type ListSecretRepositoriesRequest = Message<"tenki.cloud.workspace.v1beta1.ListSecretRepositoriesRequest"> & {
+  /**
+   * @generated from field: string workspace_id = 1;
+   */
+  workspaceId: string;
+
+  /**
+   * @generated from field: uint32 page_size = 2;
+   */
+  pageSize: number;
+
+  /**
+   * Continues from next_cursor with the same search.
+   *
+   * @generated from field: string cursor = 3;
+   */
+  cursor: string;
+
+  /**
+   * Case-insensitive substring match on the full name.
+   *
+   * @generated from field: string search = 4;
+   */
+  search: string;
+};
+
+/**
+ * Describes the message tenki.cloud.workspace.v1beta1.ListSecretRepositoriesRequest.
+ * Use `create(ListSecretRepositoriesRequestSchema)` to create a new message.
+ */
+export const ListSecretRepositoriesRequestSchema: GenMessage<ListSecretRepositoriesRequest> = /*@__PURE__*/
+  messageDesc(file_tenki_cloud_workspace_v1beta1_secrets, 10);
+
+/**
+ * @generated from message tenki.cloud.workspace.v1beta1.ListSecretRepositoriesResponse
+ */
+export type ListSecretRepositoriesResponse = Message<"tenki.cloud.workspace.v1beta1.ListSecretRepositoriesResponse"> & {
+  /**
+   * Repositories connected to the workspace through its GitHub App installations, ordered by full name.
+   *
+   * @generated from field: repeated tenki.cloud.workspace.v1beta1.SecretRepository repositories = 1;
+   */
+  repositories: SecretRepository[];
+
+  /**
+   * Set only when more repositories follow.
+   *
+   * @generated from field: string next_cursor = 2;
+   */
+  nextCursor: string;
+};
+
+/**
+ * Describes the message tenki.cloud.workspace.v1beta1.ListSecretRepositoriesResponse.
+ * Use `create(ListSecretRepositoriesResponseSchema)` to create a new message.
+ */
+export const ListSecretRepositoriesResponseSchema: GenMessage<ListSecretRepositoriesResponse> = /*@__PURE__*/
+  messageDesc(file_tenki_cloud_workspace_v1beta1_secrets, 11);
+
+/**
+ * @generated from message tenki.cloud.workspace.v1beta1.SecretRepository
+ */
+export type SecretRepository = Message<"tenki.cloud.workspace.v1beta1.SecretRepository"> & {
+  /**
+   * @generated from field: string full_name = 1;
+   */
+  fullName: string;
+};
+
+/**
+ * Describes the message tenki.cloud.workspace.v1beta1.SecretRepository.
+ * Use `create(SecretRepositorySchema)` to create a new message.
+ */
+export const SecretRepositorySchema: GenMessage<SecretRepository> = /*@__PURE__*/
+  messageDesc(file_tenki_cloud_workspace_v1beta1_secrets, 12);
+
+/**
  * @generated from message tenki.cloud.workspace.v1beta1.ListSecretVersionsRequest
  */
 export type ListSecretVersionsRequest = Message<"tenki.cloud.workspace.v1beta1.ListSecretVersionsRequest"> & {
@@ -365,7 +458,7 @@ export type ListSecretVersionsRequest = Message<"tenki.cloud.workspace.v1beta1.L
  * Use `create(ListSecretVersionsRequestSchema)` to create a new message.
  */
 export const ListSecretVersionsRequestSchema: GenMessage<ListSecretVersionsRequest> = /*@__PURE__*/
-  messageDesc(file_tenki_cloud_workspace_v1beta1_secrets, 10);
+  messageDesc(file_tenki_cloud_workspace_v1beta1_secrets, 13);
 
 /**
  * @generated from message tenki.cloud.workspace.v1beta1.ListSecretVersionsResponse
@@ -387,7 +480,7 @@ export type ListSecretVersionsResponse = Message<"tenki.cloud.workspace.v1beta1.
  * Use `create(ListSecretVersionsResponseSchema)` to create a new message.
  */
 export const ListSecretVersionsResponseSchema: GenMessage<ListSecretVersionsResponse> = /*@__PURE__*/
-  messageDesc(file_tenki_cloud_workspace_v1beta1_secrets, 11);
+  messageDesc(file_tenki_cloud_workspace_v1beta1_secrets, 14);
 
 /**
  * Omitted version revokes every version. Revoking the active version marks the secret revoked
@@ -427,7 +520,7 @@ export type RevokeSecretRequest = Message<"tenki.cloud.workspace.v1beta1.RevokeS
  * Use `create(RevokeSecretRequestSchema)` to create a new message.
  */
 export const RevokeSecretRequestSchema: GenMessage<RevokeSecretRequest> = /*@__PURE__*/
-  messageDesc(file_tenki_cloud_workspace_v1beta1_secrets, 12);
+  messageDesc(file_tenki_cloud_workspace_v1beta1_secrets, 15);
 
 /**
  * @generated from message tenki.cloud.workspace.v1beta1.RevokeSecretResponse
@@ -444,7 +537,7 @@ export type RevokeSecretResponse = Message<"tenki.cloud.workspace.v1beta1.Revoke
  * Use `create(RevokeSecretResponseSchema)` to create a new message.
  */
 export const RevokeSecretResponseSchema: GenMessage<RevokeSecretResponse> = /*@__PURE__*/
-  messageDesc(file_tenki_cloud_workspace_v1beta1_secrets, 13);
+  messageDesc(file_tenki_cloud_workspace_v1beta1_secrets, 16);
 
 /**
  * @generated from message tenki.cloud.workspace.v1beta1.DeleteSecretRequest
@@ -476,7 +569,7 @@ export type DeleteSecretRequest = Message<"tenki.cloud.workspace.v1beta1.DeleteS
  * Use `create(DeleteSecretRequestSchema)` to create a new message.
  */
 export const DeleteSecretRequestSchema: GenMessage<DeleteSecretRequest> = /*@__PURE__*/
-  messageDesc(file_tenki_cloud_workspace_v1beta1_secrets, 14);
+  messageDesc(file_tenki_cloud_workspace_v1beta1_secrets, 17);
 
 /**
  * @generated from message tenki.cloud.workspace.v1beta1.DeleteSecretResponse
@@ -493,7 +586,7 @@ export type DeleteSecretResponse = Message<"tenki.cloud.workspace.v1beta1.Delete
  * Use `create(DeleteSecretResponseSchema)` to create a new message.
  */
 export const DeleteSecretResponseSchema: GenMessage<DeleteSecretResponse> = /*@__PURE__*/
-  messageDesc(file_tenki_cloud_workspace_v1beta1_secrets, 15);
+  messageDesc(file_tenki_cloud_workspace_v1beta1_secrets, 18);
 
 /**
  * @generated from message tenki.cloud.workspace.v1beta1.SecretAccessPolicy
@@ -550,7 +643,7 @@ export type SecretAccessPolicy = Message<"tenki.cloud.workspace.v1beta1.SecretAc
  * Use `create(SecretAccessPolicySchema)` to create a new message.
  */
 export const SecretAccessPolicySchema: GenMessage<SecretAccessPolicy> = /*@__PURE__*/
-  messageDesc(file_tenki_cloud_workspace_v1beta1_secrets, 16);
+  messageDesc(file_tenki_cloud_workspace_v1beta1_secrets, 19);
 
 /**
  * @generated from message tenki.cloud.workspace.v1beta1.CreateSecretPolicyRequest
@@ -582,7 +675,7 @@ export type CreateSecretPolicyRequest = Message<"tenki.cloud.workspace.v1beta1.C
  * Use `create(CreateSecretPolicyRequestSchema)` to create a new message.
  */
 export const CreateSecretPolicyRequestSchema: GenMessage<CreateSecretPolicyRequest> = /*@__PURE__*/
-  messageDesc(file_tenki_cloud_workspace_v1beta1_secrets, 17);
+  messageDesc(file_tenki_cloud_workspace_v1beta1_secrets, 20);
 
 /**
  * @generated from message tenki.cloud.workspace.v1beta1.CreateSecretPolicyResponse
@@ -599,7 +692,7 @@ export type CreateSecretPolicyResponse = Message<"tenki.cloud.workspace.v1beta1.
  * Use `create(CreateSecretPolicyResponseSchema)` to create a new message.
  */
 export const CreateSecretPolicyResponseSchema: GenMessage<CreateSecretPolicyResponse> = /*@__PURE__*/
-  messageDesc(file_tenki_cloud_workspace_v1beta1_secrets, 18);
+  messageDesc(file_tenki_cloud_workspace_v1beta1_secrets, 21);
 
 /**
  * @generated from message tenki.cloud.workspace.v1beta1.UpdateSecretPolicyRequest
@@ -636,7 +729,7 @@ export type UpdateSecretPolicyRequest = Message<"tenki.cloud.workspace.v1beta1.U
  * Use `create(UpdateSecretPolicyRequestSchema)` to create a new message.
  */
 export const UpdateSecretPolicyRequestSchema: GenMessage<UpdateSecretPolicyRequest> = /*@__PURE__*/
-  messageDesc(file_tenki_cloud_workspace_v1beta1_secrets, 19);
+  messageDesc(file_tenki_cloud_workspace_v1beta1_secrets, 22);
 
 /**
  * @generated from message tenki.cloud.workspace.v1beta1.UpdateSecretPolicyResponse
@@ -653,7 +746,7 @@ export type UpdateSecretPolicyResponse = Message<"tenki.cloud.workspace.v1beta1.
  * Use `create(UpdateSecretPolicyResponseSchema)` to create a new message.
  */
 export const UpdateSecretPolicyResponseSchema: GenMessage<UpdateSecretPolicyResponse> = /*@__PURE__*/
-  messageDesc(file_tenki_cloud_workspace_v1beta1_secrets, 20);
+  messageDesc(file_tenki_cloud_workspace_v1beta1_secrets, 23);
 
 /**
  * @generated from message tenki.cloud.workspace.v1beta1.DeleteSecretPolicyRequest
@@ -685,7 +778,7 @@ export type DeleteSecretPolicyRequest = Message<"tenki.cloud.workspace.v1beta1.D
  * Use `create(DeleteSecretPolicyRequestSchema)` to create a new message.
  */
 export const DeleteSecretPolicyRequestSchema: GenMessage<DeleteSecretPolicyRequest> = /*@__PURE__*/
-  messageDesc(file_tenki_cloud_workspace_v1beta1_secrets, 21);
+  messageDesc(file_tenki_cloud_workspace_v1beta1_secrets, 24);
 
 /**
  * @generated from message tenki.cloud.workspace.v1beta1.DeleteSecretPolicyResponse
@@ -702,7 +795,7 @@ export type DeleteSecretPolicyResponse = Message<"tenki.cloud.workspace.v1beta1.
  * Use `create(DeleteSecretPolicyResponseSchema)` to create a new message.
  */
 export const DeleteSecretPolicyResponseSchema: GenMessage<DeleteSecretPolicyResponse> = /*@__PURE__*/
-  messageDesc(file_tenki_cloud_workspace_v1beta1_secrets, 22);
+  messageDesc(file_tenki_cloud_workspace_v1beta1_secrets, 25);
 
 /**
  * @generated from message tenki.cloud.workspace.v1beta1.GetSecretPolicyRequest
@@ -724,7 +817,7 @@ export type GetSecretPolicyRequest = Message<"tenki.cloud.workspace.v1beta1.GetS
  * Use `create(GetSecretPolicyRequestSchema)` to create a new message.
  */
 export const GetSecretPolicyRequestSchema: GenMessage<GetSecretPolicyRequest> = /*@__PURE__*/
-  messageDesc(file_tenki_cloud_workspace_v1beta1_secrets, 23);
+  messageDesc(file_tenki_cloud_workspace_v1beta1_secrets, 26);
 
 /**
  * @generated from message tenki.cloud.workspace.v1beta1.GetSecretPolicyResponse
@@ -741,7 +834,7 @@ export type GetSecretPolicyResponse = Message<"tenki.cloud.workspace.v1beta1.Get
  * Use `create(GetSecretPolicyResponseSchema)` to create a new message.
  */
 export const GetSecretPolicyResponseSchema: GenMessage<GetSecretPolicyResponse> = /*@__PURE__*/
-  messageDesc(file_tenki_cloud_workspace_v1beta1_secrets, 24);
+  messageDesc(file_tenki_cloud_workspace_v1beta1_secrets, 27);
 
 /**
  * @generated from message tenki.cloud.workspace.v1beta1.ListSecretPoliciesRequest
@@ -768,7 +861,7 @@ export type ListSecretPoliciesRequest = Message<"tenki.cloud.workspace.v1beta1.L
  * Use `create(ListSecretPoliciesRequestSchema)` to create a new message.
  */
 export const ListSecretPoliciesRequestSchema: GenMessage<ListSecretPoliciesRequest> = /*@__PURE__*/
-  messageDesc(file_tenki_cloud_workspace_v1beta1_secrets, 25);
+  messageDesc(file_tenki_cloud_workspace_v1beta1_secrets, 28);
 
 /**
  * @generated from message tenki.cloud.workspace.v1beta1.ListSecretPoliciesResponse
@@ -790,7 +883,7 @@ export type ListSecretPoliciesResponse = Message<"tenki.cloud.workspace.v1beta1.
  * Use `create(ListSecretPoliciesResponseSchema)` to create a new message.
  */
 export const ListSecretPoliciesResponseSchema: GenMessage<ListSecretPoliciesResponse> = /*@__PURE__*/
-  messageDesc(file_tenki_cloud_workspace_v1beta1_secrets, 26);
+  messageDesc(file_tenki_cloud_workspace_v1beta1_secrets, 29);
 
 /**
  * @generated from message tenki.cloud.workspace.v1beta1.SecretRequestRule
@@ -837,7 +930,7 @@ export type SecretRequestRule = Message<"tenki.cloud.workspace.v1beta1.SecretReq
  * Use `create(SecretRequestRuleSchema)` to create a new message.
  */
 export const SecretRequestRuleSchema: GenMessage<SecretRequestRule> = /*@__PURE__*/
-  messageDesc(file_tenki_cloud_workspace_v1beta1_secrets, 27);
+  messageDesc(file_tenki_cloud_workspace_v1beta1_secrets, 30);
 
 /**
  * @generated from enum tenki.cloud.workspace.v1beta1.SecretSortField
@@ -949,6 +1042,14 @@ export const WorkspaceSecretsService: GenService<{
     methodKind: "unary";
     input: typeof ListSecretsRequestSchema;
     output: typeof ListSecretsResponseSchema;
+  },
+  /**
+   * @generated from rpc tenki.cloud.workspace.v1beta1.WorkspaceSecretsService.ListSecretRepositories
+   */
+  listSecretRepositories: {
+    methodKind: "unary";
+    input: typeof ListSecretRepositoriesRequestSchema;
+    output: typeof ListSecretRepositoriesResponseSchema;
   },
   /**
    * @generated from rpc tenki.cloud.workspace.v1beta1.WorkspaceSecretsService.ListSecretVersions

@@ -215,6 +215,7 @@ export type {
   SecretMutationOptions,
   UpdateSecretOptions,
   SecretPageOptions,
+  SecretRepositoryPageOptions,
 } from "./workspace-secrets.js";
 
 export type { RuntimeSecretFile, RuntimeSecretReference } from "./secret-files.js";

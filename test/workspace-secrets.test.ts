@@ -27,7 +27,7 @@ describe("workspace secrets wire contract", () => {
             createSecret(request, context) {
               expect(context.requestHeader.get("authorization")).toBe("Bearer tk_test");
               requests.push(request);
-              return { secret };
+              return { secret: { ...secret, repository: request.repository } };
             },
             updateSecret(request) {
               requests.push(request);
@@ -44,6 +44,10 @@ describe("workspace secrets wire contract", () => {
             listSecretVersions(request) {
               requests.push(request);
               return { versions: [{ version: 1 }], nextCursor: "versions-next" };
+            },
+            listSecretRepositories(request) {
+              requests.push(request);
+              return { repositories: [{ fullName: "acme/api" }], nextCursor: "acme/api" };
             },
             revokeSecret(request) {
               requests.push(request);
@@ -92,7 +96,18 @@ describe("workspace secrets wire contract", () => {
         requestId: "00000000-0000-4000-8000-000000000004",
       });
       await client.secrets.delete("secret", { expectedRevision: 2, requestId: "00000000-0000-4000-8000-000000000005" });
-      expect(requests[0]).toMatchObject({ workspaceId, value, requestId: "00000000-0000-4000-8000-000000000001" });
+      const scoped = await client.secrets.createForRepository(
+        "acme/api",
+        "SCOPED",
+        value,
+        "00000000-0000-4000-8000-000000000007",
+      );
+      expect(requests[0]).toMatchObject({
+        workspaceId,
+        value,
+        requestId: "00000000-0000-4000-8000-000000000001",
+        repository: "",
+      });
       expect(requests[1]).toMatchObject({ workspaceId, value: new Uint8Array() });
       expect((requests[1] as pb.CreateSecretRequest).requestId).toMatch(/^[0-9a-f-]{36}$/);
       expect((requests[2] as pb.UpdateSecretRequest).value).toBeUndefined();
@@ -109,6 +124,23 @@ describe("workspace secrets wire contract", () => {
         requestId: "00000000-0000-4000-8000-000000000004",
       });
       expect(requests[10]).toMatchObject({ expectedRevision: 2, requestId: "00000000-0000-4000-8000-000000000005" });
+      expect(requests[11]).toMatchObject({
+        name: "SCOPED",
+        value,
+        repository: "acme/api",
+        requestId: "00000000-0000-4000-8000-000000000007",
+      });
+      expect(result.repository).toBeUndefined();
+      expect(scoped.repository).toBe("acme/api");
+      for (const repository of ["", "acme", "acme/api/extra", "/api"]) {
+        await expect(client.secrets.createForRepository(repository, "TOKEN", value)).rejects.toThrow("owner/name");
+      }
+      expect(requests).toHaveLength(12);
+      expect(await client.secrets.listRepositories({ pageSize: 1, cursor: "acme/a", search: "acme" })).toEqual({
+        repositories: ["acme/api"],
+        nextCursor: "acme/api",
+      });
+      expect(requests[12]).toMatchObject({ pageSize: 1, cursor: "acme/a", search: "acme" });
       for (const request of requests) expect(request).toMatchObject({ workspaceId });
       expect(result).not.toHaveProperty("value");
       expect(result).not.toHaveProperty("ciphertext");

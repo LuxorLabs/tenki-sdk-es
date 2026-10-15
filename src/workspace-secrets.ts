@@ -25,6 +25,8 @@ export interface WorkspaceSecret {
   id: string;
   workspaceId: string;
   name: string;
+  /** Repository (owner/name) whose CI jobs get the secret; undefined for a workspace secret. */
+  repository?: string;
   activeVersion: number;
   revision: number;
   createdAt?: Date;
@@ -50,6 +52,10 @@ export interface SecretPageOptions {
   pageSize?: number;
   cursor?: string;
 }
+export interface SecretRepositoryPageOptions extends SecretPageOptions {
+  /** Case-insensitive substring match on the full name. */
+  search?: string;
+}
 
 function metadata(secret: pb.Secret | undefined): WorkspaceSecret {
   if (!secret) throw new Error("Missing secret metadata");
@@ -57,6 +63,7 @@ function metadata(secret: pb.Secret | undefined): WorkspaceSecret {
     id: secret.id,
     workspaceId: secret.workspaceId,
     name: secret.name,
+    repository: secret.repository || undefined,
     activeVersion: secret.activeVersion,
     revision: secret.revision,
     createdAt: secret.createdAt && timestampDate(secret.createdAt),
@@ -75,7 +82,31 @@ export class Secrets {
   ) {
     this.policies = new SecretPolicies(workspaceId, rpc);
   }
+  /** Creates a workspace secret. */
   async create(name: string, value: Uint8Array, requestId = randomUUID()): Promise<WorkspaceSecret> {
+    return this.createSecret("", name, value, requestId);
+  }
+  /**
+   * Creates a secret only CI jobs in `repository` (owner/name) get, replacing a workspace secret with the
+   * same name. The repository must be connected to the workspace.
+   */
+  async createForRepository(
+    repository: string,
+    name: string,
+    value: Uint8Array,
+    requestId = randomUUID(),
+  ): Promise<WorkspaceSecret> {
+    if (!/^[^/]+\/[^/]+$/.test(repository)) {
+      throw new Error(`repository must be owner/name, got ${JSON.stringify(repository)}`);
+    }
+    return this.createSecret(repository, name, value, requestId);
+  }
+  private async createSecret(
+    repository: string,
+    name: string,
+    value: Uint8Array,
+    requestId: string,
+  ): Promise<WorkspaceSecret> {
     try {
       return metadata(
         (
@@ -85,6 +116,7 @@ export class Secrets {
               name,
               value,
               requestId,
+              repository,
             }),
           )
         ).secret,
@@ -119,6 +151,20 @@ export class Secrets {
     try {
       const response = await this.rpc.listSecrets({ ...options, workspaceId: this.workspaceId });
       return { secrets: response.secrets.map(metadata), nextCursor: response.nextCursor };
+    } catch (err) {
+      throw workspaceSecretError(err);
+    }
+  }
+  /** Lists the connected repositories (owner/name) createForRepository accepts, ordered by name. */
+  async listRepositories(
+    options: SecretRepositoryPageOptions = {},
+  ): Promise<{ repositories: string[]; nextCursor: string }> {
+    try {
+      const response = await this.rpc.listSecretRepositories({ ...options, workspaceId: this.workspaceId });
+      return {
+        repositories: response.repositories.map((repository) => repository.fullName),
+        nextCursor: response.nextCursor,
+      };
     } catch (err) {
       throw workspaceSecretError(err);
     }
