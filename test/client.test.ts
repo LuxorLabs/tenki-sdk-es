@@ -74,9 +74,11 @@ describe("TenkiSandbox client TLS options", () => {
 
     new TenkiSandbox({ authToken: "tk_test", rootCertificates });
 
-    expect(connectMock.Http2SessionManager).toHaveBeenCalledWith(expect.any(String), undefined, {
-      ca: rootCertificates,
-    });
+    expect(connectMock.Http2SessionManager).toHaveBeenCalledWith(
+      expect.any(String),
+      { pingIntervalMs: 30_000, pingTimeoutMs: 5_000 },
+      { ca: rootCertificates },
+    );
     expect(connectMock.createGrpcTransport).toHaveBeenCalledWith(
       expect.objectContaining({ sessionManager: expect.any(Object) }),
     );

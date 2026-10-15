@@ -24,6 +24,7 @@ import {
   WaitSessionResponseSchema,
   type RunStart,
 } from "../src/internal/proto/tenki/sandbox/v1/sandbox_pb.js";
+import { isRetryableWaitPollError, isRetryableWaitStreamError } from "../src/refused-stream.js";
 import { Session } from "../src/session.js";
 import { SandboxWarningCodes } from "../src/warning.js";
 
@@ -319,31 +320,307 @@ describe("Session streaming", () => {
     expect(rpcClient.getSession).toHaveBeenCalledTimes(1);
   });
 
-  it("waitReady falls back to polling when the stream connection resets", async () => {
+  it.each([
+    [Code.Unimplemented, "not implemented", true],
+    [Code.Unavailable, "service unavailable", true],
+    [Code.DeadlineExceeded, "upstream deadline", true],
+    [Code.Internal, "REFUSED_STREAM", true],
+    [Code.Internal, "GOAWAY", true],
+    [Code.Internal, "stream reset", true],
+    [Code.Internal, "stream error", true],
+    [Code.Internal, "NGHTTP2_INTERNAL_ERROR", true],
+    [Code.Internal, "ECONNRESET", true],
+    [Code.Internal, "connection reset by peer", true],
+    [Code.Internal, "socket hang up", true],
+    [Code.Internal, "unexpected EOF", true],
+    [Code.Internal, "stream closed before headers", true],
+    [Code.Internal, "server closed", true],
+    [Code.Internal, "transport closing", true],
+    [Code.Internal, "upstream request timeout", true],
+    [Code.Aborted, "REFUSED_STREAM", true],
+    [Code.Aborted, "GOAWAY", true],
+    [Code.Aborted, "stream reset", true],
+    [Code.Aborted, "stream error", true],
+    [Code.Aborted, "NGHTTP2_INTERNAL_ERROR", true],
+    [Code.Aborted, "ECONNRESET", true],
+    [Code.Aborted, "connection reset by peer", true],
+    [Code.Aborted, "socket hang up", true],
+    [Code.Aborted, "unexpected EOF", true],
+    [Code.Aborted, "stream closed before headers", true],
+    [Code.Aborted, "server closed", true],
+    [Code.Aborted, "transport closing", true],
+    [Code.Aborted, "upstream request timeout", true],
+    [Code.Unknown, "REFUSED_STREAM", true],
+    [Code.Unknown, "GOAWAY", true],
+    [Code.Unknown, "stream reset", true],
+    [Code.Unknown, "stream error", true],
+    [Code.Unknown, "NGHTTP2_INTERNAL_ERROR", true],
+    [Code.Unknown, "ECONNRESET", true],
+    [Code.Unknown, "connection reset by peer", true],
+    [Code.Unknown, "socket hang up", true],
+    [Code.Unknown, "unexpected EOF", true],
+    [Code.Unknown, "stream closed before headers", true],
+    [Code.Unknown, "server closed", true],
+    [Code.Unknown, "transport closing", true],
+    [Code.Unknown, "upstream request timeout", true],
+    [Code.PermissionDenied, "NGHTTP2_INTERNAL_ERROR", false],
+    [Code.Unauthenticated, "NGHTTP2_INTERNAL_ERROR", false],
+    [Code.Canceled, "NGHTTP2_INTERNAL_ERROR", true],
+    [Code.InvalidArgument, "NGHTTP2_INTERNAL_ERROR", false],
+    [Code.Internal, "Received RST_STREAM with error code 2", true],
+    [Code.Unknown, "Stream removed", true],
+    [Code.Unknown, "Socket closed", true],
+    [Code.Internal, "protocol error: missing status", true],
+    [Code.Unknown, "protocol error: no Grpc-Status trailer: unexpected EOF", true],
+    [Code.Internal, "http2: client connection lost", true],
+    [Code.Unknown, "read enveloped message: read tcp 10.0.0.1:443: i/o timeout", true],
+    [Code.Internal, "http2: timeout awaiting response headers", true],
+    [Code.Canceled, "http/2 stream closed with error code CANCEL (0x8)", true],
+    [
+      Code.InvalidArgument,
+      "protocol error: incomplete envelope: http2: server sent GOAWAY and closed the connection",
+      true,
+    ],
+    [Code.InvalidArgument, "invalid session id", false],
+    [Code.Canceled, "application failure", false],
+    [
+      Code.ResourceExhausted,
+      "http/2 connection closed with error code ENHANCE_YOUR_CALM (0xb), too_many_pings, doubled the interval",
+      true,
+    ],
+    [Code.ResourceExhausted, "REFUSED_STREAM", true],
+    [Code.PermissionDenied, "GOAWAY", true],
+    [Code.ResourceExhausted, "rate limit exceeded", false],
+    [Code.Internal, "http2: client conn is closed", true],
+    [Code.ResourceExhausted, "NGHTTP2_INTERNAL_ERROR", false],
+    [Code.NotFound, "NGHTTP2_INTERNAL_ERROR", false],
+    [Code.Internal, "application failure", false],
+    [Code.Aborted, "application failure", false],
+    [Code.Unknown, "application failure", false],
+  ] as const)("waitReady recovery for code %s: %s", async (code, message, recover) => {
     const rpcClient = makeRpcClient();
     rpcClient.waitSession = vi.fn(() => {
-      throw new ConnectError("read ECONNRESET", Code.Aborted);
+      throw new ConnectError(message, code);
     });
     const session = makeSession(rpcClient, makeDataPlaneRunClient());
     (session as any).state = "CREATING";
-
-    await session.waitReady(1_000);
-
-    expect(session.state).toBe("RUNNING");
+    if (recover) {
+      await session.waitReady(1_000);
+      expect(session.state).toBe("RUNNING");
+      expect(rpcClient.getSession).toHaveBeenCalledTimes(1);
+    } else {
+      await expect(session.waitReady(1_000)).rejects.toThrow();
+      expect(rpcClient.getSession).not.toHaveBeenCalled();
+    }
     expect(rpcClient.waitSession).toHaveBeenCalledTimes(1);
-    expect(rpcClient.getSession).toHaveBeenCalledTimes(1);
   });
 
-  it("waitReady does not hide non-transient stream failures", async () => {
+  it("does not poll after the readiness deadline expires", async () => {
     const rpcClient = makeRpcClient();
     rpcClient.waitSession = vi.fn(() => {
-      throw new ConnectError("permission denied", Code.PermissionDenied);
+      throw new ConnectError("upstream deadline", Code.DeadlineExceeded);
+    });
+    const session = makeSession(rpcClient, makeDataPlaneRunClient());
+    await expect(session.waitReady(0)).rejects.toThrow();
+    expect(rpcClient.getSession).not.toHaveBeenCalled();
+  });
+
+  it("uses only the remaining readiness budget after a stream failure", async () => {
+    let now = 0;
+    vi.spyOn(Date, "now").mockImplementation(() => now);
+    const rpcClient = makeRpcClient();
+    rpcClient.waitSession = vi.fn(() => {
+      now = 750;
+      throw new ConnectError("unavailable", Code.Unavailable);
+    });
+    const session = makeSession(rpcClient, makeDataPlaneRunClient());
+    const poll = vi.spyOn(session as any, "waitReadyPoll").mockResolvedValue(undefined);
+    await session.waitReady(1_000);
+    expect(poll).toHaveBeenCalledWith(250, undefined);
+  });
+
+  it("preserves caller cancellation when the stream reports a transport error", async () => {
+    const controller = new AbortController();
+    const rpcClient = makeRpcClient();
+    rpcClient.waitSession = vi.fn(() => {
+      controller.abort();
+      throw new ConnectError("unavailable", Code.Unavailable);
+    });
+    const session = makeSession(rpcClient, makeDataPlaneRunClient());
+    await expect(session.waitReady(1_000, controller.signal)).rejects.toThrow();
+    expect(rpcClient.getSession).not.toHaveBeenCalled();
+  });
+
+  it.each([Code.PermissionDenied, Code.Unauthenticated, Code.Canceled, Code.ResourceExhausted])(
+    "does not hide non-transient poll code %s",
+    async (code) => {
+      const rpcClient = makeRpcClient();
+      rpcClient.waitSession = vi.fn(() => {
+        throw new ConnectError("unavailable", Code.Unavailable);
+      });
+      rpcClient.getSession = vi.fn(() => {
+        throw new ConnectError("denied", code);
+      });
+      const session = makeSession(rpcClient, makeDataPlaneRunClient());
+      await expect(session.waitReady(1_000)).rejects.toMatchObject({ cause: { code } });
+      expect(rpcClient.getSession).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it("keeps polling through a transport reset on GetSession", async () => {
+    const rpcClient = makeRpcClient();
+    rpcClient.waitSession = vi.fn(() => {
+      throw new ConnectError("unavailable", Code.Unavailable);
+    });
+    const getSession = rpcClient.getSession;
+    let calls = 0;
+    rpcClient.getSession = vi.fn((...args: unknown[]) => {
+      if (calls++ === 0) throw new ConnectError("Stream closed with error code NGHTTP2_INTERNAL_ERROR", Code.Internal);
+      return getSession(...args);
     });
     const session = makeSession(rpcClient, makeDataPlaneRunClient());
     (session as any).state = "CREATING";
+    await session.waitReady(2_000);
+    expect(session.state).toBe("RUNNING");
+    expect(rpcClient.getSession).toHaveBeenCalledTimes(2);
+  });
 
-    await expect(session.waitReady(1_000)).rejects.toMatchObject({ cause: { code: Code.PermissionDenied } });
+  it("bounds each poll by the remaining budget and the caller signal", async () => {
+    const rpcClient = makeRpcClient();
+    rpcClient.waitSession = vi.fn(() => {
+      throw new ConnectError("unavailable", Code.Unavailable);
+    });
+    const controller = new AbortController();
+    const session = makeSession(rpcClient, makeDataPlaneRunClient());
+    (session as any).state = "CREATING";
+    await session.waitReady(60_000, controller.signal);
+    const [, options] = rpcClient.getSession.mock.calls[0] as [unknown, { timeoutMs: number; signal: AbortSignal }];
+    expect(options.timeoutMs).toBeGreaterThan(0);
+    expect(options.timeoutMs).toBeLessThanOrEqual(10_000);
+    expect(options.signal).toBe(controller.signal);
+  });
+
+  it("maps a caller abort during the poll backoff", async () => {
+    const rpcClient = makeRpcClient();
+    rpcClient.waitSession = vi.fn(() => {
+      throw new ConnectError("unavailable", Code.Unavailable);
+    });
+    const controller = new AbortController();
+    rpcClient.getSession = vi.fn(() => {
+      setTimeout(() => controller.abort(), 10);
+      throw new ConnectError("session not found", Code.NotFound);
+    });
+    const session = makeSession(rpcClient, makeDataPlaneRunClient());
+    (session as any).state = "CREATING";
+    await expect(session.waitReady(5_000, controller.signal)).rejects.toMatchObject({ name: "SandboxError" });
+  });
+
+  it("never retries a locally built terminal-state error", () => {
+    const terminal = new Error("session entered terminal state: TERMINATED: guest agent: connection reset by peer");
+    expect(isRetryableWaitStreamError(terminal)).toBe(false);
+    expect(isRetryableWaitPollError(terminal)).toBe(false);
+  });
+
+  it("keeps the caller's abort reason when the stream fails after an abort", async () => {
+    const rpcClient = makeRpcClient();
+    const controller = new AbortController();
+    rpcClient.waitSession = vi.fn(() => {
+      controller.abort(new Error("caller gave up"));
+      throw new ConnectError("stream closed with error code CANCEL", Code.Canceled);
+    });
+    const session = makeSession(rpcClient, makeDataPlaneRunClient());
+    (session as any).state = "CREATING";
+    await expect(session.waitReady(5_000, controller.signal)).rejects.toThrow(/caller gave up/);
     expect(rpcClient.getSession).not.toHaveBeenCalled();
+  });
+
+  it("maps an abort observed before the next poll", async () => {
+    const rpcClient = makeRpcClient();
+    rpcClient.waitSession = vi.fn(() => {
+      throw new ConnectError("unavailable", Code.Unavailable);
+    });
+    const controller = new AbortController();
+    rpcClient.getSession = vi.fn(async () => {
+      controller.abort();
+      return { session: undefined };
+    });
+    const session = makeSession(rpcClient, makeDataPlaneRunClient());
+    (session as any).state = "CREATING";
+    await expect(session.waitReady(5_000, controller.signal)).rejects.toMatchObject({ name: "SandboxError" });
+  });
+
+  it("reports the last poll error when the budget runs out", async () => {
+    const rpcClient = makeRpcClient();
+    rpcClient.waitSession = vi.fn(() => {
+      throw new ConnectError("unavailable", Code.Unavailable);
+    });
+    rpcClient.getSession = vi.fn(() => {
+      throw new ConnectError("edge unreachable", Code.Unavailable);
+    });
+    const session = makeSession(rpcClient, makeDataPlaneRunClient());
+    (session as any).state = "CREATING";
+    await expect(session.waitReady(300)).rejects.toThrow(/edge unreachable/);
+  });
+
+  it.each([{ states: [] }, { states: [SessionState.CREATING] }])(
+    "polls when the readiness stream ends early: %j",
+    async ({ states }) => {
+      const rpcClient = makeRpcClient();
+      rpcClient.waitSession = vi.fn(() =>
+        (async function* () {
+          for (const state of states)
+            yield create(WaitSessionResponseSchema, {
+              session: create(SandboxSessionSchema, { id: "session-1", state }),
+            });
+        })(),
+      );
+      const session = makeSession(rpcClient, makeDataPlaneRunClient());
+      (session as any).state = "CREATING";
+      await session.waitReady(1_000);
+      expect(session.state).toBe("RUNNING");
+      expect(rpcClient.getSession).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it.each([Code.NotFound, Code.Unavailable, Code.DeadlineExceeded])("retries transient poll code %s", async (code) => {
+    const rpcClient = makeRpcClient();
+    rpcClient.waitSession = vi.fn(() => {
+      throw new ConnectError("unavailable", Code.Unavailable);
+    });
+    rpcClient.getSession.mockRejectedValueOnce(new ConnectError("temporary", code));
+    const session = makeSession(rpcClient, makeDataPlaneRunClient());
+    (session as any).state = "CREATING";
+    await session.waitReady(2_000);
+    expect(session.state).toBe("RUNNING");
+    expect(rpcClient.getSession).toHaveBeenCalledTimes(2);
+  });
+
+  it.each([
+    [Code.Internal, Object.assign(new Error("transport failed"), { code: "ERR_HTTP2_GOAWAY_SESSION" }), true],
+    [
+      Code.Unknown,
+      new Error("wrapper", { cause: Object.assign(new Error("transport failed"), { code: "NGHTTP2_REFUSED_STREAM" }) }),
+      true,
+    ],
+    [Code.Aborted, new ConnectError("upstream deadline", Code.DeadlineExceeded), true],
+    [Code.PermissionDenied, new ConnectError("upstream deadline", Code.DeadlineExceeded), false],
+    [Code.Canceled, Object.assign(new Error("transport failed"), { code: "ERR_HTTP2_GOAWAY_SESSION" }), true],
+    [Code.Canceled, new Error("application failure"), false],
+    [Code.Internal, new Error("application timeout"), false],
+  ] as const)("classifies wrapped wait errors under code %s", async (code, cause, recover) => {
+    const rpcClient = makeRpcClient();
+    rpcClient.waitSession = vi.fn(() => {
+      throw new ConnectError("wait failed", code, undefined, undefined, cause);
+    });
+    const session = makeSession(rpcClient, makeDataPlaneRunClient());
+    (session as any).state = "CREATING";
+    if (recover) {
+      await session.waitReady(1_000);
+      expect(rpcClient.getSession).toHaveBeenCalledTimes(1);
+    } else {
+      await expect(session.waitReady(1_000)).rejects.toThrow();
+      expect(rpcClient.getSession).not.toHaveBeenCalled();
+    }
   });
 
   it("pause and resume refresh local state", async () => {

@@ -85,7 +85,7 @@ import type {
 import { validateUpdateMaxDurationMs } from "./options.js";
 import { normalizeArgv, run, type ProcessRunHandle, type ProcessRunOptions } from "./process.js";
 import { sleepReadyBackoff } from "./ready-backoff.js";
-import { isRetryableStreamTransportError } from "./refused-stream.js";
+import { isRetryableWaitPollError, isRetryableWaitStreamError, WaitStreamEndedError } from "./refused-stream.js";
 import type { CommandStatus, ExecResult } from "./result.js";
 import { snapshotFromProto, type Snapshot } from "./snapshot.js";
 import { connectSSH, type SSHConnection, type SSHConnectOptions } from "./ssh.js";
@@ -205,6 +205,9 @@ export function egressHttpRuleToProto(rule: EgressHttpRule): SessionEgressHttpRu
   if (rule.pathRegex) path = { case: "regex", value: rule.pathRegex };
   return create(SessionEgressHttpRuleSchema, { domains: [...rule.domains], methods: [...(rule.methods ?? [])], path });
 }
+
+// Caps one GetSession so a stalled connection cannot consume the whole readiness budget.
+const WAIT_POLL_ATTEMPT_TIMEOUT_MS = 10_000;
 
 export class Session implements SessionHandle, AsyncDisposable {
   readonly id: string;
@@ -765,8 +768,8 @@ export class Session implements SessionHandle, AsyncDisposable {
       await this.waitReadyStream(timeout, signal);
       return;
     } catch (err) {
-      const unimplemented = err instanceof ConnectError && err.code === Code.Unimplemented;
-      if (!unimplemented && !isRetryableStreamTransportError(err)) throw mapError(err);
+      if (signal?.aborted) throw mapError(signal.reason);
+      if (!isRetryableWaitStreamError(err) || Date.now() >= deadline) throw mapError(err);
     }
     await this.waitReadyPoll(Math.max(0, deadline - Date.now()), signal);
   }
@@ -786,28 +789,45 @@ export class Session implements SessionHandle, AsyncDisposable {
     if (isTerminal(this.state)) {
       throw this.terminalStateError();
     }
-    throw new Error(`timeout waiting for session ${this.id} to become ready`);
+    throw new WaitStreamEndedError(`readiness stream ended before session ${this.id} became ready`);
   }
 
   private async waitReadyPoll(timeoutMs?: number, signal?: AbortSignal): Promise<void> {
     const deadline = Date.now() + (timeoutMs ?? 180_000);
     let attempt = 0;
+    let lastErr: unknown;
     while (Date.now() < deadline) {
-      signal?.throwIfAborted();
+      if (signal?.aborted) throw mapError(signal.reason);
+      let polled = false;
       try {
-        const resp = await this.rpcClient.getSession(create(GetSessionRequestSchema, { sessionId: this.id }));
+        const resp = await this.rpcClient.getSession(create(GetSessionRequestSchema, { sessionId: this.id }), {
+          timeoutMs: Math.max(1, Math.min(WAIT_POLL_ATTEMPT_TIMEOUT_MS, deadline - Date.now())),
+          signal,
+        });
         if (resp.session) this.applyProto(resp.session);
-      } catch {
-        // tolerate not-found during polling (read-replica lag)
+        polled = true;
+      } catch (err) {
+        if (signal?.aborted || !isRetryableWaitPollError(err)) throw mapError(err);
+        // Retry replica lag and transient RPC failures within the readiness budget.
+        lastErr = err;
       }
-      if (isReady(this.state)) return;
-      if (isTerminal(this.state)) {
+      if (polled && isReady(this.state)) return;
+      if (polled && isTerminal(this.state)) {
         throw this.terminalStateError();
       }
-      await sleep(pollBackoffMs(attempt), signal);
+      if (Date.now() >= deadline) break;
+      try {
+        await sleep(Math.min(pollBackoffMs(attempt), Math.max(0, deadline - Date.now())), signal);
+      } catch (err) {
+        throw mapError(err);
+      }
       attempt++;
     }
-    throw new Error(`timeout waiting for session ${this.id} to become ready`);
+    if (lastErr === undefined) throw new Error(`timeout waiting for session ${this.id} to become ready`);
+    const reason = lastErr instanceof Error ? lastErr.message : String(lastErr);
+    throw new Error(`timeout waiting for session ${this.id} to become ready (last error: ${reason})`, {
+      cause: lastErr,
+    });
   }
 
   /**

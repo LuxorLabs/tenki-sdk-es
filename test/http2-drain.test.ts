@@ -71,6 +71,68 @@ describe("deferDestroyUntilDrained", () => {
 describe("DrainingHttp2SessionManager", () => {
   afterEach(() => vi.restoreAllMocks());
 
+  it("enlarges each connection once, including replacement connections", async () => {
+    const first = { state: { effectiveLocalWindowSize: 65535 }, on: vi.fn(), setLocalWindowSize: vi.fn() };
+    const replacement = {
+      state: { effectiveLocalWindowSize: 32 * 1024 * 1024 },
+      on: vi.fn(),
+      setLocalWindowSize: vi.fn(),
+    };
+    const streams = [first, first, replacement].map((session) => Object.assign(fakeStream(0), { session }));
+    const request = vi.spyOn(Http2SessionManager.prototype, "request");
+    for (const stream of streams) request.mockResolvedValueOnce(stream);
+    const manager = new DrainingHttp2SessionManager("https://sandbox.example.com", undefined, undefined, false);
+    for (let i = 0; i < streams.length; i++) await manager.request("POST", "/rpc", {}, {});
+    expect(first.setLocalWindowSize).toHaveBeenCalledExactlyOnceWith(16 * 1024 * 1024);
+    expect(replacement.setLocalWindowSize).toHaveBeenCalledExactlyOnceWith(32 * 1024 * 1024);
+  });
+
+  it("skips the window when disabled and survives a failing setLocalWindowSize", async () => {
+    const skipped = { state: { effectiveLocalWindowSize: 65535 }, on: vi.fn(), setLocalWindowSize: vi.fn() };
+    const failing = {
+      state: { effectiveLocalWindowSize: 65535 },
+      on: vi.fn(),
+      setLocalWindowSize: vi.fn(() => {
+        throw new Error("not supported");
+      }),
+    };
+    const request = vi.spyOn(Http2SessionManager.prototype, "request");
+    request.mockResolvedValueOnce(Object.assign(fakeStream(0), { session: skipped }));
+    request.mockResolvedValueOnce(Object.assign(fakeStream(0), { session: failing }));
+    await new DrainingHttp2SessionManager("https://sandbox.example.com", undefined, undefined, false, false).request(
+      "POST",
+      "/rpc",
+      {},
+      {},
+    );
+    await expect(
+      new DrainingHttp2SessionManager("https://sandbox.example.com", undefined, undefined, false).request(
+        "POST",
+        "/rpc",
+        {},
+        {},
+      ),
+    ).resolves.toBeDefined();
+    expect(skipped.setLocalWindowSize).not.toHaveBeenCalled();
+    expect(failing.setLocalWindowSize).toHaveBeenCalledOnce();
+  });
+
+  it("guards each session against late connection errors", async () => {
+    const { EventEmitter } = await import("node:events");
+    const session = Object.assign(new EventEmitter(), {
+      state: { effectiveLocalWindowSize: 65535 },
+      setLocalWindowSize: vi.fn(),
+    });
+    vi.spyOn(Http2SessionManager.prototype, "request").mockResolvedValue(Object.assign(fakeStream(0), { session }));
+    await new DrainingHttp2SessionManager("https://sandbox.example.com", undefined, undefined, false).request(
+      "POST",
+      "/rpc",
+      {},
+      {},
+    );
+    expect(() => session.emit("error", new Error("PING timed out"))).not.toThrow();
+  });
+
   it("patches destroy on every stream it opens when draining is enabled", async () => {
     const stream = fakeStream(0);
     vi.spyOn(Http2SessionManager.prototype, "request").mockResolvedValue(stream);
@@ -90,3 +152,35 @@ describe("DrainingHttp2SessionManager", () => {
     expect(Object.hasOwn(stream, "destroy")).toBe(false);
   });
 });
+
+it("delivers all bytes on 100 concurrent HTTP/2 streams", async () => {
+  const { createServer } = await import("node:http2");
+  const server = createServer({ maxSessionMemory: 64 });
+  const connections = new Set<http2.ServerHttp2Session>();
+  const clients = new Set<http2.Http2Session>();
+  const payload = Buffer.alloc(256 * 1024, 42);
+  server.on("session", (session) => connections.add(session));
+  server.on("stream", (stream) => {
+    stream.respond({ ":status": 200 });
+    stream.end(payload);
+  });
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const address = server.address() as { port: number };
+  const manager = new DrainingHttp2SessionManager(`http://127.0.0.1:${address.port}`, undefined, undefined, false);
+  try {
+    await Promise.all(
+      Array.from({ length: 100 }, async () => {
+        const stream = await manager.request("POST", "/stream", {}, {});
+        if (stream.session) clients.add(stream.session);
+        stream.end();
+        const chunks = [];
+        for await (const chunk of stream) chunks.push(Buffer.from(chunk));
+        expect(Buffer.concat(chunks).equals(payload)).toBe(true);
+      }),
+    );
+    expect(connections.size).toBe(1);
+  } finally {
+    for (const connection of clients) connection.close();
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  }
+}, 15_000);

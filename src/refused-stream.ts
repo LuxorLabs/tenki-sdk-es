@@ -32,6 +32,46 @@ export function isRetryableStreamTransportError(err: unknown): boolean {
   );
 }
 
+export class WaitStreamEndedError extends Error {}
+
+// Connection-level HTTP/2 failures that clients report under any code.
+// Keep these markers in sync with the Go and Python SDKs.
+const WAIT_CONNECTION_MARKERS = /refused_stream|refused stream|goaway|too_many_pings|enhance_your_calm/i;
+
+// Markers for HTTP/2 and proxy failures across connect-go, connect-node and grpc-core.
+const WAIT_TRANSPORT_MARKERS =
+  /http2:|rst_stream|stream reset|stream error|stream removed|stream closed|internal_error|econnreset|connection reset|connection lost|i\/o timeout|socket closed|socket hang up|unexpected eof|missing status|no grpc-status trailer|incomplete envelope|server closed|transport closing|timeout awaiting response headers|upstream request timeout/i;
+
+// Readiness is safe to recover by polling; command streams must not be replayed.
+export function isRetryableWaitStreamError(err: unknown): boolean {
+  if (err instanceof WaitStreamEndedError) return true;
+  const error = err instanceof ConnectError ? err : ConnectError.from(err);
+  return error.code === Code.Unimplemented || isTransientWaitError(err);
+}
+
+export function isRetryableWaitPollError(err: unknown): boolean {
+  const error = err instanceof ConnectError ? err : ConnectError.from(err);
+  return error.code === Code.NotFound || isTransientWaitError(err);
+}
+
+// Callers must rule out their own cancellation before treating Canceled as transient.
+function isTransientWaitError(err: unknown): boolean {
+  // Only RPC errors qualify: a terminal-state error may quote transport text from the server.
+  if (!(err instanceof ConnectError)) return false;
+  if (err.code === Code.Unavailable || err.code === Code.DeadlineExceeded) return true;
+  const chain: unknown[] = [];
+  for (let current: unknown = err; current && chain.length < 4; current = (current as { cause?: unknown }).cause) {
+    chain.push(current);
+  }
+  const messages = chain.map((e) => (e instanceof Error ? e.message : String(e)));
+  if (isRefusedStreamOrGoAway(err) || messages.some((m) => WAIT_CONNECTION_MARKERS.test(m))) return true;
+  // connect reports a stream cut by GOAWAY as an incomplete envelope.
+  const protocolError = err.code === Code.InvalidArgument && messages.some((m) => /protocol error/i.test(m));
+  if (!protocolError && ![Code.Internal, Code.Aborted, Code.Unknown, Code.Canceled].includes(err.code)) return false;
+  if (chain.some((e) => e instanceof ConnectError && e.code === Code.DeadlineExceeded)) return true;
+  return messages.some((m) => WAIT_TRANSPORT_MARKERS.test(m));
+}
+
 function jitter(ms: number): number {
   return Math.round(ms * (0.75 + Math.random() * 0.5));
 }

@@ -37,7 +37,7 @@ import {
   VolumeSyncPendingError,
   WaitReadyFailedError,
 } from "./errors.js";
-import { DrainingHttp2SessionManager } from "./http2-drain.js";
+import { DrainingHttp2SessionManager, KEEPALIVE_PING_OPTIONS } from "./http2-drain.js";
 import {
   DeleteRegistryImageRequestSchema,
   DeleteRegistryImageVersionRequestSchema,
@@ -205,7 +205,7 @@ export class TenkiSandbox implements AsyncDisposable {
       ? undefined
       : new DrainingHttp2SessionManager(
           baseUrl,
-          undefined,
+          KEEPALIVE_PING_OPTIONS,
           options?.rootCertificates !== undefined ? { ca: options.rootCertificates } : undefined,
         );
     this.sessionManager = sessionManager;

@@ -4,7 +4,7 @@ import { createGrpcTransport, type Http2SessionManager } from "@connectrpc/conne
 
 import { pollBackoffMs } from "./constants.js";
 import { DataPlaneNotReadyError, InvalidStateError, isPausedSessionStateError } from "./errors.js";
-import { DrainingHttp2SessionManager } from "./http2-drain.js";
+import { DrainingHttp2SessionManager, KEEPALIVE_PING_OPTIONS } from "./http2-drain.js";
 import {
   DataPlaneRouteStatus,
   SandboxSessionDataPlaneService,
@@ -176,7 +176,7 @@ export function createDataPlaneClient(
   let sharedSessionManager = sharedDataPlaneSessionManagers.get(origin);
   if (!sharedSessionManager) {
     sharedSessionManager = {
-      manager: new DrainingHttp2SessionManager(origin),
+      manager: new DrainingHttp2SessionManager(origin, KEEPALIVE_PING_OPTIONS),
       origin,
       references: 0,
     };
