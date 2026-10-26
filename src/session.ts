@@ -16,6 +16,7 @@ import {
   CommandTimeoutError,
   DataPlaneNotReadyError,
   dataPlaneNotReadyError,
+  ForkFailedError,
   InvalidStateError,
   isDataPlaneEdgeNotReady,
   isPausedSessionStateError,
@@ -46,6 +47,8 @@ import {
   DetachVolumeRequestSchema,
   ExposePortRequestSchema,
   ExtendSessionRequestSchema,
+  ForkSessionRequestSchema,
+  ForkSessionResponseSchema,
   GetSessionMetricsRequestSchema,
   GetSessionRequestSchema,
   GitOperationRequestSchema,
@@ -78,6 +81,7 @@ import type {
   EgressHttpRule,
   ExecOptions,
   ExposePortOptions,
+  ForkOptions,
   Output,
   UpdateSessionOptions,
   VolumeMountConfig,
@@ -1199,6 +1203,45 @@ export class Session implements SessionHandle, AsyncDisposable {
     } catch (err) {
       throw mapError(err);
     }
+  }
+
+  /**
+   * Snapshot this RUNNING session and start children that continue from its
+   * memory and disk while it keeps running. Each child carries
+   * `fork_of_session_id` and `fork_snapshot_id` metadata. A failure after the
+   * snapshot exists throws ForkFailedError with the children already created.
+   */
+  async fork(options?: ForkOptions): Promise<Session[]> {
+    const req = create(ForkSessionRequestSchema, {
+      sessionId: this.id,
+      count: options?.count ?? 0,
+      namePrefix: options?.namePrefix ?? "",
+      wait: options?.wait ?? false,
+    });
+    try {
+      const resp = await this.rpcClient.forkSession(req);
+      return resp.sessions.map((proto) => this.forkChild(proto));
+    } catch (err) {
+      const mapped = mapError(err);
+      const partial = ConnectError.from(err).findDetails(ForkSessionResponseSchema)[0];
+      if (!partial) throw mapped;
+      const children = partial.sessions.map((proto) => this.forkChild(proto));
+      throw new ForkFailedError(mapped.message, partial.snapshotId, children, { cause: mapped });
+    }
+  }
+
+  private forkChild(proto: SandboxSession): Session {
+    return new Session(
+      this.rpcClient,
+      proto,
+      this.#authToken,
+      this.gatewayAddress,
+      this.sshOptions,
+      this.dataPlaneReadyTimeoutMs,
+      undefined,
+      [],
+      this.warningHandler,
+    );
   }
 
   async [Symbol.asyncDispose](): Promise<void> {

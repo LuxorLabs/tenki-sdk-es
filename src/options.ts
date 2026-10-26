@@ -176,6 +176,15 @@ export interface UpdateSessionOptions {
   maxDurationMs?: number;
 }
 
+export interface ForkOptions {
+  // Children to create, 1 to 10. The server defaults to 1.
+  count?: number;
+  // Children are named <namePrefix>-1 .. <namePrefix>-N; unset derives it from the source name.
+  namePrefix?: string;
+  // Resolve only once every child is RUNNING or terminal.
+  wait?: boolean;
+}
+
 export function validateUpdateMaxDurationMs(maxDurationMs: number | undefined, sticky: boolean | undefined): void {
   if (maxDurationMs !== undefined && (!Number.isFinite(maxDurationMs) || maxDurationMs <= 0)) {
     throw new RangeError("maxDurationMs must be a positive finite number");

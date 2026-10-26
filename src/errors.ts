@@ -195,6 +195,20 @@ export class WaitReadyFailedError extends SandboxError {
   }
 }
 
+/** A fork failed after its snapshot was created; `sessions` were created before the failure and keep running. */
+export class ForkFailedError extends SandboxError {
+  name = "ForkFailedError";
+
+  constructor(
+    message: string,
+    public readonly snapshotId: string,
+    public readonly sessions: import("./session.js").Session[],
+    options?: ErrorOptions,
+  ) {
+    super(message, options);
+  }
+}
+
 export class CapabilityUnavailableError extends SandboxError {
   name = "CapabilityUnavailableError";
 

@@ -154,16 +154,17 @@ await sandbox.create({ snapshotId: "snap_..." });
 
 ### Durable pause
 
+`pause()` resolves once the session is `PAUSED`: the memory checkpoint is on the host and the RBD rootfs image is finalized.
+Ceph and R2 replication continue in the background after it resolves.
+It rejects with the rollback reason if a verified rollback restores `RUNNING`.
 `pauseAsync()` returns after the service durably accepts the request and moves the session to `PAUSING` on a node that supports asynchronous pause.
-Snapshot capture and persistence continue in the background; acceptance does not mean the VM has stopped or the snapshot is durable.
-`pause()` retains its existing completion behavior for compatibility.
-Call `waitPaused()` before resuming or relying on a durable checkpoint.
-It resolves at `PAUSED` and throws `PauseFailedError` if a verified rollback restores `RUNNING`.
+Acceptance does not mean the VM has stopped, so call `waitPaused()` before resuming or relying on the checkpoint.
+`waitPaused()` resolves at `PAUSED` and throws `PauseFailedError` if a verified rollback restores `RUNNING`.
 Pass `0` as `timeoutMs` to wait until an abort signal cancels the call.
 
+A `LOCAL_READY` pause snapshot resumes on the host that captured it.
 `DURABLE_CEPH` snapshots can resume on a capability-matched host in the same datacenter while R2 replication continues.
 `DURABLE` snapshots are portable to eligible hosts.
-`LOCAL_READY` is not resumable for pause operations.
 
 ### What survives a pause
 
@@ -522,6 +523,32 @@ const snapshot = await sandbox.createSnapshotAndWait(session.id, {
 
 const restored = await sandbox.create({ snapshotId: snapshot.id });
 ```
+
+### Forking a session
+
+`session.fork()` snapshots a running session and starts new sessions that continue from its memory and disk while the source keeps running.
+Each child inherits the source's size, network policy, lifetime settings and tags, and carries `fork_of_session_id` and `fork_snapshot_id` metadata.
+`count` accepts 1 to 10 and defaults to 1.
+Children are named `<namePrefix>-1` to `<namePrefix>-N`, and an unset prefix derives one from the source name.
+`wait: true` resolves once every child is `RUNNING`.
+
+```typescript
+import { ForkFailedError } from "@tenkicloud/sandbox";
+
+try {
+  const children = await session.fork({ count: 3, namePrefix: "trial", wait: true });
+  console.log(children.map((child) => child.name)); // trial-1, trial-2, trial-3
+} catch (err) {
+  // Children created before the failure keep running.
+  if (err instanceof ForkFailedError) console.log(err.snapshotId, err.sessions.length);
+  throw err;
+}
+```
+
+The fork snapshot is a regular snapshot that counts toward snapshot storage.
+A session with attached volumes cannot be forked, because the children would need the source's volume images and only the source can use them.
+Detach the volumes first.
+Delete it once every session started from it has terminated.
 
 ## Registry
 
