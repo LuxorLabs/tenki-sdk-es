@@ -37,7 +37,9 @@ export class TailnetAuthKey {
 }
 
 export interface TailnetAttachmentOptions {
-  authKey: TailnetAuthKey;
+  authKey?: TailnetAuthKey;
+  profileId?: string;
+  profileRevision?: number;
   provider?: TailnetProvider;
   hostname?: string;
   tags?: string[];
@@ -67,9 +69,16 @@ export interface TailnetStatus {
 export function tailnetAttachmentToProto(options: TailnetAttachmentOptions): ProtoTailnetAttachment {
   const provider = options.provider ?? "tailscale";
   if (provider !== "tailscale") throw new TypeError("unsupported tailnet provider");
-  if (!(options.authKey instanceof TailnetAuthKey)) throw new TypeError("tailnet authKey must be a TailnetAuthKey");
-  const authKey = authKeyValues.get(options.authKey);
-  if (!authKey) throw new TypeError("tailnet auth key is required");
+  let credential: ProtoTailnetAttachment["credential"];
+  if (options.profileId) {
+    if (options.authKey) throw new TypeError("provide one tailnet credential: authKey or profileId");
+    credential = { case: "profileId", value: options.profileId };
+  } else {
+    if (!(options.authKey instanceof TailnetAuthKey)) throw new TypeError("tailnet authKey must be a TailnetAuthKey");
+    const authKey = authKeyValues.get(options.authKey);
+    if (!authKey) throw new TypeError("tailnet auth key is required");
+    credential = { case: "authKey", value: authKey };
+  }
   return create(TailnetAttachmentSchema, {
     provider,
     hostname: options.hostname ?? "",
@@ -81,7 +90,8 @@ export function tailnetAttachmentToProto(options: TailnetAttachmentOptions): Pro
     wakeOnConnect: options.wakeOnConnect ?? false,
     exposePorts: [...(options.exposePorts ?? [])],
     waitForOnline: options.waitForOnline ?? false,
-    credential: { case: "authKey", value: authKey },
+    credential,
+    profileRevision: options.profileRevision ?? 0,
     exitPolicy: exitPolicyToProto(options.exitPolicy),
     ephemeralPausePolicy: ephemeralPausePolicyToProto(options.ephemeralPausePolicy),
   });

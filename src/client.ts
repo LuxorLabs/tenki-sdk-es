@@ -326,6 +326,9 @@ export class TenkiSandbox implements AsyncDisposable {
 
     const workspaceId = options?.workspaceId?.trim();
     if (workspaceId) req.workspaceId = workspaceId;
+    if (options?.disableTailnet && options?.tailnet)
+      throw new TypeError("choose a Tailscale connection or disable Tailscale");
+    req.disableTailnet = options?.disableTailnet ?? false;
     if (options?.tailnet) req.tailnet = tailnetAttachmentToProto(options.tailnet);
 
     if (options?.volumes?.length) {

@@ -105,6 +105,24 @@ describe("TenkiSandbox client TLS options", () => {
     expect(createSession).not.toHaveBeenCalled();
   });
 
+  it("allows an explicit opt-out of the workspace Tailscale default without credentials", async () => {
+    const createSession = vi.fn(async () =>
+      create(CreateSessionResponseSchema, {
+        session: { id: "session-opt-out", state: SessionState.RUNNING },
+      }),
+    );
+    connectMock.createClient.mockReturnValue({ createSession });
+    const client = new TenkiSandbox({ authToken: "tk_test" });
+    await client.create({ disableTailnet: true, waitReady: false });
+    expect(createSession).toHaveBeenCalledWith(expect.objectContaining({ disableTailnet: true }));
+    expect(createSession).toHaveBeenCalledWith(expect.not.objectContaining({ tailnet: expect.anything() }));
+    createSession.mockClear();
+    await expect(client.create({ disableTailnet: true, tailnet: { profileId: "profile" } })).rejects.toThrow(
+      "choose a Tailscale connection",
+    );
+    expect(createSession).not.toHaveBeenCalled();
+  });
+
   it("retains and emits create warnings once", async () => {
     const createSession = vi.fn(async () =>
       create(CreateSessionResponseSchema, {

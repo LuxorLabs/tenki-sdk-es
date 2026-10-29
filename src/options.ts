@@ -118,6 +118,8 @@ export interface CreateOptions {
   waitForRuntime?: boolean;
   /** Join the sandbox to a tailnet with a write-only direct auth key. */
   tailnet?: TailnetAttachmentOptions;
+  /** Skip the workspace default for this sandbox. */
+  disableTailnet?: boolean;
 }
 
 export interface OpenCodeProviderConfig {
