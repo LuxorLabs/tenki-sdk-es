@@ -2,15 +2,16 @@
 // @generated from file tenki/sandbox/v1/tailnet_connection.proto (package tenki.sandbox.v1, syntax proto3)
 /* eslint-disable */
 
-import type { GenFile, GenMessage } from "@bufbuild/protobuf/codegenv2";
-import { fileDesc, messageDesc } from "@bufbuild/protobuf/codegenv2";
+import type { GenEnum, GenFile, GenMessage } from "@bufbuild/protobuf/codegenv2";
+import { enumDesc, fileDesc, messageDesc } from "@bufbuild/protobuf/codegenv2";
+import { file_buf_validate_validate } from "../../../buf/validate/validate_pb";
 import type { Message } from "@bufbuild/protobuf";
 
 /**
  * Describes the file tenki/sandbox/v1/tailnet_connection.proto.
  */
 export const file_tenki_sandbox_v1_tailnet_connection: GenFile = /*@__PURE__*/
-  fileDesc("Cil0ZW5raS9zYW5kYm94L3YxL3RhaWxuZXRfY29ubmVjdGlvbi5wcm90bxIQdGVua2kuc2FuZGJveC52MSLOAQoRVGFpbG5ldENvbm5lY3Rpb24SCgoCaWQYASABKAkSFAoMd29ya3NwYWNlX2lkGAIgASgJEgwKBG5hbWUYAyABKAkSEAoIcmV2aXNpb24YBCABKA0SEQoJY2xpZW50X2lkGAUgASgJEg4KBmlzc3VlchgGIAEoCRIQCghhdWRpZW5jZRgHIAEoCRIXCg9hdXRob3JpemVkX3RhZ3MYCCADKAkSEAoIZGlzYWJsZWQYCSABKAgSFwoPc3ViamVjdF9wYXR0ZXJuGAogASgJInIKHFNhdmVUYWlsbmV0Q29ubmVjdGlvblJlcXVlc3QSNwoKY29ubmVjdGlvbhgBIAEoCzIjLnRlbmtpLnNhbmRib3gudjEuVGFpbG5ldENvbm5lY3Rpb24SGQoRZXhwZWN0ZWRfcmV2aXNpb24YAiABKA0iWAodU2F2ZVRhaWxuZXRDb25uZWN0aW9uUmVzcG9uc2USNwoKY29ubmVjdGlvbhgBIAEoCzIjLnRlbmtpLnNhbmRib3gudjEuVGFpbG5ldENvbm5lY3Rpb24iNQodTGlzdFRhaWxuZXRDb25uZWN0aW9uc1JlcXVlc3QSFAoMd29ya3NwYWNlX2lkGAEgASgJIm8KHkxpc3RUYWlsbmV0Q29ubmVjdGlvbnNSZXNwb25zZRI4Cgtjb25uZWN0aW9ucxgBIAMoCzIjLnRlbmtpLnNhbmRib3gudjEuVGFpbG5ldENvbm5lY3Rpb24SEwoLb2lkY19pc3N1ZXIYAiABKAkiXQocVGVzdFRhaWxuZXRDb25uZWN0aW9uUmVxdWVzdBIUCgx3b3Jrc3BhY2VfaWQYASABKAkSFQoNY29ubmVjdGlvbl9pZBgCIAEoCRIQCghlbmRwb2ludBgDIAEoCSJ1Ch1UZXN0VGFpbG5ldENvbm5lY3Rpb25SZXNwb25zZRISCgpzZXNzaW9uX2lkGAEgASgJEhAKCGVucm9sbGVkGAIgASgIEhoKEmVuZHBvaW50X3JlYWNoYWJsZRgDIAEoCBISCgplcnJvcl9jb2RlGAQgASgJIuQBChpUYWlsbmV0UnVubmVyQ29uZmlndXJhdGlvbhIKCgJpZBgBIAEoCRIUCgx3b3Jrc3BhY2VfaWQYAiABKAkSEwoLb2ZmZXJpbmdfaWQYAyABKAkSFQoNY29ubmVjdGlvbl9pZBgEIAEoCRIQCghyZXZpc2lvbhgFIAEoDRIWCg5yZXBvc2l0b3J5X2lkcxgGIAMoAxISCgpqb2JfYWNjZXNzGAcgASgJEhAKCGRpc2FibGVkGAggASgIEg0KBWxhYmVsGAkgASgJEhkKEXdvcmtzcGFjZV9kZWZhdWx0GAogASgIIlgKD1RhaWxuZXREZWZhdWx0cxIUCgx3b3Jrc3BhY2VfaWQYASABKAkSHQoVc2FuZGJveF9jb25uZWN0aW9uX2lkGAIgASgJEhAKCHJldmlzaW9uGAMgASgNIjEKGUdldFRhaWxuZXREZWZhdWx0c1JlcXVlc3QSFAoMd29ya3NwYWNlX2lkGAEgASgJIlEKGkdldFRhaWxuZXREZWZhdWx0c1Jlc3BvbnNlEjMKCGRlZmF1bHRzGAEgASgLMiEudGVua2kuc2FuZGJveC52MS5UYWlsbmV0RGVmYXVsdHMibAoaU2F2ZVRhaWxuZXREZWZhdWx0c1JlcXVlc3QSMwoIZGVmYXVsdHMYASABKAsyIS50ZW5raS5zYW5kYm94LnYxLlRhaWxuZXREZWZhdWx0cxIZChFleHBlY3RlZF9yZXZpc2lvbhgCIAEoDSJSChtTYXZlVGFpbG5ldERlZmF1bHRzUmVzcG9uc2USMwoIZGVmYXVsdHMYASABKAsyIS50ZW5raS5zYW5kYm94LnYxLlRhaWxuZXREZWZhdWx0cyKhAQolU2F2ZVRhaWxuZXRSdW5uZXJDb25maWd1cmF0aW9uUmVxdWVzdBJDCg1jb25maWd1cmF0aW9uGAEgASgLMiwudGVua2kuc2FuZGJveC52MS5UYWlsbmV0UnVubmVyQ29uZmlndXJhdGlvbhIYChBiYXNlX29mZmVyaW5nX2lkGAIgASgJEhkKEWV4cGVjdGVkX3JldmlzaW9uGAMgASgNIm0KJlNhdmVUYWlsbmV0UnVubmVyQ29uZmlndXJhdGlvblJlc3BvbnNlEkMKDWNvbmZpZ3VyYXRpb24YASABKAsyLC50ZW5raS5zYW5kYm94LnYxLlRhaWxuZXRSdW5uZXJDb25maWd1cmF0aW9uIj4KJkxpc3RUYWlsbmV0UnVubmVyQ29uZmlndXJhdGlvbnNSZXF1ZXN0EhQKDHdvcmtzcGFjZV9pZBgBIAEoCSJvCidMaXN0VGFpbG5ldFJ1bm5lckNvbmZpZ3VyYXRpb25zUmVzcG9uc2USRAoOY29uZmlndXJhdGlvbnMYASADKAsyLC50ZW5raS5zYW5kYm94LnYxLlRhaWxuZXRSdW5uZXJDb25maWd1cmF0aW9uImIKIExpc3RUYWlsbmV0UnVubmVyU3RhdHVzZXNSZXF1ZXN0EhQKDHdvcmtzcGFjZV9pZBgBIAEoCRIYChBjb25maWd1cmF0aW9uX2lkGAIgASgJEg4KBmpvYl9pZBgDIAEoAyLNAQoTVGFpbG5ldFJ1bm5lclN0YXR1cxISCgpzZXNzaW9uX2lkGAEgASgJEhMKC3J1bm5lcl9uYW1lGAIgASgJEhcKD2Nvbm5lY3Rpb25fbmFtZRgDIAEoCRIbChNjb25uZWN0aW9uX3JldmlzaW9uGAQgASgNEg0KBXN0YXRlGAUgASgJEhAKCGhvc3RuYW1lGAYgASgJEgsKA2lwcxgHIAMoCRISCgplcnJvcl9jb2RlGAggASgJEhUKDWpvYl9hZG1pc3Npb24YCSABKAkiXAohTGlzdFRhaWxuZXRSdW5uZXJTdGF0dXNlc1Jlc3BvbnNlEjcKCHN0YXR1c2VzGAEgAygLMiUudGVua2kuc2FuZGJveC52MS5UYWlsbmV0UnVubmVyU3RhdHVzQuUBChRjb20udGVua2kuc2FuZGJveC52MUIWVGFpbG5ldENvbm5lY3Rpb25Qcm90b1ABWlNnaXRodWIuY29tL0x1eG9yTGFicy90ZW5raS1zZGstZ28vc2FuZGJveC9pbnRlcm5hbC9wcm90by90ZW5raS9zYW5kYm94L3YxO3NhbmRib3h2MaICA1RTWKoCEFRlbmtpLlNhbmRib3guVjHKAhBUZW5raVxTYW5kYm94XFYx4gIcVGVua2lcU2FuZGJveFxWMVxHUEJNZXRhZGF0YeoCElRlbmtpOjpTYW5kYm94OjpWMWIGcHJvdG8z");
+  fileDesc("Cil0ZW5raS9zYW5kYm94L3YxL3RhaWxuZXRfY29ubmVjdGlvbi5wcm90bxIQdGVua2kuc2FuZGJveC52MSLOAQoRVGFpbG5ldENvbm5lY3Rpb24SCgoCaWQYASABKAkSFAoMd29ya3NwYWNlX2lkGAIgASgJEgwKBG5hbWUYAyABKAkSEAoIcmV2aXNpb24YBCABKA0SEQoJY2xpZW50X2lkGAUgASgJEg4KBmlzc3VlchgGIAEoCRIQCghhdWRpZW5jZRgHIAEoCRIXCg9hdXRob3JpemVkX3RhZ3MYCCADKAkSEAoIZGlzYWJsZWQYCSABKAgSFwoPc3ViamVjdF9wYXR0ZXJuGAogASgJInIKHFNhdmVUYWlsbmV0Q29ubmVjdGlvblJlcXVlc3QSNwoKY29ubmVjdGlvbhgBIAEoCzIjLnRlbmtpLnNhbmRib3gudjEuVGFpbG5ldENvbm5lY3Rpb24SGQoRZXhwZWN0ZWRfcmV2aXNpb24YAiABKA0iWAodU2F2ZVRhaWxuZXRDb25uZWN0aW9uUmVzcG9uc2USNwoKY29ubmVjdGlvbhgBIAEoCzIjLnRlbmtpLnNhbmRib3gudjEuVGFpbG5ldENvbm5lY3Rpb24iqwEKHUxpc3RUYWlsbmV0Q29ubmVjdGlvbnNSZXF1ZXN0EhQKDHdvcmtzcGFjZV9pZBgBIAEoCRIcCglwYWdlX3NpemUYAiABKAVCCbpIBhoEGGQoABISCgpwYWdlX3Rva2VuGAMgASgJEhgKBnNlYXJjaBgEIAEoCUIIukgFcgMYgAISFQoNZGlzYWJsZWRfb25seRgFIAEoCBIRCglzb3J0X2Rlc2MYBiABKAgirwEKHkxpc3RUYWlsbmV0Q29ubmVjdGlvbnNSZXNwb25zZRI4Cgtjb25uZWN0aW9ucxgBIAMoCzIjLnRlbmtpLnNhbmRib3gudjEuVGFpbG5ldENvbm5lY3Rpb24SEwoLb2lkY19pc3N1ZXIYAiABKAkSFwoPbmV4dF9wYWdlX3Rva2VuGAMgASgJEg0KBXRvdGFsGAQgASgFEhYKDmRpc2FibGVkX3RvdGFsGAUgASgFIl0KHFRlc3RUYWlsbmV0Q29ubmVjdGlvblJlcXVlc3QSFAoMd29ya3NwYWNlX2lkGAEgASgJEhUKDWNvbm5lY3Rpb25faWQYAiABKAkSEAoIZW5kcG9pbnQYAyABKAkidQodVGVzdFRhaWxuZXRDb25uZWN0aW9uUmVzcG9uc2USEgoKc2Vzc2lvbl9pZBgBIAEoCRIQCghlbnJvbGxlZBgCIAEoCBIaChJlbmRwb2ludF9yZWFjaGFibGUYAyABKAgSEgoKZXJyb3JfY29kZRgEIAEoCSLkAQoaVGFpbG5ldFJ1bm5lckNvbmZpZ3VyYXRpb24SCgoCaWQYASABKAkSFAoMd29ya3NwYWNlX2lkGAIgASgJEhMKC29mZmVyaW5nX2lkGAMgASgJEhUKDWNvbm5lY3Rpb25faWQYBCABKAkSEAoIcmV2aXNpb24YBSABKA0SFgoOcmVwb3NpdG9yeV9pZHMYBiADKAMSEgoKam9iX2FjY2VzcxgHIAEoCRIQCghkaXNhYmxlZBgIIAEoCBINCgVsYWJlbBgJIAEoCRIZChF3b3Jrc3BhY2VfZGVmYXVsdBgKIAEoCCJYCg9UYWlsbmV0RGVmYXVsdHMSFAoMd29ya3NwYWNlX2lkGAEgASgJEh0KFXNhbmRib3hfY29ubmVjdGlvbl9pZBgCIAEoCRIQCghyZXZpc2lvbhgDIAEoDSIxChlHZXRUYWlsbmV0RGVmYXVsdHNSZXF1ZXN0EhQKDHdvcmtzcGFjZV9pZBgBIAEoCSJRChpHZXRUYWlsbmV0RGVmYXVsdHNSZXNwb25zZRIzCghkZWZhdWx0cxgBIAEoCzIhLnRlbmtpLnNhbmRib3gudjEuVGFpbG5ldERlZmF1bHRzImwKGlNhdmVUYWlsbmV0RGVmYXVsdHNSZXF1ZXN0EjMKCGRlZmF1bHRzGAEgASgLMiEudGVua2kuc2FuZGJveC52MS5UYWlsbmV0RGVmYXVsdHMSGQoRZXhwZWN0ZWRfcmV2aXNpb24YAiABKA0iUgobU2F2ZVRhaWxuZXREZWZhdWx0c1Jlc3BvbnNlEjMKCGRlZmF1bHRzGAEgASgLMiEudGVua2kuc2FuZGJveC52MS5UYWlsbmV0RGVmYXVsdHMioQEKJVNhdmVUYWlsbmV0UnVubmVyQ29uZmlndXJhdGlvblJlcXVlc3QSQwoNY29uZmlndXJhdGlvbhgBIAEoCzIsLnRlbmtpLnNhbmRib3gudjEuVGFpbG5ldFJ1bm5lckNvbmZpZ3VyYXRpb24SGAoQYmFzZV9vZmZlcmluZ19pZBgCIAEoCRIZChFleHBlY3RlZF9yZXZpc2lvbhgDIAEoDSJtCiZTYXZlVGFpbG5ldFJ1bm5lckNvbmZpZ3VyYXRpb25SZXNwb25zZRJDCg1jb25maWd1cmF0aW9uGAEgASgLMiwudGVua2kuc2FuZGJveC52MS5UYWlsbmV0UnVubmVyQ29uZmlndXJhdGlvbiKUAgomTGlzdFRhaWxuZXRSdW5uZXJDb25maWd1cmF0aW9uc1JlcXVlc3QSFAoMd29ya3NwYWNlX2lkGAEgASgJEhwKCXBhZ2Vfc2l6ZRgCIAEoBUIJukgGGgQYZCgAEhIKCnBhZ2VfdG9rZW4YAyABKAkSGAoGc2VhcmNoGAQgASgJQgi6SAVyAxiAAhIVCg1kaXNhYmxlZF9vbmx5GAUgASgIEhYKDmRlZGljYXRlZF9vbmx5GAYgASgIEkYKB3NvcnRfYnkYByABKA4yNS50ZW5raS5zYW5kYm94LnYxLlRhaWxuZXRSdW5uZXJDb25maWd1cmF0aW9uU29ydEZpZWxkEhEKCXNvcnRfZGVzYxgIIAEoCCKvAQonTGlzdFRhaWxuZXRSdW5uZXJDb25maWd1cmF0aW9uc1Jlc3BvbnNlEkQKDmNvbmZpZ3VyYXRpb25zGAEgAygLMiwudGVua2kuc2FuZGJveC52MS5UYWlsbmV0UnVubmVyQ29uZmlndXJhdGlvbhIXCg9uZXh0X3BhZ2VfdG9rZW4YAiABKAkSDQoFdG90YWwYAyABKAUSFgoOZGlzYWJsZWRfdG90YWwYBCABKAUiYgogTGlzdFRhaWxuZXRSdW5uZXJTdGF0dXNlc1JlcXVlc3QSFAoMd29ya3NwYWNlX2lkGAEgASgJEhgKEGNvbmZpZ3VyYXRpb25faWQYAiABKAkSDgoGam9iX2lkGAMgASgDIs0BChNUYWlsbmV0UnVubmVyU3RhdHVzEhIKCnNlc3Npb25faWQYASABKAkSEwoLcnVubmVyX25hbWUYAiABKAkSFwoPY29ubmVjdGlvbl9uYW1lGAMgASgJEhsKE2Nvbm5lY3Rpb25fcmV2aXNpb24YBCABKA0SDQoFc3RhdGUYBSABKAkSEAoIaG9zdG5hbWUYBiABKAkSCwoDaXBzGAcgAygJEhIKCmVycm9yX2NvZGUYCCABKAkSFQoNam9iX2FkbWlzc2lvbhgJIAEoCSJcCiFMaXN0VGFpbG5ldFJ1bm5lclN0YXR1c2VzUmVzcG9uc2USNwoIc3RhdHVzZXMYASADKAsyJS50ZW5raS5zYW5kYm94LnYxLlRhaWxuZXRSdW5uZXJTdGF0dXMqkQEKI1RhaWxuZXRSdW5uZXJDb25maWd1cmF0aW9uU29ydEZpZWxkEjcKM1RBSUxORVRfUlVOTkVSX0NPTkZJR1VSQVRJT05fU09SVF9GSUVMRF9VTlNQRUNJRklFRBAAEjEKLVRBSUxORVRfUlVOTkVSX0NPTkZJR1VSQVRJT05fU09SVF9GSUVMRF9MQUJFTBABQuUBChRjb20udGVua2kuc2FuZGJveC52MUIWVGFpbG5ldENvbm5lY3Rpb25Qcm90b1ABWlNnaXRodWIuY29tL0x1eG9yTGFicy90ZW5raS1zZGstZ28vc2FuZGJveC9pbnRlcm5hbC9wcm90by90ZW5raS9zYW5kYm94L3YxO3NhbmRib3h2MaICA1RTWKoCEFRlbmtpLlNhbmRib3guVjHKAhBUZW5raVxTYW5kYm94XFYx4gIcVGVua2lcU2FuZGJveFxWMVxHUEJNZXRhZGF0YeoCElRlbmtpOjpTYW5kYm94OjpWMWIGcHJvdG8z", [file_buf_validate_validate]);
 
 /**
  * @generated from message tenki.sandbox.v1.TailnetConnection
@@ -121,6 +122,39 @@ export type ListTailnetConnectionsRequest = Message<"tenki.sandbox.v1.ListTailne
    * @generated from field: string workspace_id = 1;
    */
   workspaceId: string;
+
+  /**
+   * Zero returns every connection, up to 100.
+   *
+   * @generated from field: int32 page_size = 2;
+   */
+  pageSize: number;
+
+  /**
+   * Offset of the first row, as returned in next_page_token.
+   *
+   * @generated from field: string page_token = 3;
+   */
+  pageToken: string;
+
+  /**
+   * Matches the name or any authorized tag, ignoring case.
+   *
+   * @generated from field: string search = 4;
+   */
+  search: string;
+
+  /**
+   * @generated from field: bool disabled_only = 5;
+   */
+  disabledOnly: boolean;
+
+  /**
+   * Sorts by name.
+   *
+   * @generated from field: bool sort_desc = 6;
+   */
+  sortDesc: boolean;
 };
 
 /**
@@ -143,6 +177,25 @@ export type ListTailnetConnectionsResponse = Message<"tenki.sandbox.v1.ListTailn
    * @generated from field: string oidc_issuer = 2;
    */
   oidcIssuer: string;
+
+  /**
+   * @generated from field: string next_page_token = 3;
+   */
+  nextPageToken: string;
+
+  /**
+   * Matching connections across all pages.
+   *
+   * @generated from field: int32 total = 4;
+   */
+  total: number;
+
+  /**
+   * Ignores search and disabled_only.
+   *
+   * @generated from field: int32 disabled_total = 5;
+   */
+  disabledTotal: number;
 };
 
 /**
@@ -425,6 +478,49 @@ export type ListTailnetRunnerConfigurationsRequest = Message<"tenki.sandbox.v1.L
    * @generated from field: string workspace_id = 1;
    */
   workspaceId: string;
+
+  /**
+   * Zero returns every configuration, up to 100.
+   *
+   * @generated from field: int32 page_size = 2;
+   */
+  pageSize: number;
+
+  /**
+   * Offset of the first row, as returned in next_page_token.
+   *
+   * @generated from field: string page_token = 3;
+   */
+  pageToken: string;
+
+  /**
+   * Matches the runner label or connection name, ignoring case.
+   *
+   * @generated from field: string search = 4;
+   */
+  search: string;
+
+  /**
+   * @generated from field: bool disabled_only = 5;
+   */
+  disabledOnly: boolean;
+
+  /**
+   * Leaves out the workspace default configuration.
+   *
+   * @generated from field: bool dedicated_only = 6;
+   */
+  dedicatedOnly: boolean;
+
+  /**
+   * @generated from field: tenki.sandbox.v1.TailnetRunnerConfigurationSortField sort_by = 7;
+   */
+  sortBy: TailnetRunnerConfigurationSortField;
+
+  /**
+   * @generated from field: bool sort_desc = 8;
+   */
+  sortDesc: boolean;
 };
 
 /**
@@ -442,6 +538,25 @@ export type ListTailnetRunnerConfigurationsResponse = Message<"tenki.sandbox.v1.
    * @generated from field: repeated tenki.sandbox.v1.TailnetRunnerConfiguration configurations = 1;
    */
   configurations: TailnetRunnerConfiguration[];
+
+  /**
+   * @generated from field: string next_page_token = 2;
+   */
+  nextPageToken: string;
+
+  /**
+   * Matching configurations across all pages.
+   *
+   * @generated from field: int32 total = 3;
+   */
+  total: number;
+
+  /**
+   * Ignores search and disabled_only.
+   *
+   * @generated from field: int32 disabled_total = 4;
+   */
+  disabledTotal: number;
 };
 
 /**
@@ -551,4 +666,27 @@ export type ListTailnetRunnerStatusesResponse = Message<"tenki.sandbox.v1.ListTa
  */
 export const ListTailnetRunnerStatusesResponseSchema: GenMessage<ListTailnetRunnerStatusesResponse> = /*@__PURE__*/
   messageDesc(file_tenki_sandbox_v1_tailnet_connection, 19);
+
+/**
+ * @generated from enum tenki.sandbox.v1.TailnetRunnerConfigurationSortField
+ */
+export enum TailnetRunnerConfigurationSortField {
+  /**
+   * Workspace default first, then oldest first.
+   *
+   * @generated from enum value: TAILNET_RUNNER_CONFIGURATION_SORT_FIELD_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * @generated from enum value: TAILNET_RUNNER_CONFIGURATION_SORT_FIELD_LABEL = 1;
+   */
+  LABEL = 1,
+}
+
+/**
+ * Describes the enum tenki.sandbox.v1.TailnetRunnerConfigurationSortField.
+ */
+export const TailnetRunnerConfigurationSortFieldSchema: GenEnum<TailnetRunnerConfigurationSortField> = /*@__PURE__*/
+  enumDesc(file_tenki_sandbox_v1_tailnet_connection, 0);
 
