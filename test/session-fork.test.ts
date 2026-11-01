@@ -35,6 +35,12 @@ function makeSource(forkSession: ReturnType<typeof vi.fn>): Session {
 }
 
 describe("Session.fork", () => {
+  it("forwards counts above ten for the workspace to validate", async () => {
+    const forkSession = vi.fn(async () => create(ForkSessionResponseSchema));
+    await makeSource(forkSession).fork({ count: 11 });
+    expect(forkSession).toHaveBeenCalledWith(expect.objectContaining({ count: 11 }));
+  });
+
   it("sends the fork options and returns the children as sessions", async () => {
     const forkSession = vi.fn(async () =>
       create(ForkSessionResponseSchema, {

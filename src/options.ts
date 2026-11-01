@@ -179,7 +179,7 @@ export interface UpdateSessionOptions {
 }
 
 export interface ForkOptions {
-  // Children to create, 1 to 10. The server defaults to 1.
+  // Children to create, subject to the workspace limit (default 10). The server defaults to 1.
   count?: number;
   // Children are named <namePrefix>-1 .. <namePrefix>-N; unset derives it from the source name.
   namePrefix?: string;
