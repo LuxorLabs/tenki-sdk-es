@@ -2,6 +2,7 @@ import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { Code, ConnectError, createClient, type Client, type Interceptor } from "@connectrpc/connect";
 import { createGrpcTransport, type Http2SessionManager } from "@connectrpc/connect-node";
 
+import { setClientMetadataHeaders } from "./client-metadata.js";
 import { pollBackoffMs } from "./constants.js";
 import { DataPlaneNotReadyError, InvalidStateError, isPausedSessionStateError } from "./errors.js";
 import { DrainingHttp2SessionManager, KEEPALIVE_PING_OPTIONS } from "./http2-drain.js";
@@ -168,6 +169,7 @@ export function createDataPlaneClient(
       );
     }
     if (current.credential) req.header.set(dataPlaneCredentialHeader, current.credential);
+    setClientMetadataHeaders(req.header);
     return req.stream ? next({ ...req, message: validateStreamRequests(req.message, sessionId) }) : next(req);
   };
   // refusedStreamRetry is outermost so a retried attempt re-runs the credential

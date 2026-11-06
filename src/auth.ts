@@ -1,5 +1,6 @@
 import type { Interceptor } from "@connectrpc/connect";
 
+import { setClientMetadataHeaders } from "./client-metadata.js";
 import { ENV_API_KEY, ENV_AUTH_TOKEN } from "./constants.js";
 import { InvalidAuthTokenError, MissingAuthTokenError } from "./errors.js";
 
@@ -33,4 +34,5 @@ export function createAuthInterceptor(token: string): Interceptor {
 export function setAuthHeaders(headers: Headers, token: string): void {
   const authToken = validateAuthToken(token);
   headers.set("Authorization", `Bearer ${authToken}`);
+  setClientMetadataHeaders(headers);
 }
