@@ -14,6 +14,11 @@ name: Publish
 # npmjs.com. The trusted publisher on npmjs.com names this workflow file
 # (npm-publish.yml) and the npm-publish environment.
 #
+# The same tarball contents also stage as @luxorai/sandbox (only the package
+# name differs) when the repo variable LUXORAI_PUBLISH is 'true'. That package
+# needs its own trusted publisher on npmjs.com naming this workflow and the
+# npm-publish environment.
+#
 # The build job runs every gate and packs the tarball without id-token, since it
 # runs dependency code. The publish job installs nothing and stages that
 # tarball. Running the workflow from the Actions tab is always a dry run: only
@@ -45,6 +50,8 @@ jobs:
       version: ${{ steps.ver.outputs.version }}
       tarball: ${{ steps.pack.outputs.tarball }}
       sha256: ${{ steps.pack.outputs.sha256 }}
+      luxorai_tarball: ${{ steps.pack_luxorai.outputs.tarball }}
+      luxorai_sha256: ${{ steps.pack_luxorai.outputs.sha256 }}
 
     steps:
       - name: Checkout
@@ -129,6 +136,48 @@ jobs:
           echo "tarball=${tarball}" >> "$GITHUB_OUTPUT"
           echo "sha256=$(sha256sum "$tarball" | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
 
+      # Repacks the same tarball contents under the @luxorai/sandbox name, so
+      # the @tenkicloud/sandbox tarball above is untouched.
+      - name: Pack the @luxorai/sandbox tarball
+        id: pack_luxorai
+        run: |
+          set -euo pipefail
+          stage="$RUNNER_TEMP/luxorai"
+          rm -rf "$stage" && mkdir -p "$stage"
+          tar -xzf "${{ steps.pack.outputs.tarball }}" -C "$stage"
+          cd "$stage/package"
+          npm pkg set name=@luxorai/sandbox
+          tarball=$(npm pack --ignore-scripts --pack-destination "$GITHUB_WORKSPACE" | tail -1)
+          cd "$GITHUB_WORKSPACE"
+          echo "tarball=${tarball}" >> "$GITHUB_OUTPUT"
+          echo "sha256=$(sha256sum "$tarball" | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+
+      - name: Refuse a @luxorai/sandbox version that is already on npm
+        if: vars.LUXORAI_PUBLISH == 'true'
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+        run: |
+          set -euo pipefail
+          code=$(curl -sS -o /dev/null -w '%{http_code}' "https://registry.npmjs.org/@luxorai/sandbox/${VERSION}" || true)
+          code=${code:-000}
+          case "$code" in
+            404) ;;
+            200)
+              if [ "${{ github.event_name }}" = "push" ]; then
+                echo "::error::@luxorai/sandbox@${VERSION} is already published; bump the version"; exit 1
+              fi
+              echo "::warning::@luxorai/sandbox@${VERSION} is already published; a tag here would be refused" ;;
+            *) echo "::error::couldn't check npm for @luxorai/sandbox@${VERSION} (HTTP ${code}); rerun"; exit 1 ;;
+          esac
+
+      - name: Upload the @luxorai/sandbox tarball
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: npm-package-luxorai
+          path: ${{ steps.pack_luxorai.outputs.tarball }}
+          retention-days: 1
+          if-no-files-found: error
+
       - name: Upload the packed tarball
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -139,7 +188,9 @@ jobs:
 
       - name: Dry-run publish
         if: github.event_name == 'workflow_dispatch'
-        run: npm publish "./${{ steps.pack.outputs.tarball }}" --access public --dry-run
+        run: |
+          npm publish "./${{ steps.pack.outputs.tarball }}" --access public --dry-run
+          npm publish "./${{ steps.pack_luxorai.outputs.tarball }}" --access public --dry-run
 
       - name: Typecheck and test
         run: |
@@ -216,6 +267,81 @@ jobs:
         run: |
           {
             echo "### @tenkicloud/sandbox ${VERSION}"
+            echo ""
+            echo "- staged: ${{ steps.stage.outcome == 'success' && 'yes' || 'no' }}"
+            echo "- provenance: \`${PROVENANCE}\`"
+            if [ -n "${STAGE_ID}" ]; then
+              echo ""
+              echo "Not live yet. A maintainer of ${PKG} approves it with 2FA:"
+              echo ""
+              echo "    npm stage approve ${STAGE_ID}"
+              echo ""
+              echo "or under Staged Packages on npmjs.com. Reject it with \`npm stage reject ${STAGE_ID}\`."
+            elif [ "${{ steps.stage.outcome }}" = "success" ]; then
+              echo ""
+              echo "Not live yet. Find the stage id with \`npm stage list ${PKG}\` and approve it with 2FA."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  publish-luxorai:
+    name: Stage @luxorai/sandbox on npm
+    needs: build
+    if: github.event_name == 'push' && vars.LUXORAI_PUBLISH == 'true'
+    # GitHub-hosted on purpose: npm supports neither provenance nor trusted
+    # publishing from self-hosted runners.
+    runs-on: ubuntu-latest
+    environment: npm-publish
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write # trusted publishing and provenance
+    env:
+      # npm doesn't support provenance from private repositories.
+      PROVENANCE: ${{ github.event.repository.private && '--no-provenance' || '--provenance' }}
+      PKG: "@luxorai/sandbox"
+      VERSION: ${{ needs.build.outputs.version }}
+      TARBALL: ${{ needs.build.outputs.luxorai_tarball }}
+      SHA256: ${{ needs.build.outputs.luxorai_sha256 }}
+      # Only for the first publish, before the @luxorai/sandbox trusted
+      # publisher exists; npm uses OIDC when it is configured.
+      NODE_AUTH_TOKEN: ${{ secrets.LUXORAI_NPM_TOKEN }}
+
+    steps:
+      - name: Setup Node
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: "24.x"
+          registry-url: https://registry.npmjs.org
+
+      - name: Download the packed tarball
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: npm-package-luxorai
+
+      - name: Verify the tarball is the one the build packed
+        run: echo "${SHA256}  ${TARBALL}" | sha256sum -c -
+
+      # Nothing goes live from here: npm keeps the version staged until a
+      # maintainer approves it with 2FA, and a stage can be rejected instead.
+      - name: Stage on npm (trusted publishing)
+        id: stage
+        run: |
+          set -euo pipefail
+          # Staged publishing needs npm >= 11.15.0; Node 24 bundles npm 11. Fail
+          # loudly rather than falling back to a plain publish.
+          node -e 'const p=s=>s.split(/[.-]/).slice(0,3).map(Number),[x,y]=[p(process.argv[1]),p("11.15.0")];
+            for(let i=0;i<3;i++){if(x[i]>y[i])process.exit(0);if(x[i]<y[i]){
+              console.error(`::error::npm ${process.argv[1]} < 11.15.0; staged publishing unavailable`);process.exit(1);}}' "$(npm --version)"
+          npm stage publish "./${TARBALL}" "$PROVENANCE" --access public --ignore-scripts | tee "$RUNNER_TEMP/stage.out"
+          echo "stage_id=$(sed -n 's/.*(staged with id \([0-9a-f-]*\)).*/\1/p' "$RUNNER_TEMP/stage.out")" >> "$GITHUB_OUTPUT"
+
+      - name: Release summary
+        if: always()
+        env:
+          STAGE_ID: ${{ steps.stage.outputs.stage_id }}
+        run: |
+          {
+            echo "### ${PKG} ${VERSION}"
             echo ""
             echo "- staged: ${{ steps.stage.outcome == 'success' && 'yes' || 'no' }}"
             echo "- provenance: \`${PROVENANCE}\`"
