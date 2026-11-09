@@ -1,6 +1,6 @@
 import { create } from "@bufbuild/protobuf";
 import { Code, ConnectError } from "@connectrpc/connect";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   CapabilityUnavailableError,
@@ -648,5 +648,28 @@ describe("run() keepalive before started", () => {
 
     await expect(proc).resolves.toMatchObject({ exitCode: 0 });
     expect(runMock).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("run() trace timing", () => {
+  const saved = { ...process.env };
+  afterEach(() => {
+    process.env = { ...saved };
+    vi.restoreAllMocks();
+  });
+
+  it.each([
+    ["LUXORAI_SDK_RUN_TRACE_TIMING", { LUXORAI_SDK_RUN_TRACE_TIMING: "1", TENKI_SDK_RUN_TRACE_TIMING: "0" }, true],
+    ["TENKI_SDK_RUN_TRACE_TIMING", { TENKI_SDK_RUN_TRACE_TIMING: "1" }, true],
+    ["neither", {}, false],
+  ])("honours %s", async (_name, env, traced) => {
+    delete process.env.LUXORAI_SDK_RUN_TRACE_TIMING;
+    delete process.env.TENKI_SDK_RUN_TRACE_TIMING;
+    Object.assign(process.env, env);
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const { session } = sessionWithRunExit({});
+    await run(session, ["true"]);
+    const timingLines = errorSpy.mock.calls.filter(([line]) => String(line).startsWith("TENKI_SDK_RUN_TIMING"));
+    expect(timingLines.length > 0).toBe(traced);
   });
 });

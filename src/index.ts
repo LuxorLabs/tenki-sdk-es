@@ -1,4 +1,4 @@
-export { TenkiSandbox } from "./client.js";
+export { TenkiSandbox, LuxorSandbox } from "./client.js";
 export { Session } from "./session.js";
 export type {
   SessionState,

@@ -6,6 +6,7 @@ import { createGrpcTransport, type Http2SessionManager } from "@connectrpc/conne
 import { createAuthInterceptor, resolveAuthToken } from "./auth.js";
 import type { CIRunnerSizes } from "./ci-runner-sizes.js";
 import {
+  BASE_URL_ENVS,
   DEFAULT_BASE_URL,
   DEFAULT_CPU_CORES,
   DEFAULT_DATA_PLANE_READY_TIMEOUT_MS,
@@ -15,9 +16,7 @@ import {
   DEFAULT_SNAPSHOT_CREATE_TIMEOUT_MS,
   DEFAULT_TEMPLATE_SPEC_CREATE_TIMEOUT_MS,
   DEFAULT_TIMEOUT_MS,
-  ENV_API_ENDPOINT,
-  ENV_API_URL,
-  ENV_GATEWAY_URL,
+  GATEWAY_URL_ENVS,
   pollBackoffMs,
 } from "./constants.js";
 import {
@@ -27,6 +26,7 @@ import {
   type EgressPolicy,
   type EgressPolicySpec,
 } from "./egress-policies.js";
+import { readEnv } from "./env.js";
 import {
   InvalidTemplateSpecError,
   mapError,
@@ -171,6 +171,7 @@ import type { Identity } from "./whoami.js";
 
 const inspectCustom = Symbol.for("nodejs.util.inspect.custom");
 
+/** @deprecated Use {@link LuxorSandbox}; `TenkiSandbox` remains a supported alias of the same class. */
 export class TenkiSandbox implements AsyncDisposable {
   private rpcClient: Client<typeof SandboxService>;
   private sshGatewayClient: Client<typeof SSHGatewayClientService>;
@@ -189,11 +190,11 @@ export class TenkiSandbox implements AsyncDisposable {
     this.#authToken = resolveAuthToken(options?.authToken, options?.apiKey);
 
     // URL resolution
-    const baseUrl = options?.baseUrl?.trim() || env(ENV_API_ENDPOINT) || env(ENV_API_URL) || DEFAULT_BASE_URL;
+    const baseUrl = options?.baseUrl?.trim() || readEnv(BASE_URL_ENVS) || DEFAULT_BASE_URL;
     this.baseUrl = baseUrl;
 
     // Explicit SSH gateway overrides disable automatic gateway discovery.
-    const pinnedGateway = options?.gatewayAddress?.trim() || env(ENV_GATEWAY_URL) || "";
+    const pinnedGateway = options?.gatewayAddress?.trim() || readEnv(GATEWAY_URL_ENVS) || "";
     this.gatewayAddress = pinnedGateway || deriveGatewayAddress(baseUrl);
 
     this.dataPlaneReadyTimeoutMs =
@@ -1492,10 +1493,6 @@ function stripRegistryTag(value: string): string {
   return value;
 }
 
-function env(key: string): string {
-  return (typeof process !== "undefined" && process.env?.[key]) || "";
-}
-
 function sleep(ms: number, signal?: AbortSignal): Promise<void> {
   return new Promise((resolve, reject) => {
     if (signal?.aborted) {
@@ -1513,3 +1510,7 @@ function sleep(ms: number, signal?: AbortSignal): Promise<void> {
     );
   });
 }
+
+/** Luxor Sandbox client; the same class as {@link TenkiSandbox}. */
+export const LuxorSandbox = TenkiSandbox;
+export type LuxorSandbox = TenkiSandbox;

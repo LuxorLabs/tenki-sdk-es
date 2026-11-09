@@ -2,6 +2,7 @@ import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { Code, ConnectError, createClient, type Client, type Interceptor } from "@connectrpc/connect";
 import { createGrpcTransport, type Http2SessionManager } from "@connectrpc/connect-node";
 
+import { setSdkIdentityHeaders } from "./auth.js";
 import { setClientMetadataHeaders } from "./client-metadata.js";
 import { pollBackoffMs } from "./constants.js";
 import { DataPlaneNotReadyError, InvalidStateError, isPausedSessionStateError } from "./errors.js";
@@ -169,6 +170,7 @@ export function createDataPlaneClient(
       );
     }
     if (current.credential) req.header.set(dataPlaneCredentialHeader, current.credential);
+    setSdkIdentityHeaders(req.header);
     setClientMetadataHeaders(req.header);
     return req.stream ? next({ ...req, message: validateStreamRequests(req.message, sessionId) }) : next(req);
   };

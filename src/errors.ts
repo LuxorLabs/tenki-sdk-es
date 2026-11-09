@@ -13,14 +13,16 @@ export class PaginationStalledError extends SandboxError {
 
 export class MissingAuthTokenError extends SandboxError {
   constructor() {
-    super("missing auth token - set TENKI_AUTH_TOKEN or TENKI_API_KEY or use authToken option");
+    super(
+      "missing auth token - set LUXORAI_AUTH_TOKEN or LUXORAI_API_KEY (or TENKI_AUTH_TOKEN or TENKI_API_KEY) or use authToken option",
+    );
     this.name = "MissingAuthTokenError";
   }
 }
 
 export class InvalidAuthTokenError extends SandboxError {
   constructor() {
-    super("invalid auth token - API keys and service tokens must start with tk_");
+    super("invalid auth token - API keys and service tokens must start with lx_ or tk_");
     this.name = "InvalidAuthTokenError";
   }
 }

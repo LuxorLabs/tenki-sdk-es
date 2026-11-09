@@ -2,6 +2,8 @@ import { createClient, type Transport } from "@connectrpc/connect";
 import { createGrpcTransport } from "@connectrpc/connect-node";
 
 import { createAuthInterceptor, resolveAuthToken } from "./auth.js";
+import { CLOUD_API_URL_ENVS, DEFAULT_BASE_URL } from "./constants.js";
+import { readEnv } from "./env.js";
 import { DrainingHttp2SessionManager } from "./http2-drain.js";
 import * as pb from "./internal/proto/tenki/cloud/workspace/v1beta1/secrets_pb.js";
 import { Secrets } from "./workspace-secrets.js";
@@ -23,7 +25,7 @@ export class WorkspaceClient implements AsyncDisposable {
   private readonly sessionManager?: DrainingHttp2SessionManager;
   constructor(options: WorkspaceOptions = {}) {
     const token = resolveAuthToken(options.authToken, options.apiKey);
-    const baseUrl = options.baseUrl || process.env.TENKI_CLOUD_API_URL || "https://api.tenki.cloud";
+    const baseUrl = options.baseUrl || readEnv(CLOUD_API_URL_ENVS) || DEFAULT_BASE_URL;
     this.sessionManager = options.transport
       ? undefined
       : new DrainingHttp2SessionManager(
