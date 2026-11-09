@@ -99,6 +99,18 @@ describe("mapError", () => {
       expect(mapError(connectErr(Code.PermissionDenied, "nope"))).toBeInstanceOf(PermissionDeniedError);
     });
 
+    it("maps Aborted resume failure to ResumeFailedError", () => {
+      expect(mapError(connectErr(Code.Aborted, "resume failed, session is PAUSED: restore timed out"))).toBeInstanceOf(
+        ResumeFailedError,
+      );
+    });
+
+    it("keeps other Aborted errors generic", () => {
+      const mapped = mapError(connectErr(Code.Aborted, "volume attachment changed during detach"));
+      expect(mapped).not.toBeInstanceOf(ResumeFailedError);
+      expect(mapped).toBeInstanceOf(SandboxError);
+    });
+
     it("maps NotFound to SessionNotFoundError by default", () => {
       expect(mapError(connectErr(Code.NotFound, "session not found"))).toBeInstanceOf(SessionNotFoundError);
     });

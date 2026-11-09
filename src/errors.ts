@@ -127,6 +127,9 @@ export class SnapshotNotDurableError extends SandboxError {
 export class ResumeFailedError extends SandboxError {
   name = "ResumeFailedError";
 }
+export class ResumeWaitTimeoutError extends SandboxError {
+  name = "ResumeWaitTimeoutError";
+}
 export class PauseFailedError extends SandboxError {
   name = "PauseFailedError";
 }
@@ -363,6 +366,10 @@ export function mapError(err: unknown): SandboxError {
       if (msg.includes("inbound access is disabled")) return new InboundDisabledError(connectErr.message, { cause });
       if (msg.includes("ssh")) return new SSHUnavailableError(connectErr.message, { cause });
       return new InvalidStateError(connectErr.message, { cause });
+    case Code.Aborted:
+      if (connectErr.rawMessage.toLowerCase().startsWith("resume failed"))
+        return new ResumeFailedError(connectErr.message, { cause });
+      return new SandboxError(connectErr.message, { cause });
     case Code.Unavailable:
       if (msg.includes("ssh")) return new SSHUnavailableError(connectErr.message, { cause });
       return new SandboxError(connectErr.message, { cause });

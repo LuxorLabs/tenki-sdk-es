@@ -166,6 +166,21 @@ A `LOCAL_READY` pause snapshot resumes on the host that captured it.
 `DURABLE_CEPH` snapshots can resume on a capability-matched host in the same datacenter while R2 replication continues.
 `DURABLE` snapshots are portable to eligible hosts.
 
+### Resume
+
+`resume()` resolves once the session is `RUNNING`, so the next call can use it right away.
+It throws `ResumeFailedError` with the restore error if the session falls back to `PAUSED`.
+If the call's deadline passes first, it throws `ResumeWaitTimeoutError`; the resume may still land, so call `waitResumed()` to keep waiting.
+Calling `resume()` on a session that is already `RESUMING` joins that resume instead of failing.
+`resumeAsync()` returns once the service accepts the resume, usually with the session in `RESUMING`.
+Call `waitResumed()` before running commands.
+It resolves at `RUNNING`, throws `ResumeFailedError` if the resume fails, and throws `ResumeWaitTimeoutError` after the timeout.
+
+```typescript
+await session.resumeAsync();
+await session.waitResumed();
+```
+
 ### What survives a pause
 
 Pause captures the VM's full memory, not only its disk: a resumed session is the

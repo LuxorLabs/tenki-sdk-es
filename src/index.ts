@@ -175,6 +175,7 @@ export {
   SnapshotWaitTimeoutError,
   SnapshotNotDurableError,
   ResumeFailedError,
+  ResumeWaitTimeoutError,
   PauseFailedError,
   InvalidTemplateSpecError,
   TemplateNotFoundError,

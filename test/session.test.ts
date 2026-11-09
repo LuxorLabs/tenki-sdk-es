@@ -649,6 +649,7 @@ describe("Session streaming", () => {
 
     await session.resume();
     expect(session.state).toBe("RUNNING");
+    expect(rpcClient.resumeSession).toHaveBeenLastCalledWith(expect.objectContaining({ async: false }));
     expect(resumedCredential.stop).toHaveBeenCalledTimes(1);
     expect((session as any).dataPlaneEndpoint).toBe("");
     expect((session as any).dataPlaneCredential).toBeUndefined();
@@ -658,6 +659,36 @@ describe("Session streaming", () => {
     await session.pauseAsync();
     expect(session.state).toBe("PAUSING");
     expect(rpcClient.pauseSession).toHaveBeenLastCalledWith(expect.objectContaining({ async: true }));
+
+    await session.resumeAsync();
+    expect(session.state).toBe("RESUMING");
+    expect(rpcClient.resumeSession).toHaveBeenLastCalledWith(expect.objectContaining({ async: true }));
+  });
+
+  it("resume throws ResumeFailedError when the resume does not reach RUNNING", async () => {
+    const rpcClient = makeRpcClient();
+    rpcClient.resumeSession = vi.fn(async () => {
+      throw new ConnectError("resume failed, session is PAUSED: restore timed out", Code.Aborted);
+    });
+    const session = makeSession(rpcClient, makeDataPlaneRunClient());
+
+    await expect(session.resume()).rejects.toEqual(
+      expect.objectContaining({
+        name: "ResumeFailedError",
+        message: expect.stringContaining("restore timed out"),
+      }),
+    );
+  });
+
+  it("resume throws ResumeWaitTimeoutError when the deadline passes before RUNNING", async () => {
+    const rpcClient = makeRpcClient();
+    rpcClient.resumeSession = vi.fn(async () => {
+      throw new ConnectError("context deadline exceeded", Code.DeadlineExceeded);
+    });
+    const session = makeSession(rpcClient, makeDataPlaneRunClient());
+
+    await expect(session.resume()).rejects.toEqual(expect.objectContaining({ name: "ResumeWaitTimeoutError" }));
+    await expect(session.resumeAsync()).rejects.toEqual(expect.objectContaining({ name: "CommandTimeoutError" }));
   });
 
   it("maps pauseExpiresAt for paused sessions and leaves it unset otherwise", () => {
@@ -1114,11 +1145,11 @@ function makeRpcClient() {
         }),
       }),
     ),
-    resumeSession: vi.fn(async () =>
+    resumeSession: vi.fn(async (req: { async: boolean }) =>
       create(ResumeSessionResponseSchema, {
         session: create(SandboxSessionSchema, {
           id: "session-1",
-          state: SessionState.RUNNING,
+          state: req.async ? SessionState.RESUMING : SessionState.RUNNING,
           ownerType: "SERVICE",
           ownerId: "self",
         }),
@@ -1133,10 +1164,19 @@ describe("Session waitResumed", () => {
     vi.restoreAllMocks();
   });
 
-  function getSessionSequence(states: SessionState[], lastResumeError?: string) {
+  const pausedAt = new Date("2026-11-06T09:00:00Z");
+  const repausedAt = new Date("2026-11-06T10:00:00Z");
+
+  function getSessionSequence(
+    states: SessionState[],
+    lastResumeError?: string,
+    pausedAts: Date[] = [],
+    pauseSnapshotIds: string[] = [],
+  ) {
     let call = 0;
     return vi.fn(async () => {
-      const state = states[Math.min(call++, states.length - 1)]!;
+      const index = Math.min(call++, states.length - 1);
+      const state = states[index]!;
       const stopped = state === SessionState.PAUSED || state === SessionState.USER_SHUTDOWN;
       return create(GetSessionResponseSchema, {
         session: create(SandboxSessionSchema, {
@@ -1145,6 +1185,8 @@ describe("Session waitResumed", () => {
           ownerType: "SERVICE",
           ownerId: "self",
           lastResumeError: stopped ? (lastResumeError ?? "") : "",
+          pausedAt: pausedAts[index] ? timestampFromDate(pausedAts[index]) : undefined,
+          pauseSnapshotId: pauseSnapshotIds[index],
         }),
       });
     });
@@ -1164,8 +1206,59 @@ describe("Session waitResumed", () => {
     rpcClient.getSession = getSessionSequence([SessionState.RESUMING, SessionState.RUNNING]);
     const session = makeSession(rpcClient, makeDataPlaneRunClient());
 
-    await expect(session.waitResumed(timeout)).rejects.toThrow("timeout waiting for session");
+    await expect(session.waitResumed(timeout)).rejects.toEqual(
+      expect.objectContaining({
+        name: "ResumeWaitTimeoutError",
+        message: expect.stringContaining("timeout waiting for session"),
+      }),
+    );
     expect(rpcClient.getSession).not.toHaveBeenCalled();
+  });
+
+  it("resolves when a concurrent pause follows the landed resume", async () => {
+    const rpcClient = makeRpcClient();
+    rpcClient.getSession = getSessionSequence([SessionState.RESUMING, SessionState.PAUSING, SessionState.PAUSED]);
+    const session = makeSession(rpcClient, makeDataPlaneRunClient());
+
+    await session.waitResumed(10_000);
+    expect(session.state).toBe("PAUSING");
+  });
+
+  it("keeps polling through a stale PAUSING read before RESUMING is observed", async () => {
+    const rpcClient = makeRpcClient();
+    rpcClient.getSession = getSessionSequence(
+      [SessionState.PAUSING, SessionState.RESUMING, SessionState.PAUSED],
+      "restore failed",
+      [pausedAt, pausedAt, pausedAt],
+    );
+    const session = makeSession(rpcClient, makeDataPlaneRunClient());
+
+    await expect(session.waitResumed(10_000)).rejects.toEqual(expect.objectContaining({ name: "ResumeFailedError" }));
+  });
+
+  it("resolves when a pause completes between polls after the resume landed", async () => {
+    const rpcClient = makeRpcClient();
+    rpcClient.getSession = getSessionSequence([SessionState.RESUMING, SessionState.PAUSED], undefined, [
+      pausedAt,
+      repausedAt,
+    ]);
+    const session = makeSession(rpcClient, makeDataPlaneRunClient());
+
+    await session.waitResumed(10_000);
+    expect(session.state).toBe("PAUSED");
+  });
+
+  it("throws ResumeFailedError when a snapshot migration swaps the snapshot of a reverted resume", async () => {
+    const rpcClient = makeRpcClient();
+    rpcClient.getSession = getSessionSequence(
+      [SessionState.RESUMING, SessionState.PAUSED],
+      undefined,
+      [pausedAt, pausedAt],
+      ["restored-snapshot", "migrated-snapshot"],
+    );
+    const session = makeSession(rpcClient, makeDataPlaneRunClient());
+
+    await expect(session.waitResumed(10_000)).rejects.toEqual(expect.objectContaining({ name: "ResumeFailedError" }));
   });
 
   it("throws ResumeFailedError with lastResumeError when the session reverts to PAUSED", async () => {
@@ -1173,7 +1266,10 @@ describe("Session waitResumed", () => {
       "snapshot restore failed: reidentify guest network failed after 3 attempts: " +
       "sh: 57: cannot create /etc/netplan/50-cloud-init.yaml: Structure needs cleaning";
     const rpcClient = makeRpcClient();
-    rpcClient.getSession = getSessionSequence([SessionState.RESUMING, SessionState.PAUSED], restoreErr);
+    rpcClient.getSession = getSessionSequence([SessionState.RESUMING, SessionState.PAUSED], restoreErr, [
+      pausedAt,
+      pausedAt,
+    ]);
     const session = makeSession(rpcClient, makeDataPlaneRunClient());
 
     await expect(session.waitResumed(10_000)).rejects.toEqual(

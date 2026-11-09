@@ -23,6 +23,7 @@ import {
   mapError,
   PauseFailedError,
   ResumeFailedError,
+  ResumeWaitTimeoutError,
   SessionNotFoundError,
   terminalDataPlaneNotReadyError,
 } from "./errors.js";
@@ -847,6 +848,7 @@ export class Session implements SessionHandle, AsyncDisposable {
     const deadline = Date.now() + timeout;
     const start = Date.now();
     let sawResuming = false;
+    let pausedAt = this.pausedAt;
     let attempt = 0;
     while (Date.now() < deadline) {
       signal?.throwIfAborted();
@@ -860,17 +862,25 @@ export class Session implements SessionHandle, AsyncDisposable {
       if (isTerminal(this.state)) throw this.terminalStateError();
       if (this.state === "RESUMING") {
         sawResuming = true;
+        pausedAt = this.pausedAt ?? pausedAt;
+      } else if (this.state === "PAUSING") {
+        // PAUSING only follows RUNNING, so a fresh read means the resume landed before a concurrent pause.
+        if (sawResuming || Date.now() - start > RESUME_REVERT_GRACE_MS) return;
       } else if (this.state === "PAUSED" || this.state === "USER_SHUTDOWN") {
-        // A stopped state is a resume failure once RESUMING was observed from
-        // the server, or after the replica-lag grace window has passed.
+        // A stopped state is settled once RESUMING was observed from the
+        // server, or after the replica-lag grace window has passed.
         if (sawResuming || Date.now() - start > RESUME_REVERT_GRACE_MS) {
+          // A landed resume clears pausedAt and a later pause or shutdown sets a newer one; a revert or snapshot migration keeps it.
+          if (pausedAt && !this.lastResumeError && this.pausedAt?.getTime() !== pausedAt.getTime()) return;
           throw this.resumeFailedError();
         }
       }
       await sleep(pollBackoffMs(attempt), signal);
       attempt++;
     }
-    throw new Error(`timeout waiting for session ${this.id} to resume`);
+    throw new ResumeWaitTimeoutError(
+      `timeout waiting for session ${this.id} to resume; it may still be resuming, call waitResumed to keep waiting`,
+    );
   }
 
   private resumeFailedError(): Error {
@@ -1195,12 +1205,34 @@ export class Session implements SessionHandle, AsyncDisposable {
     }
   }
 
+  /**
+   * Resume and resolve once the session is RUNNING; joins a resume already in flight.
+   * Throws ResumeWaitTimeoutError if the call deadline passes first; the resume may still land.
+   */
   async resume(): Promise<void> {
+    return this.resumeWithAsync(false);
+  }
+
+  /** Resolve once the resume is accepted; call waitResumed to observe RUNNING. */
+  async resumeAsync(): Promise<void> {
+    return this.resumeWithAsync(true);
+  }
+
+  private async resumeWithAsync(async: boolean): Promise<void> {
     try {
-      const resp = await this.rpcClient.resumeSession(create(ResumeSessionRequestSchema, { sessionId: this.id }));
+      const resp = await this.rpcClient.resumeSession(
+        create(ResumeSessionRequestSchema, { sessionId: this.id, async }),
+      );
       if (resp.session) this.applyProto(resp.session);
       this.resetDataPlane();
     } catch (err) {
+      // The deadline ends the wait for RUNNING, not necessarily the resume.
+      if (!async && err instanceof ConnectError && err.code === Code.DeadlineExceeded) {
+        throw new ResumeWaitTimeoutError(
+          `session ${this.id} did not resume before the deadline; it may still be resuming, call waitResumed to keep waiting`,
+          { cause: err },
+        );
+      }
       throw mapError(err);
     }
   }
