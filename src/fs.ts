@@ -1,6 +1,6 @@
 import { create } from "@bufbuild/protobuf";
 
-import { FileNotFoundError, mapError } from "./errors.js";
+import { FileNotFoundError, mapError, StreamClosedError } from "./errors.js";
 import {
   ListRequestSchema,
   MkdirRequestSchema,
@@ -79,6 +79,8 @@ export async function readFileStream(
   });
 }
 
+const RPC_DONE = Symbol("rpc-done");
+
 export async function writeFileStream(
   session: Session,
   path: string,
@@ -104,16 +106,26 @@ export async function writeFileStream(
   const dataPlane = await session.requireDataPlane();
   const abort = new AbortController();
   const response = dataPlane.writeFileStream(wrapWriteFileStream(outbound), { signal: abort.signal });
-  // Stop draining the source once the RPC rejects; also marks it handled (await below still observes it).
-  let rpcRejected = false;
-  response.catch(() => {
-    rpcRejected = true;
+  // Settles when the RPC ends either way (also marking a rejection handled; the awaits below still
+  // observe it), so a server that ends the stream is noticed even while the source is stalled.
+  let rpcSettled = false;
+  const rpcDone = new Promise<typeof RPC_DONE>((resolve) => {
+    const settle = () => {
+      rpcSettled = true;
+      resolve(RPC_DONE);
+    };
+    response.then(settle, settle);
   });
   const reader = data.getReader();
   try {
     for (;;) {
-      if (rpcRejected) break; // server aborted early; stop buffering the source, let `await response` throw
-      const next = await reader.read();
+      const next = rpcSettled ? RPC_DONE : await Promise.race([rpcDone, reader.read()]);
+      if (next === RPC_DONE) {
+        // The server ended the stream before the source did; cancel the source (resolving the pending read).
+        void reader.cancel().catch(() => {});
+        await response; // surfaces the server's error when it aborted
+        throw new StreamClosedError("server ended the write stream before all data was sent");
+      }
       if (next.done) break;
       outbound.push(create(WriteFileStreamRequestSchema, { payload: { case: "data", value: next.value } }));
     }
