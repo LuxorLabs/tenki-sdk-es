@@ -1,6 +1,6 @@
 {
   "name": "@tenkicloud/sandbox",
-  "version": "1.4.3",
+  "version": "1.4.4",
   "description": "TypeScript SDK for Tenki Sandbox",
   "keywords": [
     "tenki",
