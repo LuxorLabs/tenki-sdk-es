@@ -23,6 +23,7 @@ import {
   mapError,
   PauseFailedError,
   ResumeFailedError,
+  ResumeWaitTimeoutError,
   SessionNotFoundError,
   terminalDataPlaneNotReadyError,
 } from "./errors.js";
@@ -41,9 +42,11 @@ import {
 import { Git } from "./git.js";
 import type { SandboxSession, SessionEgressHttpRule } from "./internal/proto/tenki/sandbox/v1/sandbox_pb.js";
 import {
+  AttachStorageMountRequestSchema,
   AttachVolumeRequestSchema,
   CreateSessionCredentialRequestSchema,
   DataPlaneRouteStatus,
+  DetachStorageMountRequestSchema,
   DetachVolumeRequestSchema,
   ExposePortRequestSchema,
   ExtendSessionRequestSchema,
@@ -53,6 +56,7 @@ import {
   GetSessionRequestSchema,
   GitOperationRequestSchema,
   ListExposedPortsRequestSchema,
+  ListStorageMountsRequestSchema,
   PauseSessionRequestSchema,
   SessionState as ProtoSessionState,
   WildcardStatus as ProtoWildcardStatus,
@@ -93,6 +97,12 @@ import { isRetryableWaitPollError, isRetryableWaitStreamError, WaitStreamEndedEr
 import type { CommandStatus, ExecResult } from "./result.js";
 import { snapshotFromProto, type Snapshot } from "./snapshot.js";
 import { connectSSH, type SSHConnection, type SSHConnectOptions } from "./ssh.js";
+import {
+  storageMountFromProto,
+  storageMountSpecToProto,
+  type StorageMount,
+  type StorageMountConfig,
+} from "./storage.js";
 import { Stream } from "./stream.js";
 import { tailnetStatusFromProto, type TailnetStatus } from "./tailnet.js";
 import {
@@ -738,6 +748,7 @@ export class Session implements SessionHandle, AsyncDisposable {
     return exposeHostPortResilient(this, hostAddr, options);
   }
 
+  // Writes up to 32 MiB; larger content throws FileTooLargeError, so write it with writeFileStream.
   async writeFile(path: string, data: Uint8Array | string): Promise<void> {
     const content = typeof data === "string" ? new TextEncoder().encode(data) : data;
     try {
@@ -753,6 +764,7 @@ export class Session implements SessionHandle, AsyncDisposable {
     }
   }
 
+  // Reads up to 32 MiB; larger files throw FileTooLargeError, so read them with readFileStream.
   async readFile(path: string): Promise<Uint8Array> {
     try {
       const request = create(ReadFileRequestSchema, { sessionId: this.id, path });
@@ -847,6 +859,7 @@ export class Session implements SessionHandle, AsyncDisposable {
     const deadline = Date.now() + timeout;
     const start = Date.now();
     let sawResuming = false;
+    let pausedAt = this.pausedAt;
     let attempt = 0;
     while (Date.now() < deadline) {
       signal?.throwIfAborted();
@@ -860,17 +873,25 @@ export class Session implements SessionHandle, AsyncDisposable {
       if (isTerminal(this.state)) throw this.terminalStateError();
       if (this.state === "RESUMING") {
         sawResuming = true;
+        pausedAt = this.pausedAt ?? pausedAt;
+      } else if (this.state === "PAUSING") {
+        // PAUSING only follows RUNNING, so a fresh read means the resume landed before a concurrent pause.
+        if (sawResuming || Date.now() - start > RESUME_REVERT_GRACE_MS) return;
       } else if (this.state === "PAUSED" || this.state === "USER_SHUTDOWN") {
-        // A stopped state is a resume failure once RESUMING was observed from
-        // the server, or after the replica-lag grace window has passed.
+        // A stopped state is settled once RESUMING was observed from the
+        // server, or after the replica-lag grace window has passed.
         if (sawResuming || Date.now() - start > RESUME_REVERT_GRACE_MS) {
+          // A landed resume clears pausedAt and a later pause or shutdown sets a newer one; a revert or snapshot migration keeps it.
+          if (pausedAt && !this.lastResumeError && this.pausedAt?.getTime() !== pausedAt.getTime()) return;
           throw this.resumeFailedError();
         }
       }
       await sleep(pollBackoffMs(attempt), signal);
       attempt++;
     }
-    throw new Error(`timeout waiting for session ${this.id} to resume`);
+    throw new ResumeWaitTimeoutError(
+      `timeout waiting for session ${this.id} to resume; it may still be resuming, call waitResumed to keep waiting`,
+    );
   }
 
   private resumeFailedError(): Error {
@@ -1153,6 +1174,39 @@ export class Session implements SessionHandle, AsyncDisposable {
     this.volumeMounts = this.volumeMounts.filter((v) => v.volumeId !== volumeId);
   }
 
+  async listStorageMounts(): Promise<StorageMount[]> {
+    try {
+      const response = await this.rpcClient.listStorageMounts(
+        create(ListStorageMountsRequestSchema, { sessionId: this.id }),
+      );
+      return (response.mounts ?? []).map(storageMountFromProto);
+    } catch (err) {
+      throw mapError(err);
+    }
+  }
+
+  async attachStorageMount(mount: StorageMountConfig): Promise<StorageMount> {
+    try {
+      const response = await this.rpcClient.attachStorageMount(
+        create(AttachStorageMountRequestSchema, {
+          sessionId: this.id,
+          mount: storageMountSpecToProto(mount),
+        }),
+      );
+      return storageMountFromProto(response.mount!);
+    } catch (err) {
+      throw mapError(err);
+    }
+  }
+
+  async detachStorageMount(mountId: string): Promise<void> {
+    try {
+      await this.rpcClient.detachStorageMount(create(DetachStorageMountRequestSchema, { sessionId: this.id, mountId }));
+    } catch (err) {
+      throw mapError(err);
+    }
+  }
+
   private isVolumeDetached(volumeId: string): boolean {
     const attachments = this.volumeMounts.filter((mount) => mount.volumeId === volumeId);
     return attachments.length === 0 || attachments.every((attachment) => attachment.state === "DETACHED");
@@ -1195,12 +1249,34 @@ export class Session implements SessionHandle, AsyncDisposable {
     }
   }
 
+  /**
+   * Resume and resolve once the session is RUNNING; joins a resume already in flight.
+   * Throws ResumeWaitTimeoutError if the call deadline passes first; the resume may still land.
+   */
   async resume(): Promise<void> {
+    return this.resumeWithAsync(false);
+  }
+
+  /** Resolve once the resume is accepted; call waitResumed to observe RUNNING. */
+  async resumeAsync(): Promise<void> {
+    return this.resumeWithAsync(true);
+  }
+
+  private async resumeWithAsync(async: boolean): Promise<void> {
     try {
-      const resp = await this.rpcClient.resumeSession(create(ResumeSessionRequestSchema, { sessionId: this.id }));
+      const resp = await this.rpcClient.resumeSession(
+        create(ResumeSessionRequestSchema, { sessionId: this.id, async }),
+      );
       if (resp.session) this.applyProto(resp.session);
       this.resetDataPlane();
     } catch (err) {
+      // The deadline ends the wait for RUNNING, not necessarily the resume.
+      if (!async && err instanceof ConnectError && err.code === Code.DeadlineExceeded) {
+        throw new ResumeWaitTimeoutError(
+          `session ${this.id} did not resume before the deadline; it may still be resuming, call waitResumed to keep waiting`,
+          { cause: err },
+        );
+      }
       throw mapError(err);
     }
   }

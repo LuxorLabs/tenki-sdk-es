@@ -11,7 +11,7 @@ export default defineConfig({
   sourcemap: true,
   clean: true,
   target: "node18",
-  define: { __TENKI_SDK_VERSION__: JSON.stringify(version) },
+  define: { __SDK_VERSION__: JSON.stringify(version), __TENKI_SDK_VERSION__: JSON.stringify(version) },
   outExtension({ format }) {
     return { js: format === "esm" ? ".mjs" : ".cjs" };
   },

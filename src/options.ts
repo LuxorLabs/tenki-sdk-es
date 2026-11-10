@@ -3,6 +3,7 @@ import type { Transport } from "@connectrpc/connect";
 
 import type { RegistryImageKind, RegistrySortBy, RegistryVisibility } from "./registry.js";
 import type { RuntimeSecretFile } from "./secret-files.js";
+import type { StorageMountConfig } from "./storage.js";
 import type { TailnetAttachmentOptions } from "./tailnet.js";
 import type { TemplateSpec } from "./template-spec.js";
 import type { Template, TemplateImageRef } from "./template.js";
@@ -51,7 +52,7 @@ export interface CreateOptions {
   name?: string;
   allowInbound?: boolean;
   allowOutbound?: boolean;
-  /** Restricts outbound access to these domains (exact host or a single leading "*." wildcard). No effect if allowOutbound is false. */
+  /** Restricts outbound access to these domains (exact host, "*." for one subdomain label, or "**." for any depth). No effect if allowOutbound is false. */
   allowDomains?: string[];
   /** Restricts outbound access to these IPv4 CIDRs. No effect if allowOutbound is false. */
   allowCidrs?: string[];
@@ -107,6 +108,12 @@ export interface CreateOptions {
   enableOpenCode?: boolean;
   cloneRepoUrl?: string;
   volumes?: VolumeMountConfig[];
+  /** Added to the workspace's default mounts; set defaultMountId to change a default. */
+  storageMounts?: StorageMountConfig[];
+  /** Skips the workspace's default storage mounts. */
+  disableStorageDefaults?: boolean;
+  /** Workspace default mounts to leave out of this sandbox. */
+  excludedDefaultMountIds?: string[];
   openCodeProvider?: OpenCodeProviderConfig;
   githubToken?: string;
   sticky?: boolean;

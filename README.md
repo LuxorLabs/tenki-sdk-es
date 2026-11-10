@@ -76,7 +76,7 @@ The server may reject options from later milestones, including wake-on-connect a
 
 ## Authentication
 
-Pass an API key or service token starting with `tk_` explicitly, or set `TENKI_AUTH_TOKEN` or `TENKI_API_KEY`:
+Pass an API key or service token starting with `lx_` or `tk_` explicitly, or set `LUXORAI_AUTH_TOKEN` or `LUXORAI_API_KEY` (`TENKI_AUTH_TOKEN` and `TENKI_API_KEY` are read when no `LUXORAI_*` token is set). Every `LUXORAI_*` variable takes precedence over its `TENKI_*` equivalent:
 
 ```typescript
 const sandbox = new TenkiSandbox({ authToken: "tk_..." });
@@ -166,6 +166,21 @@ A `LOCAL_READY` pause snapshot resumes on the host that captured it.
 `DURABLE_CEPH` snapshots can resume on a capability-matched host in the same datacenter while R2 replication continues.
 `DURABLE` snapshots are portable to eligible hosts.
 
+### Resume
+
+`resume()` resolves once the session is `RUNNING`, so the next call can use it right away.
+It throws `ResumeFailedError` with the restore error if the session falls back to `PAUSED`.
+If the call's deadline passes first, it throws `ResumeWaitTimeoutError`; the resume may still land, so call `waitResumed()` to keep waiting.
+Calling `resume()` on a session that is already `RESUMING` joins that resume instead of failing.
+`resumeAsync()` returns once the service accepts the resume, usually with the session in `RESUMING`.
+Call `waitResumed()` before running commands.
+It resolves at `RUNNING`, throws `ResumeFailedError` if the resume fails, and throws `ResumeWaitTimeoutError` after the timeout.
+
+```typescript
+await session.resumeAsync();
+await session.waitResumed();
+```
+
 ### What survives a pause
 
 Pause captures the VM's full memory, not only its disk: a resumed session is the
@@ -174,6 +189,10 @@ state, and the guest clock stops for the duration of the pause.
 
 `/tmp` is cleared across a pause. Keep durable state under `/home/tenki`, which
 is preserved.
+
+The kernel boot ID (`/proc/sys/kernel/random/boot_id`) changes on every resume,
+so it can't tell a resume from a restart. Memory-backed paths such as `/dev/shm`
+survive a pause but not a restart, so a token written there can.
 
 While a session is paused it serves no traffic: preview requests return `404`
 until it resumes. The client connection itself is not dropped — a held
@@ -397,6 +416,7 @@ const session = await client.create({
 
 `allowOutbound: false` still blocks everything, regardless of `allowDomains`/`allowCidrs`.
 The allowlist is checked against the names the sandbox resolves, the TLS server name (SNI), and the plaintext HTTP `Host`.
+`*.example.com` matches one subdomain label and `**.example.com` matches subdomains at any depth; neither matches `example.com` itself.
 Connections can only reach addresses that an allowed name resolved to or that fall in an allowed CIDR; traffic to an allowed CIDR is not inspected unless the sandbox uses outbound secret injection.
 UDP port 443 (HTTP/3, QUIC) is blocked for sandboxes with a domain allowlist, so clients fall back to HTTPS over TCP.
 Unless the sandbox uses outbound secret injection, HTTPS is not decrypted, so another site on the same CDN as an allowed name can be reached by sending its name in the encrypted `Host` header.

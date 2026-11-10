@@ -22,10 +22,10 @@ const { version } = JSON.parse(readFileSync(new URL("../package.json", import.me
 };
 
 const expected = {
-  "x-tenki-client-family": "typescript",
-  "x-tenki-client-version": version,
-  "x-tenki-client-generation": "1",
-  "x-tenki-client-runtime": `node/${process.versions.node}`,
+  "x-luxor-client-family": "typescript",
+  "x-luxor-client-version": version,
+  "x-luxor-client-generation": "1",
+  "x-luxor-client-runtime": `node/${process.versions.node}`,
 };
 
 function metadataOf(headers: Headers): Record<string, string | null> {

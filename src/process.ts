@@ -1,7 +1,9 @@
 import { create } from "@bufbuild/protobuf";
 import { Code, ConnectError } from "@connectrpc/connect";
 
+import { RUN_TRACE_TIMING_ENVS } from "./constants.js";
 import type { DiskUsage } from "./disk.js";
+import { readEnv } from "./env.js";
 import {
   CapabilityUnavailableError,
   dataPlaneNotReadyError,
@@ -83,7 +85,7 @@ export interface ProcessRunHandle extends PromiseLike<ProcessRunResult> {
 }
 
 function traceRunTiming(sessionId: string, startedAt: number, stage: string, details?: Record<string, unknown>): void {
-  if (typeof process === "undefined" || process.env?.TENKI_SDK_RUN_TRACE_TIMING !== "1") return;
+  if (readEnv(RUN_TRACE_TIMING_ENVS) !== "1") return;
   console.error(
     `TENKI_SDK_RUN_TIMING ${JSON.stringify({
       sessionId,

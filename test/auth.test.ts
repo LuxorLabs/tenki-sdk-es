@@ -33,6 +33,8 @@ describe("resolveAuthToken", () => {
   beforeEach(() => {
     delete process.env.TENKI_AUTH_TOKEN;
     delete process.env.TENKI_API_KEY;
+    delete process.env.LUXORAI_AUTH_TOKEN;
+    delete process.env.LUXORAI_API_KEY;
   });
 
   afterEach(() => {

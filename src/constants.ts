@@ -1,10 +1,33 @@
+export const ENV_LUXORAI_AUTH_TOKEN = "LUXORAI_AUTH_TOKEN";
+export const ENV_LUXORAI_API_KEY = "LUXORAI_API_KEY";
+export const ENV_LUXORAI_API_ENDPOINT = "LUXORAI_API_ENDPOINT";
+export const ENV_LUXORAI_API_URL = "LUXORAI_API_URL";
+export const ENV_LUXORAI_GATEWAY_URL = "LUXORAI_SANDBOX_GATEWAY_URL";
+export const ENV_LUXORAI_CLOUD_API_URL = "LUXORAI_CLOUD_API_URL";
+export const ENV_LUXORAI_RUN_TRACE_TIMING = "LUXORAI_SDK_RUN_TRACE_TIMING";
+
 export const ENV_AUTH_TOKEN = "TENKI_AUTH_TOKEN";
 export const ENV_API_KEY = "TENKI_API_KEY";
 export const ENV_API_ENDPOINT = "TENKI_API_ENDPOINT";
 export const ENV_API_URL = "TENKI_API_URL";
 export const ENV_GATEWAY_URL = "TENKI_SANDBOX_GATEWAY_URL";
+export const ENV_CLOUD_API_URL = "TENKI_CLOUD_API_URL";
+export const ENV_RUN_TRACE_TIMING = "TENKI_SDK_RUN_TRACE_TIMING";
+
+// Precedence order: every LUXORAI_* name before its TENKI_* fallback.
+export const AUTH_TOKEN_ENVS = [ENV_LUXORAI_AUTH_TOKEN, ENV_LUXORAI_API_KEY, ENV_AUTH_TOKEN, ENV_API_KEY] as const;
+export const BASE_URL_ENVS = [ENV_LUXORAI_API_ENDPOINT, ENV_LUXORAI_API_URL, ENV_API_ENDPOINT, ENV_API_URL] as const;
+export const GATEWAY_URL_ENVS = [ENV_LUXORAI_GATEWAY_URL, ENV_GATEWAY_URL] as const;
+export const CLOUD_API_URL_ENVS = [ENV_LUXORAI_CLOUD_API_URL, ENV_CLOUD_API_URL] as const;
+export const RUN_TRACE_TIMING_ENVS = [ENV_LUXORAI_RUN_TRACE_TIMING, ENV_RUN_TRACE_TIMING] as const;
+
+export const API_KEY_PREFIXES = ["lx_", "tk_"] as const;
 
 export const DEFAULT_BASE_URL = "https://api.tenki.cloud";
+
+declare const __SDK_VERSION__: string | undefined;
+export const SDK_VERSION = typeof __SDK_VERSION__ === "string" ? __SDK_VERSION__ : "unknown";
+export const SDK_USER_AGENT = `luxor-sandbox-typescript/${SDK_VERSION}`;
 export const DEFAULT_TIMEOUT_MS = 30_000;
 export const DEFAULT_DATA_PLANE_READY_TIMEOUT_MS = 60_000;
 

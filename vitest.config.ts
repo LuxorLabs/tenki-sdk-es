@@ -4,7 +4,7 @@ import { defineConfig } from "vitest/config";
 const { version } = JSON.parse(readFileSync(new URL("./package.json", import.meta.url), "utf8")) as { version: string };
 
 export default defineConfig({
-  define: { __TENKI_SDK_VERSION__: JSON.stringify(version) },
+  define: { __SDK_VERSION__: JSON.stringify(version), __TENKI_SDK_VERSION__: JSON.stringify(version) },
   test: {
     include: ["test/**/*.test.ts"],
   },

@@ -13,14 +13,16 @@ export class PaginationStalledError extends SandboxError {
 
 export class MissingAuthTokenError extends SandboxError {
   constructor() {
-    super("missing auth token - set TENKI_AUTH_TOKEN or TENKI_API_KEY or use authToken option");
+    super(
+      "missing auth token - set LUXORAI_AUTH_TOKEN or LUXORAI_API_KEY (or TENKI_AUTH_TOKEN or TENKI_API_KEY) or use authToken option",
+    );
     this.name = "MissingAuthTokenError";
   }
 }
 
 export class InvalidAuthTokenError extends SandboxError {
   constructor() {
-    super("invalid auth token - API keys and service tokens must start with tk_");
+    super("invalid auth token - API keys and service tokens must start with lx_ or tk_");
     this.name = "InvalidAuthTokenError";
   }
 }
@@ -43,6 +45,21 @@ export class SessionTerminatedError extends SandboxError {
 }
 export class FileNotFoundError extends SandboxError {
   name = "FileNotFoundError";
+}
+// FileTooLargeError means a unary readFile or writeFile refused a file above maxBytes; use readFileStream
+// or writeFileStream instead. operation is "ReadFile" or "WriteFile". sizeBytes is a lower bound when the
+// guest could not stat the file's size.
+export class FileTooLargeError extends SandboxError {
+  name = "FileTooLargeError";
+  constructor(
+    message: string,
+    readonly operation: "ReadFile" | "WriteFile",
+    readonly sizeBytes: bigint,
+    readonly maxBytes: bigint,
+    options?: ErrorOptions,
+  ) {
+    super(message, options);
+  }
 }
 export class InvalidStateError extends SandboxError {
   name = "InvalidStateError";
@@ -127,6 +144,9 @@ export class SnapshotNotDurableError extends SandboxError {
 export class ResumeFailedError extends SandboxError {
   name = "ResumeFailedError";
 }
+export class ResumeWaitTimeoutError extends SandboxError {
+  name = "ResumeWaitTimeoutError";
+}
 export class PauseFailedError extends SandboxError {
   name = "PauseFailedError";
 }
@@ -135,6 +155,20 @@ export class TemplateNotFoundError extends SandboxError {
 }
 export class EgressPolicyNotFoundError extends SandboxError {
   name = "EgressPolicyNotFoundError";
+}
+export class StorageConnectionNotFoundError extends SandboxError {
+  name = "StorageConnectionNotFoundError";
+}
+export class StorageMountNotFoundError extends SandboxError {
+  name = "StorageMountNotFoundError";
+}
+/** A detach of the same mount landed before the attach finished. */
+export class StorageMountAttachCancelledError extends SandboxError {
+  name = "StorageMountAttachCancelledError";
+}
+/** Tenki disabled the storage connection; contact support to restore it. */
+export class StorageConnectionDisabledError extends SandboxError {
+  name = "StorageConnectionDisabledError";
 }
 export class RegistryImageNotFoundError extends SandboxError {
   name = "RegistryImageNotFoundError";
@@ -285,6 +319,20 @@ export function sessionTerminationCause(reason: string): string {
     .trim();
 }
 
+// Same pattern as fileTooLargeRe in errors.go and _FILE_TOO_LARGE in errors.py.
+const FILE_TOO_LARGE = /file too large for (ReadFile|WriteFile): size_bytes=(\d{1,18}) max_bytes=(\d{1,18})/;
+
+function fileTooLargeError(err: ConnectError): FileTooLargeError | undefined {
+  const match = FILE_TOO_LARGE.exec(err.message);
+  if (!match) return undefined;
+  const operation = match[1] as "ReadFile" | "WriteFile";
+  return new FileTooLargeError(err.message, operation, BigInt(match[2]!), BigInt(match[3]!), { cause: err });
+}
+
+// A guest agent without a primitive answers with this text; older node agents relay it as Internal, newer as Unimplemented.
+// Same pattern as legacyGuestUnknownRequestRe in errors.go and _LEGACY_GUEST_UNKNOWN_REQUEST in errors.py.
+const LEGACY_GUEST_UNKNOWN_REQUEST = /unknown request type: \*sandboxv1\.GuestRequest_(\w+)/;
+
 // Git failure classification — see the matching block in errors.go / errors.py.
 const GIT_FAILURE = /git .*failed \(exit_code=/i;
 const GIT_EXIT_CODE = /\(exit_code=(\d+)\)/;
@@ -308,6 +356,10 @@ export function mapError(err: unknown): SandboxError {
   if (isDataPlaneEdgeNotReady(connectErr)) {
     return dataPlaneNotReadyError(connectErr);
   }
+  const legacyGuest = LEGACY_GUEST_UNKNOWN_REQUEST.exec(connectErr.message);
+  if (legacyGuest) {
+    return new CapabilityUnavailableError(legacyGuest[1]!, connectErr.message, { cause: connectErr });
+  }
 
   const msg = connectErr.message.toLowerCase();
   const cause = connectErr;
@@ -321,6 +373,8 @@ export function mapError(err: unknown): SandboxError {
       // Matched as a prefix first: the message ends with caller-chosen policy names.
       if (connectErr.rawMessage.toLowerCase().startsWith("egress polic"))
         return new EgressPolicyNotFoundError(connectErr.message, { cause });
+      if (msg.includes("storage connection")) return new StorageConnectionNotFoundError(connectErr.message, { cause });
+      if (msg.includes("storage mount")) return new StorageMountNotFoundError(connectErr.message, { cause });
       if (msg.includes("template build")) return new TemplateBuildNotFoundError(connectErr.message, { cause });
       if (msg.includes("template")) return new TemplateNotFoundError(connectErr.message, { cause });
       if (msg.includes("registry image")) return new RegistryImageNotFoundError(connectErr.message, { cause });
@@ -334,13 +388,17 @@ export function mapError(err: unknown): SandboxError {
       return new SandboxError(connectErr.message, { cause });
     case Code.DeadlineExceeded:
       return new CommandTimeoutError(connectErr.message, { cause });
-    case Code.ResourceExhausted:
+    case Code.ResourceExhausted: {
+      const tooLarge = fileTooLargeError(connectErr);
+      if (tooLarge) return tooLarge;
       if (msg.includes("maximum exposed ports")) return new PortLimitExceededError(connectErr.message, { cause });
       if (msg.includes("volume")) return new VolumeLimitExceededError(connectErr.message, { cause });
       if (msg.includes("rate limit")) return new RateLimitedError(connectErr.message, { cause });
       if (msg.includes("capacity")) return new CapacityUnavailableError(connectErr.message, { cause });
       return new QuotaExceededError(connectErr.message, { cause });
+    }
     case Code.FailedPrecondition:
+      if (msg.includes("disabled by tenki")) return new StorageConnectionDisabledError(connectErr.message, { cause });
       if (msg.includes("snapshot not yet durable")) {
         return new SnapshotNotDurableError(connectErr.message, { cause });
       }
@@ -363,6 +421,12 @@ export function mapError(err: unknown): SandboxError {
       if (msg.includes("inbound access is disabled")) return new InboundDisabledError(connectErr.message, { cause });
       if (msg.includes("ssh")) return new SSHUnavailableError(connectErr.message, { cause });
       return new InvalidStateError(connectErr.message, { cause });
+    case Code.Aborted:
+      if (msg.includes("cancelled by a detach"))
+        return new StorageMountAttachCancelledError(connectErr.message, { cause });
+      if (connectErr.rawMessage.toLowerCase().startsWith("resume failed"))
+        return new ResumeFailedError(connectErr.message, { cause });
+      return new SandboxError(connectErr.message, { cause });
     case Code.Unavailable:
       if (msg.includes("ssh")) return new SSHUnavailableError(connectErr.message, { cause });
       return new SandboxError(connectErr.message, { cause });

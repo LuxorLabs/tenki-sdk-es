@@ -1,4 +1,4 @@
-export { TenkiSandbox } from "./client.js";
+export { TenkiSandbox, LuxorSandbox } from "./client.js";
 export { Session } from "./session.js";
 export type {
   SessionState,
@@ -58,6 +58,21 @@ export { isDiskExhausted, diskUsedBytes, diskUsedPercent } from "./disk.js";
 export type { Snapshot, SnapshotDownloadURL, SnapshotState } from "./snapshot.js";
 export type { Volume, VolumeAttachment, VolumeState } from "./volume.js";
 export { volumeIsDeletable } from "./volume.js";
+export type {
+  StorageAccess,
+  StorageAuthMethod,
+  StorageConnection,
+  StorageConnectionCredentials,
+  StorageConnectionList,
+  StorageConnectionSecrets,
+  StorageConnectionTest,
+  StorageDefaultMount,
+  StorageDefaults,
+  StorageMount,
+  StorageMountConfig,
+  StorageProvider,
+  StorageSecret,
+} from "./storage.js";
 export type {
   RegistryDeleteResult,
   RegistryImage,
@@ -152,6 +167,7 @@ export {
   SessionExpiredError,
   SessionTerminatedError,
   FileNotFoundError,
+  FileTooLargeError,
   InvalidStateError,
   CommandTimeoutError,
   UnauthorizedError,
@@ -164,6 +180,10 @@ export {
   RateLimitedError,
   VolumeNotFoundError,
   EgressPolicyNotFoundError,
+  StorageConnectionNotFoundError,
+  StorageMountAttachCancelledError,
+  StorageConnectionDisabledError,
+  StorageMountNotFoundError,
   VolumeInUseError,
   VolumeSyncPendingError,
   VolumeLimitExceededError,
@@ -175,6 +195,7 @@ export {
   SnapshotWaitTimeoutError,
   SnapshotNotDurableError,
   ResumeFailedError,
+  ResumeWaitTimeoutError,
   PauseFailedError,
   InvalidTemplateSpecError,
   TemplateNotFoundError,
