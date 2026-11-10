@@ -748,6 +748,7 @@ export class Session implements SessionHandle, AsyncDisposable {
     return exposeHostPortResilient(this, hostAddr, options);
   }
 
+  // Writes up to 32 MiB; larger content throws FileTooLargeError, so write it with writeFileStream.
   async writeFile(path: string, data: Uint8Array | string): Promise<void> {
     const content = typeof data === "string" ? new TextEncoder().encode(data) : data;
     try {
@@ -763,6 +764,7 @@ export class Session implements SessionHandle, AsyncDisposable {
     }
   }
 
+  // Reads up to 32 MiB; larger files throw FileTooLargeError, so read them with readFileStream.
   async readFile(path: string): Promise<Uint8Array> {
     try {
       const request = create(ReadFileRequestSchema, { sessionId: this.id, path });

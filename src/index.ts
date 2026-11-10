@@ -167,6 +167,7 @@ export {
   SessionExpiredError,
   SessionTerminatedError,
   FileNotFoundError,
+  FileTooLargeError,
   InvalidStateError,
   CommandTimeoutError,
   UnauthorizedError,

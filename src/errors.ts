@@ -46,6 +46,21 @@ export class SessionTerminatedError extends SandboxError {
 export class FileNotFoundError extends SandboxError {
   name = "FileNotFoundError";
 }
+// FileTooLargeError means a unary readFile or writeFile refused a file above maxBytes; use readFileStream
+// or writeFileStream instead. operation is "ReadFile" or "WriteFile". sizeBytes is a lower bound when the
+// guest could not stat the file's size.
+export class FileTooLargeError extends SandboxError {
+  name = "FileTooLargeError";
+  constructor(
+    message: string,
+    readonly operation: "ReadFile" | "WriteFile",
+    readonly sizeBytes: bigint,
+    readonly maxBytes: bigint,
+    options?: ErrorOptions,
+  ) {
+    super(message, options);
+  }
+}
 export class InvalidStateError extends SandboxError {
   name = "InvalidStateError";
 }
@@ -304,6 +319,20 @@ export function sessionTerminationCause(reason: string): string {
     .trim();
 }
 
+// Same pattern as fileTooLargeRe in errors.go and _FILE_TOO_LARGE in errors.py.
+const FILE_TOO_LARGE = /file too large for (ReadFile|WriteFile): size_bytes=(\d{1,18}) max_bytes=(\d{1,18})/;
+
+function fileTooLargeError(err: ConnectError): FileTooLargeError | undefined {
+  const match = FILE_TOO_LARGE.exec(err.message);
+  if (!match) return undefined;
+  const operation = match[1] as "ReadFile" | "WriteFile";
+  return new FileTooLargeError(err.message, operation, BigInt(match[2]!), BigInt(match[3]!), { cause: err });
+}
+
+// A guest agent without a primitive answers with this text; older node agents relay it as Internal, newer as Unimplemented.
+// Same pattern as legacyGuestUnknownRequestRe in errors.go and _LEGACY_GUEST_UNKNOWN_REQUEST in errors.py.
+const LEGACY_GUEST_UNKNOWN_REQUEST = /unknown request type: \*sandboxv1\.GuestRequest_(\w+)/;
+
 // Git failure classification — see the matching block in errors.go / errors.py.
 const GIT_FAILURE = /git .*failed \(exit_code=/i;
 const GIT_EXIT_CODE = /\(exit_code=(\d+)\)/;
@@ -326,6 +355,10 @@ export function mapError(err: unknown): SandboxError {
   }
   if (isDataPlaneEdgeNotReady(connectErr)) {
     return dataPlaneNotReadyError(connectErr);
+  }
+  const legacyGuest = LEGACY_GUEST_UNKNOWN_REQUEST.exec(connectErr.message);
+  if (legacyGuest) {
+    return new CapabilityUnavailableError(legacyGuest[1]!, connectErr.message, { cause: connectErr });
   }
 
   const msg = connectErr.message.toLowerCase();
@@ -355,12 +388,15 @@ export function mapError(err: unknown): SandboxError {
       return new SandboxError(connectErr.message, { cause });
     case Code.DeadlineExceeded:
       return new CommandTimeoutError(connectErr.message, { cause });
-    case Code.ResourceExhausted:
+    case Code.ResourceExhausted: {
+      const tooLarge = fileTooLargeError(connectErr);
+      if (tooLarge) return tooLarge;
       if (msg.includes("maximum exposed ports")) return new PortLimitExceededError(connectErr.message, { cause });
       if (msg.includes("volume")) return new VolumeLimitExceededError(connectErr.message, { cause });
       if (msg.includes("rate limit")) return new RateLimitedError(connectErr.message, { cause });
       if (msg.includes("capacity")) return new CapacityUnavailableError(connectErr.message, { cause });
       return new QuotaExceededError(connectErr.message, { cause });
+    }
     case Code.FailedPrecondition:
       if (msg.includes("disabled by tenki")) return new StorageConnectionDisabledError(connectErr.message, { cause });
       if (msg.includes("snapshot not yet durable")) {
