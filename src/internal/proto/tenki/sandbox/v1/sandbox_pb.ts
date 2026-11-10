@@ -1640,7 +1640,8 @@ export const CommandExecutionSchema: GenMessage<CommandExecution> = /*@__PURE__*
  */
 export type SessionEgressPolicy = Message<"tenki.sandbox.v1.SessionEgressPolicy"> & {
   /**
-   * Exact names or single-label "*.example.com" wildcards.
+   * Exact names, single-label "*.example.com" wildcards, or multi-label
+   * "**.example.com" wildcards. Wildcards never match the bare parent.
    *
    * @generated from field: repeated string allow_domains = 1;
    */
@@ -7340,8 +7341,8 @@ export const TailnetStatusSchema: GenMessage<TailnetStatus> = /*@__PURE__*/
  */
 export type SessionEgressHttpRule = Message<"tenki.sandbox.v1.SessionEgressHttpRule"> & {
   /**
-   * Exact names, single-label "*.example.com" wildcards, or "*" for every
-   * allowed domain.
+   * Exact names, single-label "*.example.com" wildcards, multi-label
+   * "**.example.com" wildcards, or "*" for every allowed domain.
    *
    * @generated from field: repeated string domains = 1;
    */

@@ -52,7 +52,7 @@ export interface CreateOptions {
   name?: string;
   allowInbound?: boolean;
   allowOutbound?: boolean;
-  /** Restricts outbound access to these domains (exact host or a single leading "*." wildcard). No effect if allowOutbound is false. */
+  /** Restricts outbound access to these domains (exact host, "*." for one subdomain label, or "**." for any depth). No effect if allowOutbound is false. */
   allowDomains?: string[];
   /** Restricts outbound access to these IPv4 CIDRs. No effect if allowOutbound is false. */
   allowCidrs?: string[];
