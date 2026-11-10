@@ -123,17 +123,17 @@ describe("lx_ API keys", () => {
 });
 
 describe("SDK identity headers", () => {
-  it("sets x-luxor-sdk and leads the User-Agent with the SDK", () => {
+  it("sends client metadata and leads the User-Agent with the SDK", () => {
     const headers = new Headers({ "User-Agent": "connect-es/2.1.2" });
     setAuthHeaders(headers, "lx_test");
-    expect(headers.get("x-luxor-sdk")).toBe(`typescript/${version}`);
+    expect(headers.get("x-luxor-client-family")).toBe("typescript");
     expect(headers.get("user-agent")).toBe(`luxor-sandbox-typescript/${version} connect-es/2.1.2`);
     setAuthHeaders(headers, "lx_test");
     expect(headers.get("user-agent")).toBe(`luxor-sandbox-typescript/${version} connect-es/2.1.2`);
   });
 
-  it("sends the SDK header on workspace requests and reads LUXORAI_CLOUD_API_URL first", async () => {
-    const seen: Array<{ authorization: string | null; sdk: string | null; userAgent: string | null }> = [];
+  it("sends client metadata on workspace requests and reads LUXORAI_CLOUD_API_URL first", async () => {
+    const seen: Array<{ authorization: string | null; clientFamily: string | null; userAgent: string | null }> = [];
     const server = createServer(
       connectNodeAdapter({
         routes(router) {
@@ -141,7 +141,7 @@ describe("SDK identity headers", () => {
             getSecret(_request, context) {
               seen.push({
                 authorization: context.requestHeader.get("authorization"),
-                sdk: context.requestHeader.get("x-luxor-sdk"),
+                clientFamily: context.requestHeader.get("x-luxor-client-family"),
                 userAgent: context.requestHeader.get("user-agent"),
               });
               return { secret: { id: "secret" } };
@@ -162,7 +162,7 @@ describe("SDK identity headers", () => {
       expect(seen).toEqual([
         {
           authorization: "Bearer lx_luxorai",
-          sdk: `typescript/${version}`,
+          clientFamily: "typescript",
           userAgent: expect.stringMatching(/^luxor-sandbox-typescript\//),
         },
       ]);
@@ -172,14 +172,14 @@ describe("SDK identity headers", () => {
     }
   });
 
-  it("sends the SDK header on data-plane requests", async () => {
+  it("sends client metadata on data-plane requests", async () => {
     const seen: Array<string | null> = [];
     const server = createServer(
       connectNodeAdapter({
         routes(router) {
           router.service(SandboxSessionDataPlaneService, {
             stat(_request, context) {
-              seen.push(context.requestHeader.get("x-luxor-sdk"));
+              seen.push(context.requestHeader.get("x-luxor-client-family"));
               return { response: {} };
             },
           });
@@ -200,7 +200,7 @@ describe("SDK identity headers", () => {
     const client = createDataPlaneClient(endpoint, credentials, "session-1");
     try {
       await client.stat({ request: { sessionId: "session-1", path: "/" } } as never);
-      expect(seen).toEqual([`typescript/${version}`]);
+      expect(seen).toEqual(["typescript"]);
     } finally {
       closeDataPlaneConnection(client);
       server.close();

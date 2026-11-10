@@ -27,8 +27,6 @@ export const DEFAULT_BASE_URL = "https://api.tenki.cloud";
 
 declare const __SDK_VERSION__: string | undefined;
 export const SDK_VERSION = typeof __SDK_VERSION__ === "string" ? __SDK_VERSION__ : "unknown";
-export const SDK_HEADER = "x-luxor-sdk";
-export const SDK_HEADER_VALUE = `typescript/${SDK_VERSION}`;
 export const SDK_USER_AGENT = `luxor-sandbox-typescript/${SDK_VERSION}`;
 export const DEFAULT_TIMEOUT_MS = 30_000;
 export const DEFAULT_DATA_PLANE_READY_TIMEOUT_MS = 60_000;

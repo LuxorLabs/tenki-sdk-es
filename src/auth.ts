@@ -1,7 +1,7 @@
 import type { Interceptor } from "@connectrpc/connect";
 
 import { setClientMetadataHeaders } from "./client-metadata.js";
-import { API_KEY_PREFIXES, AUTH_TOKEN_ENVS, SDK_HEADER, SDK_HEADER_VALUE, SDK_USER_AGENT } from "./constants.js";
+import { API_KEY_PREFIXES, AUTH_TOKEN_ENVS, SDK_USER_AGENT } from "./constants.js";
 import { readEnv } from "./env.js";
 import { InvalidAuthTokenError, MissingAuthTokenError } from "./errors.js";
 
@@ -34,9 +34,8 @@ export function setAuthHeaders(headers: Headers, token: string): void {
   setClientMetadataHeaders(headers);
 }
 
-/** Sets the SDK header and leads the User-Agent with the SDK product, keeping any existing value. */
+/** Leads the User-Agent with the SDK product, keeping any existing value. */
 export function setSdkIdentityHeaders(headers: Headers): void {
-  headers.set(SDK_HEADER, SDK_HEADER_VALUE);
   const existing = headers.get("User-Agent");
   if (!existing) headers.set("User-Agent", SDK_USER_AGENT);
   else if (!existing.startsWith(SDK_USER_AGENT)) headers.set("User-Agent", `${SDK_USER_AGENT} ${existing}`);
