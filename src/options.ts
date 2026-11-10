@@ -3,6 +3,7 @@ import type { Transport } from "@connectrpc/connect";
 
 import type { RegistryImageKind, RegistrySortBy, RegistryVisibility } from "./registry.js";
 import type { RuntimeSecretFile } from "./secret-files.js";
+import type { StorageMountConfig } from "./storage.js";
 import type { TailnetAttachmentOptions } from "./tailnet.js";
 import type { TemplateSpec } from "./template-spec.js";
 import type { Template, TemplateImageRef } from "./template.js";
@@ -107,6 +108,12 @@ export interface CreateOptions {
   enableOpenCode?: boolean;
   cloneRepoUrl?: string;
   volumes?: VolumeMountConfig[];
+  /** Added to the workspace's default mounts; set defaultMountId to change a default. */
+  storageMounts?: StorageMountConfig[];
+  /** Skips the workspace's default storage mounts. */
+  disableStorageDefaults?: boolean;
+  /** Workspace default mounts to leave out of this sandbox. */
+  excludedDefaultMountIds?: string[];
   openCodeProvider?: OpenCodeProviderConfig;
   githubToken?: string;
   sticky?: boolean;

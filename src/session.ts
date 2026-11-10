@@ -42,9 +42,11 @@ import {
 import { Git } from "./git.js";
 import type { SandboxSession, SessionEgressHttpRule } from "./internal/proto/tenki/sandbox/v1/sandbox_pb.js";
 import {
+  AttachStorageMountRequestSchema,
   AttachVolumeRequestSchema,
   CreateSessionCredentialRequestSchema,
   DataPlaneRouteStatus,
+  DetachStorageMountRequestSchema,
   DetachVolumeRequestSchema,
   ExposePortRequestSchema,
   ExtendSessionRequestSchema,
@@ -54,6 +56,7 @@ import {
   GetSessionRequestSchema,
   GitOperationRequestSchema,
   ListExposedPortsRequestSchema,
+  ListStorageMountsRequestSchema,
   PauseSessionRequestSchema,
   SessionState as ProtoSessionState,
   WildcardStatus as ProtoWildcardStatus,
@@ -94,6 +97,12 @@ import { isRetryableWaitPollError, isRetryableWaitStreamError, WaitStreamEndedEr
 import type { CommandStatus, ExecResult } from "./result.js";
 import { snapshotFromProto, type Snapshot } from "./snapshot.js";
 import { connectSSH, type SSHConnection, type SSHConnectOptions } from "./ssh.js";
+import {
+  storageMountFromProto,
+  storageMountSpecToProto,
+  type StorageMount,
+  type StorageMountConfig,
+} from "./storage.js";
 import { Stream } from "./stream.js";
 import { tailnetStatusFromProto, type TailnetStatus } from "./tailnet.js";
 import {
@@ -1161,6 +1170,39 @@ export class Session implements SessionHandle, AsyncDisposable {
     }
 
     this.volumeMounts = this.volumeMounts.filter((v) => v.volumeId !== volumeId);
+  }
+
+  async listStorageMounts(): Promise<StorageMount[]> {
+    try {
+      const response = await this.rpcClient.listStorageMounts(
+        create(ListStorageMountsRequestSchema, { sessionId: this.id }),
+      );
+      return (response.mounts ?? []).map(storageMountFromProto);
+    } catch (err) {
+      throw mapError(err);
+    }
+  }
+
+  async attachStorageMount(mount: StorageMountConfig): Promise<StorageMount> {
+    try {
+      const response = await this.rpcClient.attachStorageMount(
+        create(AttachStorageMountRequestSchema, {
+          sessionId: this.id,
+          mount: storageMountSpecToProto(mount),
+        }),
+      );
+      return storageMountFromProto(response.mount!);
+    } catch (err) {
+      throw mapError(err);
+    }
+  }
+
+  async detachStorageMount(mountId: string): Promise<void> {
+    try {
+      await this.rpcClient.detachStorageMount(create(DetachStorageMountRequestSchema, { sessionId: this.id, mountId }));
+    } catch (err) {
+      throw mapError(err);
+    }
   }
 
   private isVolumeDetached(volumeId: string): boolean {

@@ -55,32 +55,40 @@ import {
   CreateEgressPolicyRequestSchema,
   CreateSessionRequestSchema,
   CreateSnapshotRequestSchema,
+  CreateStorageConnectionRequestSchema,
   CreateVolumeRequestSchema,
   DataPlaneRouteStatus,
   DeleteEgressPolicyRequestSchema,
   DeleteSnapshotRequestSchema,
+  DeleteStorageConnectionRequestSchema,
   DeleteVolumeRequestSchema,
   GetEgressPolicyRequestSchema,
   GetSessionMetricsRequestSchema,
   GetSessionRequestSchema,
   GetSnapshotDownloadURLRequestSchema,
   GetSnapshotRequestSchema,
+  GetStorageDefaultsRequestSchema,
   GetVolumeRequestSchema,
   GetWorkspaceSandboxUsageRequestSchema,
   ListCIRunnerSizesRequestSchema,
   ListDanglingSnapshotsRequestSchema,
   ListEgressPoliciesRequestSchema,
   ListSessionSnapshotsRequestSchema,
+  ListStorageConnectionsRequestSchema,
   ListVolumesRequestSchema,
   ListWorkspaceSandboxesRequestSchema,
   ListWorkspaceSnapshotsRequestSchema,
   ResizeVolumeRequestSchema,
   SandboxService,
+  SaveStorageDefaultsRequestSchema,
   SessionEgressPolicySchema,
+  StorageDefaultsSchema,
   TemplateRuntimeFailureSchema,
+  TestStorageConnectionRequestSchema,
   UpdateEgressPolicyRequestSchema,
   UpdateSessionRequestSchema,
   UpdateSnapshotRequestSchema,
+  UpdateStorageConnectionRequestSchema,
   UpdateVolumeRequestSchema,
   VolumeMountSchema,
   WhoAmIRequestSchema,
@@ -152,6 +160,27 @@ import type { SSHCert } from "./ssh-cert.js";
 import { issueSandboxSSHCert } from "./ssh-cert.js";
 import type { SSHConnection, SSHConnectOptions } from "./ssh.js";
 import { connectSSH, deriveGatewayAddress, discoverSSHGatewayUrl } from "./ssh.js";
+import type {
+  StorageAccess,
+  StorageAuthMethod,
+  StorageConnection,
+  StorageConnectionCredentials,
+  StorageConnectionList,
+  StorageConnectionTest,
+  StorageDefaults,
+  StorageProvider,
+} from "./storage.js";
+import {
+  storageAccessToProto,
+  storageAuthMethodToProto,
+  storageConnectionFromProto,
+  storageCredentialsToProto,
+  storageDefaultMountToProto,
+  storageDefaultsFromProto,
+  storageMountSpecToProto,
+  storageProviderToProto,
+  storageTestReasonFromProto,
+} from "./storage.js";
 import { tailnetAttachmentToProto } from "./tailnet.js";
 import type { TemplateSpec, TemplateSpecViolation } from "./template-spec.js";
 import type {
@@ -340,6 +369,15 @@ export class TenkiSandbox implements AsyncDisposable {
           readonly: v.readOnly ?? false,
         }),
       );
+    }
+    if (options?.storageMounts?.length) {
+      req.storageMounts = options.storageMounts.map((mount) => storageMountSpecToProto(mount));
+    }
+    if (options?.disableStorageDefaults) {
+      req.disableStorageDefaults = true;
+    }
+    if (options?.excludedDefaultMountIds?.length) {
+      req.excludedDefaultMountIds = options.excludedDefaultMountIds.map((id) => id.trim());
     }
 
     // OpenCode provider env vars
@@ -734,6 +772,139 @@ export class TenkiSandbox implements AsyncDisposable {
     throw new SnapshotWaitTimeoutError(
       `timeout waiting for snapshot ${snapshotId} to become ready; it is still being created, call waitSnapshotReady("${snapshotId}") to keep waiting`,
     );
+  }
+
+  /** Credentials go to Tenki Secrets (s3_storage scope); the connection keeps only their names. */
+  async createStorageConnection(options: {
+    /** Defaults to the workspace of a workspace API key. */
+    workspaceId?: string;
+    name: string;
+    provider: StorageProvider;
+    /** May be empty for AWS_S3 (derived from region) and GCS. */
+    endpoint?: string;
+    bucket: string;
+    region?: string;
+    authMethod: StorageAuthMethod;
+    defaultAccess: StorageAccess;
+    credentials: StorageConnectionCredentials;
+  }): Promise<StorageConnection> {
+    try {
+      const resp = await this.rpcClient.createStorageConnection(
+        create(CreateStorageConnectionRequestSchema, {
+          workspaceId: options.workspaceId?.trim() ?? "",
+          name: options.name.trim(),
+          provider: storageProviderToProto(options.provider),
+          endpoint: options.endpoint?.trim() ?? "",
+          bucket: options.bucket.trim(),
+          region: options.region?.trim() ?? "",
+          authMethod: storageAuthMethodToProto(options.authMethod),
+          defaultAccess: storageAccessToProto(options.defaultAccess),
+          credentials: storageCredentialsToProto(options.credentials),
+        }),
+      );
+      return storageConnectionFromProto(resp.connection!);
+    } catch (err) {
+      throw mapError(err);
+    }
+  }
+
+  /** Lists the connections of `workspaceId`, or of the API key's workspace when omitted. */
+  async listStorageConnections(workspaceId = ""): Promise<StorageConnectionList> {
+    try {
+      const resp = await this.rpcClient.listStorageConnections(
+        create(ListStorageConnectionsRequestSchema, { workspaceId: workspaceId.trim() }),
+      );
+      return {
+        connections: (resp.connections ?? []).map(storageConnectionFromProto),
+        oidcIssuer: resp.oidcIssuer,
+        oidcAudience: resp.oidcAudience,
+      };
+    } catch (err) {
+      throw mapError(err);
+    }
+  }
+
+  async updateStorageConnection(
+    connectionId: string,
+    options: {
+      expectedRevision: bigint;
+      name?: string;
+      endpoint?: string;
+      region?: string;
+      defaultAccess?: StorageAccess;
+      credentials?: StorageConnectionCredentials;
+    },
+  ): Promise<StorageConnection> {
+    try {
+      const resp = await this.rpcClient.updateStorageConnection(
+        create(UpdateStorageConnectionRequestSchema, {
+          connectionId,
+          name: options.name?.trim(),
+          endpoint: options.endpoint?.trim(),
+          region: options.region?.trim(),
+          defaultAccess: options.defaultAccess ? storageAccessToProto(options.defaultAccess) : undefined,
+          credentials: storageCredentialsToProto(options.credentials),
+          expectedRevision: options.expectedRevision,
+        }),
+      );
+      return storageConnectionFromProto(resp.connection!);
+    } catch (err) {
+      throw mapError(err);
+    }
+  }
+
+  async deleteStorageConnection(connectionId: string, expectedRevision: bigint): Promise<void> {
+    try {
+      await this.rpcClient.deleteStorageConnection(
+        create(DeleteStorageConnectionRequestSchema, { connectionId, expectedRevision }),
+      );
+    } catch (err) {
+      throw mapError(err);
+    }
+  }
+
+  async testStorageConnection(connectionId: string): Promise<StorageConnectionTest> {
+    try {
+      const resp = await this.rpcClient.testStorageConnection(
+        create(TestStorageConnectionRequestSchema, { connectionId }),
+      );
+      return {
+        reachable: resp.reachable,
+        reason: storageTestReasonFromProto(resp.reason),
+        message: resp.errorMessage,
+      };
+    } catch (err) {
+      throw mapError(err);
+    }
+  }
+
+  async getStorageDefaults(workspaceId = ""): Promise<StorageDefaults> {
+    try {
+      const resp = await this.rpcClient.getStorageDefaults(
+        create(GetStorageDefaultsRequestSchema, { workspaceId: workspaceId.trim() }),
+      );
+      return storageDefaultsFromProto(resp.defaults);
+    } catch (err) {
+      throw mapError(err);
+    }
+  }
+
+  /** Replaces the workspace's default mounts; pass the revision you read (0 before the first save). */
+  async saveStorageDefaults(defaults: StorageDefaults, expectedRevision: number): Promise<StorageDefaults> {
+    try {
+      const resp = await this.rpcClient.saveStorageDefaults(
+        create(SaveStorageDefaultsRequestSchema, {
+          defaults: create(StorageDefaultsSchema, {
+            workspaceId: defaults.workspaceId.trim(),
+            mounts: defaults.mounts.map(storageDefaultMountToProto),
+          }),
+          expectedRevision,
+        }),
+      );
+      return storageDefaultsFromProto(resp.defaults);
+    } catch (err) {
+      throw mapError(err);
+    }
   }
 
   // -- Egress policies --

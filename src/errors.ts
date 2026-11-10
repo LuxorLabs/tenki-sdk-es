@@ -141,6 +141,20 @@ export class TemplateNotFoundError extends SandboxError {
 export class EgressPolicyNotFoundError extends SandboxError {
   name = "EgressPolicyNotFoundError";
 }
+export class StorageConnectionNotFoundError extends SandboxError {
+  name = "StorageConnectionNotFoundError";
+}
+export class StorageMountNotFoundError extends SandboxError {
+  name = "StorageMountNotFoundError";
+}
+/** A detach of the same mount landed before the attach finished. */
+export class StorageMountAttachCancelledError extends SandboxError {
+  name = "StorageMountAttachCancelledError";
+}
+/** Tenki disabled the storage connection; contact support to restore it. */
+export class StorageConnectionDisabledError extends SandboxError {
+  name = "StorageConnectionDisabledError";
+}
 export class RegistryImageNotFoundError extends SandboxError {
   name = "RegistryImageNotFoundError";
 }
@@ -326,6 +340,8 @@ export function mapError(err: unknown): SandboxError {
       // Matched as a prefix first: the message ends with caller-chosen policy names.
       if (connectErr.rawMessage.toLowerCase().startsWith("egress polic"))
         return new EgressPolicyNotFoundError(connectErr.message, { cause });
+      if (msg.includes("storage connection")) return new StorageConnectionNotFoundError(connectErr.message, { cause });
+      if (msg.includes("storage mount")) return new StorageMountNotFoundError(connectErr.message, { cause });
       if (msg.includes("template build")) return new TemplateBuildNotFoundError(connectErr.message, { cause });
       if (msg.includes("template")) return new TemplateNotFoundError(connectErr.message, { cause });
       if (msg.includes("registry image")) return new RegistryImageNotFoundError(connectErr.message, { cause });
@@ -346,6 +362,7 @@ export function mapError(err: unknown): SandboxError {
       if (msg.includes("capacity")) return new CapacityUnavailableError(connectErr.message, { cause });
       return new QuotaExceededError(connectErr.message, { cause });
     case Code.FailedPrecondition:
+      if (msg.includes("disabled by tenki")) return new StorageConnectionDisabledError(connectErr.message, { cause });
       if (msg.includes("snapshot not yet durable")) {
         return new SnapshotNotDurableError(connectErr.message, { cause });
       }
@@ -369,6 +386,8 @@ export function mapError(err: unknown): SandboxError {
       if (msg.includes("ssh")) return new SSHUnavailableError(connectErr.message, { cause });
       return new InvalidStateError(connectErr.message, { cause });
     case Code.Aborted:
+      if (msg.includes("cancelled by a detach"))
+        return new StorageMountAttachCancelledError(connectErr.message, { cause });
       if (connectErr.rawMessage.toLowerCase().startsWith("resume failed"))
         return new ResumeFailedError(connectErr.message, { cause });
       return new SandboxError(connectErr.message, { cause });

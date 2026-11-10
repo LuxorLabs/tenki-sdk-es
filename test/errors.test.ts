@@ -22,6 +22,10 @@ import {
   SnapshotNotDurableError,
   SnapshotNotFoundError,
   SSHUnavailableError,
+  StorageConnectionDisabledError,
+  StorageConnectionNotFoundError,
+  StorageMountAttachCancelledError,
+  StorageMountNotFoundError,
   TemplateBuildFailedError,
   TemplateBuildInProgressError,
   TemplateBuildNotFoundError,
@@ -39,6 +43,10 @@ import {
   RegistryImageNotFoundError as PublicRegistryImageNotFoundError,
   ResumeFailedError as PublicResumeFailedError,
   SnapshotNotDurableError as PublicSnapshotNotDurableError,
+  StorageConnectionDisabledError as PublicStorageConnectionDisabledError,
+  StorageConnectionNotFoundError as PublicStorageConnectionNotFoundError,
+  StorageMountAttachCancelledError as PublicStorageMountAttachCancelledError,
+  StorageMountNotFoundError as PublicStorageMountNotFoundError,
 } from "../src/index.js";
 
 describe("mapError", () => {
@@ -113,6 +121,34 @@ describe("mapError", () => {
 
     it("maps NotFound to SessionNotFoundError by default", () => {
       expect(mapError(connectErr(Code.NotFound, "session not found"))).toBeInstanceOf(SessionNotFoundError);
+    });
+
+    it("maps a missing storage connection or mount to its own error, not SessionNotFoundError", () => {
+      const connection = mapError(connectErr(Code.NotFound, "storage connection not found"));
+      expect(connection).toBeInstanceOf(StorageConnectionNotFoundError);
+      expect(connection).not.toBeInstanceOf(SessionNotFoundError);
+      expect(mapError(connectErr(Code.NotFound, "storage mount not found"))).toBeInstanceOf(StorageMountNotFoundError);
+      expect(PublicStorageConnectionNotFoundError).toBe(StorageConnectionNotFoundError);
+      expect(PublicStorageMountNotFoundError).toBe(StorageMountNotFoundError);
+    });
+
+    it("maps an attach that the caller's own detach cancelled to StorageMountAttachCancelledError", () => {
+      const cancelled = mapError(connectErr(Code.Aborted, "storage mount attach was cancelled by a detach"));
+      expect(cancelled).toBeInstanceOf(StorageMountAttachCancelledError);
+      expect(cancelled).not.toBeInstanceOf(InvalidStateError);
+      expect(PublicStorageMountAttachCancelledError).toBe(StorageMountAttachCancelledError);
+      expect(mapError(connectErr(Code.Aborted, "read ECONNRESET"))).not.toBeInstanceOf(
+        StorageMountAttachCancelledError,
+      );
+    });
+
+    it("maps a connection Tenki disabled to StorageConnectionDisabledError", () => {
+      const disabled = mapError(
+        connectErr(Code.FailedPrecondition, 'storage connection "Build cache" was disabled by Tenki; contact support'),
+      );
+      expect(disabled).toBeInstanceOf(StorageConnectionDisabledError);
+      expect(disabled).not.toBeInstanceOf(InvalidStateError);
+      expect(PublicStorageConnectionDisabledError).toBe(StorageConnectionDisabledError);
     });
 
     it("maps NotFound with 'template build' to TemplateBuildNotFoundError", () => {
