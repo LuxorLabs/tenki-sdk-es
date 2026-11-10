@@ -735,7 +735,7 @@ import { GB, GiB, KB, KiB, MB, MiB, TB, TiB } from "@tenkicloud/sandbox";
 import { WorkspaceClient } from "@tenkicloud/sandbox";
 
 await using workspace = new WorkspaceClient({ workspaceId });
-const secret = await workspace.secrets.create("TOKEN", valueBytes, requestId);
+const secret = await workspace.secrets.create("TOKEN", valueBytes, { description: "Deploy token", requestId });
 ```
 
 Authentication uses `TENKI_AUTH_TOKEN` or `TENKI_API_KEY`. Set `baseUrl` or
@@ -743,18 +743,22 @@ Authentication uses `TENKI_AUTH_TOKEN` or `TENKI_API_KEY`. Set `baseUrl` or
 configuration. Set `workspaceId` once on the client. An omitted or empty workspace ID uses the authenticated workspace key's scope;
 other callers must specify one.
 
-`create`, `createForRepository`, `update`, `get`, `list`, `listVersions`, `revoke`, and `delete` return
-metadata only. Values are `Uint8Array`; omitting `value` on update retains it, while
-an empty array creates an empty value. Update, revoke, and delete require
-`expectedRevision`. To select an existing version, update `activeVersion` with
-`value` omitted. Revoking without `version` revokes every version. Revoking the active version revokes
-the secret until a new value or an unrevoked version is made active.
+`create`, `update`, `get`, `list`, `listVersions`, `revoke`, and `delete` return metadata only.
+Values are `Uint8Array`; an empty array creates an empty value. A string third argument to `create`
+is the request ID. Update, revoke, and delete require `expectedRevision`. Update changes only what
+you set, at least one of `value`, `activeVersion`, `description`, or `availability`: a new value or an
+existing `activeVersion` becomes active and restores a revoked secret, while description and
+availability changes don't. An empty `description` clears it. Revoking without `version` revokes
+every version. Revoking the active version revokes the secret until a new value or an unrevoked
+version is made active.
 
-`createForRepository("acme/api", "TOKEN", valueBytes)` creates a secret that only Tenki CI jobs in
+`create("TOKEN", valueBytes, { repository: "acme/api" })` creates a secret that only Tenki CI jobs in
 that repository receive, replacing a workspace secret with the same name. The repository must be
 connected to the workspace; `listRepositories` pages through the connected repositories and can
-filter them with `search`. `repository` is undefined on workspace secrets. Managed runtimes and
-secret policies use workspace secrets only.
+filter them with `search`. `update` moves a secret with `availability: "workspace"`, or with
+`availability: "repository"` and a `repository`; `list` filters by the same `availability` and `repository`.
+`repository` is undefined on workspace secrets. Managed runtimes and secret policies use workspace
+secrets only.
 
 Mutations generate a request ID when none is supplied. For retries after an
 uncertain result, supply and reuse the same request ID and identical arguments.

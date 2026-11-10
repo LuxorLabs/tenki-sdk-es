@@ -235,9 +235,12 @@ export { WorkspaceSecretError } from "./workspace-secrets.js";
 export type {
   WorkspaceSecret,
   WorkspaceSecretVersion,
+  SecretAvailability,
   SecretMutationOptions,
+  CreateSecretOptions,
   UpdateSecretOptions,
   SecretPageOptions,
+  ListSecretsOptions,
   SecretRepositoryPageOptions,
 } from "./workspace-secrets.js";
 

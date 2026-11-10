@@ -27,7 +27,7 @@ describe("workspace secrets wire contract", () => {
             createSecret(request, context) {
               expect(context.requestHeader.get("authorization")).toBe("Bearer tk_test");
               requests.push(request);
-              return { secret: { ...secret, repository: request.repository } };
+              return { secret: { ...secret, repository: request.repository, description: request.description } };
             },
             updateSecret(request) {
               requests.push(request);
@@ -96,12 +96,11 @@ describe("workspace secrets wire contract", () => {
         requestId: "00000000-0000-4000-8000-000000000004",
       });
       await client.secrets.delete("secret", { expectedRevision: 2, requestId: "00000000-0000-4000-8000-000000000005" });
-      const scoped = await client.secrets.createForRepository(
-        "acme/api",
-        "SCOPED",
-        value,
-        "00000000-0000-4000-8000-000000000007",
-      );
+      const scoped = await client.secrets.create("SCOPED", value, {
+        repository: "acme/api",
+        description: "Deploy token",
+        requestId: "00000000-0000-4000-8000-000000000007",
+      });
       expect(requests[0]).toMatchObject({
         workspaceId,
         value,
@@ -128,12 +127,14 @@ describe("workspace secrets wire contract", () => {
         name: "SCOPED",
         value,
         repository: "acme/api",
+        description: "Deploy token",
         requestId: "00000000-0000-4000-8000-000000000007",
       });
       expect(result.repository).toBeUndefined();
-      expect(scoped.repository).toBe("acme/api");
-      for (const repository of ["", "acme", "acme/api/extra", "/api"]) {
-        await expect(client.secrets.createForRepository(repository, "TOKEN", value)).rejects.toThrow("owner/name");
+      expect(result.description).toBeUndefined();
+      expect(scoped).toMatchObject({ repository: "acme/api", description: "Deploy token" });
+      for (const repository of ["acme", "acme/api/extra", "/api"]) {
+        await expect(client.secrets.create("TOKEN", value, { repository })).rejects.toThrow("owner/name");
       }
       expect(requests).toHaveLength(12);
       expect(await client.secrets.listRepositories({ pageSize: 1, cursor: "acme/a", search: "acme" })).toEqual({
@@ -141,6 +142,46 @@ describe("workspace secrets wire contract", () => {
         nextCursor: "acme/api",
       });
       expect(requests[12]).toMatchObject({ pageSize: 1, cursor: "acme/a", search: "acme" });
+      await client.secrets.update("secret", {
+        expectedRevision: 2,
+        description: "",
+        availability: "repository",
+        repository: "acme/web",
+      });
+      await client.secrets.update("secret", { expectedRevision: 2, availability: "workspace" });
+      await client.secrets.list({ availability: "repository", repository: "acme/api", cursor: "current" });
+      expect(requests[13]).toMatchObject({
+        description: "",
+        availability: pb.SecretAvailability.REPOSITORY,
+        repository: "acme/web",
+      });
+      expect(requests[14]).toMatchObject({ availability: pb.SecretAvailability.WORKSPACE });
+      expect((requests[14] as pb.UpdateSecretRequest).description).toBeUndefined();
+      expect(requests[15]).toMatchObject({
+        availability: pb.SecretAvailability.REPOSITORY,
+        repository: "acme/api",
+        cursor: "current",
+      });
+      await expect(
+        client.secrets.update("secret", { expectedRevision: 2, availability: "repository", repository: "acme" }),
+      ).rejects.toThrow("owner/name");
+      await expect(client.secrets.list({ availability: "everywhere" as never })).rejects.toThrow("availability");
+      // A repository alone means repository availability, as in the CLI.
+      await client.secrets.list({ repository: "acme/api" });
+      await client.secrets.update("secret", { expectedRevision: 2, repository: "acme/web" });
+      expect(requests[16]).toMatchObject({ availability: pb.SecretAvailability.REPOSITORY, repository: "acme/api" });
+      expect(requests[17]).toMatchObject({ availability: pb.SecretAvailability.REPOSITORY, repository: "acme/web" });
+      await expect(client.secrets.update("secret", { expectedRevision: 2, repository: "acme" })).rejects.toThrow(
+        "owner/name",
+      );
+      await expect(client.secrets.list({ repository: "acme" })).rejects.toThrow("owner/name");
+      await expect(
+        client.secrets.update("secret", { expectedRevision: 2, availability: "workspace", repository: "acme/api" }),
+      ).rejects.toThrow("cannot be combined");
+      await expect(client.secrets.list({ availability: "workspace", repository: "acme/api" })).rejects.toThrow(
+        "cannot be combined",
+      );
+      expect(requests).toHaveLength(18);
       for (const request of requests) expect(request).toMatchObject({ workspaceId });
       expect(result).not.toHaveProperty("value");
       expect(result).not.toHaveProperty("ciphertext");
