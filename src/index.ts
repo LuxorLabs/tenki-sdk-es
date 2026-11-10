@@ -138,6 +138,8 @@ export type {
   EgressHttpRule,
   ExecOptions,
   Output,
+  SecretsRefresh,
+  SecretVersion,
   ExposePortOptions,
   DetachVolumeOptions,
   CreateSnapshotOptions,

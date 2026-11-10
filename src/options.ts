@@ -146,9 +146,26 @@ export interface ExecOptions {
    */
   timeoutMs?: number;
   env?: Record<string, string>;
+  /** Adds the secrets delivered to the session to the command environment; `env` still wins. */
+  withSecrets?: boolean;
   onOutput?: (output: Output) => void;
   /** Signals the guest process and rejects the call with the signal's reason. */
   signal?: AbortSignal;
+}
+
+/** One secret binding of a session and the version it now carries; values never leave the engine. */
+export interface SecretVersion {
+  secretName: string;
+  version: number;
+  environmentKey: string;
+  filePath: string;
+}
+
+export interface SecretsRefresh {
+  /** False when every binding already used the current version; the secrets are re-delivered either way. */
+  changed: boolean;
+  versions: SecretVersion[];
+  workflowId: string;
 }
 
 export interface Output {

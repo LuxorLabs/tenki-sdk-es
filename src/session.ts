@@ -61,6 +61,7 @@ import {
   SessionState as ProtoSessionState,
   WildcardStatus as ProtoWildcardStatus,
   ReadFileRequestSchema,
+  RefreshSessionSecretsRequestSchema,
   ResumeSessionRequestSchema,
   SandboxService,
   SandboxSessionDataPlaneService,
@@ -87,6 +88,7 @@ import type {
   ExposePortOptions,
   ForkOptions,
   Output,
+  SecretsRefresh,
   UpdateSessionOptions,
   VolumeMountConfig,
 } from "./options.js";
@@ -648,6 +650,7 @@ export class Session implements SessionHandle, AsyncDisposable {
     const proc = run(this, argv, {
       cwd: options?.cwd,
       env: options?.env,
+      withSecrets: options?.withSecrets,
       stdin: undefined,
       timeoutMs: options?.timeoutMs,
       signal: options?.signal,
@@ -685,6 +688,7 @@ export class Session implements SessionHandle, AsyncDisposable {
     const proc = run(this, argv, {
       cwd: options?.cwd,
       env: options?.env,
+      withSecrets: options?.withSecrets,
       timeoutMs: options?.timeoutMs,
       signal: options?.signal,
     });
@@ -1082,6 +1086,30 @@ export class Session implements SessionHandle, AsyncDisposable {
           sshAuthorizedKeys: [...keys],
         }),
       );
+    } catch (err) {
+      throw mapError(err);
+    }
+  }
+
+  /**
+   * Re-delivers the session's secret bindings at the workspace's current versions and restarts its
+   * managed runtime. Processes started before the refresh keep their old values.
+   */
+  async refreshSecrets(): Promise<SecretsRefresh> {
+    try {
+      const response = await this.rpcClient.refreshSessionSecrets(
+        create(RefreshSessionSecretsRequestSchema, { sessionId: this.id }),
+      );
+      return {
+        changed: response.changed,
+        workflowId: response.workflowId,
+        versions: response.versions.map((version) => ({
+          secretName: version.secretName,
+          version: version.version,
+          environmentKey: version.environmentKey,
+          filePath: version.filePath,
+        })),
+      };
     } catch (err) {
       throw mapError(err);
     }

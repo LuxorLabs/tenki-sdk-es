@@ -31,6 +31,8 @@ export interface ProcessRunOptions {
   env?: Record<string, string>;
   stdin?: ReadableStream<Uint8Array>;
   privileged?: boolean;
+  /** Adds the secrets delivered to the session to the environment; `env` still wins. */
+  withSecrets?: boolean;
   // Stream output without result capture; both readable streams must be drained.
   streamOnly?: boolean;
   /**
@@ -168,6 +170,7 @@ export function run(_session: Session, _argv: string[], _options?: ProcessRunOpt
         env: options?.env ?? {},
         streamStdin: true,
         privileged: options?.privileged ?? false,
+        withSecrets: options?.withSecrets ?? false,
         timeoutMs: Math.min(timeoutMs, 0xffff_ffff),
       },
     },

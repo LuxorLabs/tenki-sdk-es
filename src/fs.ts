@@ -41,6 +41,8 @@ export interface WriteStreamOptions {
   mode?: number;
   truncate?: boolean;
   sync?: boolean;
+  /** Writes outside the workdir as root; setuid, setgid and sticky bits are never applied. */
+  privileged?: boolean;
 }
 
 export interface ListOptions {
@@ -98,6 +100,7 @@ export async function writeFileStream(
           mode: options?.mode ?? 0o644,
           truncate: options?.truncate ?? true,
           sync: options?.sync ?? false,
+          privileged: options?.privileged ?? false,
         },
       },
     }),
