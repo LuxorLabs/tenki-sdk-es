@@ -10,6 +10,20 @@ npm install @tenkicloud/sandbox
 
 Requires Node.js 18 or newer. Bun 1.3 or newer also works.
 
+### Luxor AI package name
+
+The same SDK is also published as `@luxorai/sandbox`, with the same version and files:
+
+```bash
+npm install @luxorai/sandbox
+```
+
+```typescript
+import { LuxorSandbox } from "@luxorai/sandbox";
+```
+
+`@tenkicloud/sandbox` keeps working and is still published.
+
 ## Streaming without retaining output
 
 Pass `{ streamOnly: true }` to `session.run(argv, options)` to receive stdout and stderr chunks without retaining them in the final result.

@@ -209,10 +209,27 @@ jobs:
           npm stage publish "./${TARBALL}" "$PROVENANCE" --access public --ignore-scripts | tee "$RUNNER_TEMP/stage.out"
           echo "stage_id=$(sed -n 's/.*(staged with id \([0-9a-f-]*\)).*/\1/p' "$RUNNER_TEMP/stage.out")" >> "$GITHUB_OUTPUT"
 
+      # Luxor AI dual publish: the verified tarball renamed to @luxorai/sandbox,
+      # staged the same way. Off until a human sets the repository variable
+      # LUXORAI_PUBLISH=true after configuring the @luxorai/sandbox trusted
+      # publisher (this repo, npm-publish.yml, environment npm-publish).
+      - name: Stage @luxorai/sandbox on npm (trusted publishing)
+        id: stage_luxorai
+        if: vars.LUXORAI_PUBLISH == 'true'
+        run: |
+          set -euo pipefail
+          dir="$RUNNER_TEMP/luxorai-pkg"
+          mkdir -p "$dir"
+          tar xzf "./${TARBALL}" -C "$dir" --strip-components=1
+          (cd "$dir" && npm pkg set name=@luxorai/sandbox)
+          npm stage publish "$dir" "$PROVENANCE" --access public --ignore-scripts | tee "$RUNNER_TEMP/stage-luxorai.out"
+          echo "stage_id=$(sed -n 's/.*(staged with id \([0-9a-f-]*\)).*/\1/p' "$RUNNER_TEMP/stage-luxorai.out")" >> "$GITHUB_OUTPUT"
+
       - name: Release summary
         if: always()
         env:
           STAGE_ID: ${{ steps.stage.outputs.stage_id }}
+          LUXORAI_STAGE_ID: ${{ steps.stage_luxorai.outputs.stage_id }}
         run: |
           {
             echo "### @tenkicloud/sandbox ${VERSION}"
@@ -229,5 +246,12 @@ jobs:
             elif [ "${{ steps.stage.outcome }}" = "success" ]; then
               echo ""
               echo "Not live yet. Find the stage id with \`npm stage list ${PKG}\` and approve it with 2FA."
+            fi
+            if [ "${{ steps.stage_luxorai.outcome }}" != "skipped" ]; then
+              echo ""
+              echo "- @luxorai/sandbox staged: ${{ steps.stage_luxorai.outcome == 'success' && 'yes' || 'no' }}"
+              if [ -n "${LUXORAI_STAGE_ID}" ]; then
+                echo "  approve with \`npm stage approve ${LUXORAI_STAGE_ID}\`"
+              fi
             fi
           } >> "$GITHUB_STEP_SUMMARY"
