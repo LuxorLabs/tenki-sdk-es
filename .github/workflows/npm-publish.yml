@@ -15,9 +15,9 @@ name: Publish
 # (npm-publish.yml) and the npm-publish environment.
 #
 # The same tarball contents also stage as @luxorai/sandbox (only the package
-# name differs) when the repo variable LUXORAI_PUBLISH is 'true'. That package
-# needs its own trusted publisher on npmjs.com naming this workflow and the
-# npm-publish environment.
+# name differs) when the repo variable LUXORAI_PUBLISH is 'true', after the
+# @tenkicloud/sandbox stage succeeds. That package has its own trusted
+# publisher on npmjs.com naming this workflow and the npm-publish environment.
 #
 # The build job runs every gate and packs the tarball without id-token, since it
 # runs dependency code. The publish job installs nothing and stages that
@@ -285,7 +285,8 @@ jobs:
 
   publish-luxorai:
     name: Stage @luxorai/sandbox on npm
-    needs: build
+    # Only after @tenkicloud/sandbox staged successfully.
+    needs: [build, publish]
     if: github.event_name == 'push' && vars.LUXORAI_PUBLISH == 'true'
     # GitHub-hosted on purpose: npm supports neither provenance nor trusted
     # publishing from self-hosted runners.
@@ -302,9 +303,6 @@ jobs:
       VERSION: ${{ needs.build.outputs.version }}
       TARBALL: ${{ needs.build.outputs.luxorai_tarball }}
       SHA256: ${{ needs.build.outputs.luxorai_sha256 }}
-      # Only for the first publish, before the @luxorai/sandbox trusted
-      # publisher exists; npm uses OIDC when it is configured.
-      NODE_AUTH_TOKEN: ${{ secrets.LUXORAI_NPM_TOKEN }}
 
     steps:
       - name: Setup Node
