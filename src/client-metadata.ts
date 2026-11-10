@@ -11,10 +11,10 @@ function runtime(): string {
 }
 
 const clientMetadata: ReadonlyArray<readonly [string, string]> = [
-  ["x-tenki-client-family", "typescript"],
-  ["x-tenki-client-version", __TENKI_SDK_VERSION__],
-  ["x-tenki-client-generation", CLIENT_GENERATION],
-  ["x-tenki-client-runtime", runtime()],
+  ["x-luxor-client-family", "typescript"],
+  ["x-luxor-client-version", __TENKI_SDK_VERSION__],
+  ["x-luxor-client-generation", CLIENT_GENERATION],
+  ["x-luxor-client-runtime", runtime()],
 ];
 
 export function setClientMetadataHeaders(headers: Headers): void {
