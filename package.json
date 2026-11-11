@@ -1,8 +1,10 @@
 {
   "name": "@tenkicloud/sandbox",
-  "version": "1.4.4",
-  "description": "TypeScript SDK for Tenki Sandbox",
+  "version": "1.5.1",
+  "description": "TypeScript SDK for Luxor Sandbox: cloud sandboxes (microVMs) for AI agents on Luxor Agent Cloud",
   "keywords": [
+    "luxor",
+    "luxor-ai",
     "tenki",
     "sandbox",
     "microvm",
@@ -12,7 +14,7 @@
     "code-interpreter",
     "cloud"
   ],
-  "homepage": "https://tenki.cloud/docs/sandbox/sdk",
+  "homepage": "https://luxor.ai/docs/sandbox/sdk",
   "bugs": "https://github.com/LuxorLabs/tenki-sdk-es/issues",
   "repository": {
     "type": "git",

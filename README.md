@@ -1,14 +1,18 @@
-# @tenkicloud/sandbox
+# @luxorai/sandbox
 
-TypeScript SDK for [Tenki Sandbox](https://tenki.cloud), programmatic cloud sandboxes for AI agents.
+TypeScript SDK for [Luxor Sandbox](https://luxor.ai/docs/sandbox/sdk), programmatic cloud sandboxes for AI agents on Luxor Agent Cloud.
 
 ## Install
 
 ```bash
-npm install @tenkicloud/sandbox
+npm install @luxorai/sandbox
 ```
 
 Requires Node.js 18 or newer. Bun 1.3 or newer also works.
+
+> This package was published as `@tenkicloud/sandbox`. That name keeps working and
+> publishes the same code at the same version, and `TenkiSandbox` remains an alias
+> of `LuxorSandbox`.
 
 ## Streaming without retaining output
 
@@ -31,9 +35,9 @@ Release does not close the shared SDK client.
 ## Quick Start
 
 ```typescript
-import { TenkiSandbox } from "@tenkicloud/sandbox";
+import { LuxorSandbox } from "@luxorai/sandbox";
 
-const sandbox = new TenkiSandbox(); // reads TENKI_AUTH_TOKEN
+const sandbox = new LuxorSandbox(); // reads LUXORAI_AUTH_TOKEN
 // create() waits by default via a single server-held request and returns a
 // run-ready sandbox with data-plane access primed.
 const session = await sandbox.create({
@@ -54,12 +58,12 @@ try {
 ### Tailnet attachment
 
 Use `TailnetAuthKey` so string, JSON, and Node debug formatting redact the credential.
-`waitForOnline` keeps the session in creation until Tenki verifies the registered node.
+`waitForOnline` keeps the session in creation until Luxor verifies the registered node.
 
 ```typescript
-import { TailnetAuthKey, TenkiSandbox } from "@tenkicloud/sandbox";
+import { LuxorSandbox, TailnetAuthKey } from "@luxorai/sandbox";
 
-const session = await new TenkiSandbox().create({
+const session = await new LuxorSandbox().create({
   tailnet: {
     authKey: new TailnetAuthKey(process.env.TAILNET_AUTH_KEY!),
     tags: ["tag:sandbox"],
@@ -76,13 +80,15 @@ The server may reject options from later milestones, including wake-on-connect a
 
 ## Authentication
 
-Pass an API key or service token starting with `lx_` or `tk_` explicitly, or set `LUXORAI_AUTH_TOKEN` or `LUXORAI_API_KEY` (`TENKI_AUTH_TOKEN` and `TENKI_API_KEY` are read when no `LUXORAI_*` token is set). Every `LUXORAI_*` variable takes precedence over its `TENKI_*` equivalent:
+Pass an API key or service token starting with `lx_` (`tk_` is still accepted) explicitly, or set `LUXORAI_AUTH_TOKEN` or `LUXORAI_API_KEY` (`TENKI_AUTH_TOKEN` and `TENKI_API_KEY` are still read when no `LUXORAI_*` token is set). Every `LUXORAI_*` variable takes precedence over its `TENKI_*` equivalent:
 
 ```typescript
-const sandbox = new TenkiSandbox({ authToken: "lx_..." });
+const sandbox = new LuxorSandbox({ authToken: "lx_..." });
 ```
 
 `apiKey` is an alias for `authToken`. If both are supplied, `authToken` wins.
+Set `baseUrl`, `LUXORAI_API_ENDPOINT` or `LUXORAI_API_URL` to point the client at another API host such as `https://api.luxor.ai`;
+`TENKI_API_ENDPOINT` and `TENKI_API_URL` are still read when no `LUXORAI_*` URL is set.
 Blank or whitespace-only values count as absent.
 
 The credential determines the Workspace automatically; ordinary Sandbox calls do not require a Workspace ID.
@@ -96,7 +102,7 @@ concurrency entry now uses the `max_concurrent_jobs` key.
 ### Migrating to v0.6.0
 
 Version 0.6.0 removes `ClientOptions.cookieName` and support for Ory session
-tokens and browser cookie values. Pass a `tk_` API key or service token through
+tokens and browser cookie values. Pass an `lx_` API key or service token through
 `authToken`; the SDK sends it as an `Authorization: Bearer` credential.
 
 ## Sessions
@@ -131,11 +137,11 @@ idle. Use `maxDurationMs`, or `session.pause()` to pause explicitly.
 `sticky: true` discards `maxDurationMs` and runs the session until it is
 terminated. Manual pause and resume do not clear sticky. The returned
 `session.warnings` array retains the structured warning. By default,
-`TenkiSandbox` writes each warning to `console.warn`. Set `warningHandler` to
+`LuxorSandbox` writes each warning to `console.warn`. Set `warningHandler` to
 route warnings through your logger, or pass `null` to suppress emission:
 
 ```typescript
-const sandbox = new TenkiSandbox({
+const sandbox = new LuxorSandbox({
   warningHandler: (warning) => process.emitWarning(warning.message),
 });
 
@@ -469,7 +475,7 @@ const session = await client.create({
 
 ### Named egress policies
 
-Save a policy once per workspace, from the SDK or with `tenki sandbox egress-policies create`:
+Save a policy once per workspace, from the SDK or with `luxor sandbox egress-policies create`:
 
 ```typescript
 const policy = await client.createEgressPolicy("registries", {
@@ -553,7 +559,7 @@ Children are named `<namePrefix>-1` to `<namePrefix>-N`, and an unset prefix der
 `wait: true` resolves once every child is `RUNNING`.
 
 ```typescript
-import { ForkFailedError } from "@tenkicloud/sandbox";
+import { ForkFailedError } from "@luxorai/sandbox";
 
 try {
   const children = await session.fork({ count: 3, namePrefix: "trial", wait: true });
@@ -593,10 +599,10 @@ await sandbox.deleteRegistryImageVersion(
 
 ## Templates
 
-Templates are typed, immutable recipes built from a Git context into private digest-addressed images. `TemplateSpec` is a fluent immutable builder: every method returns a new spec, the default base is the Tenki image `sandbox`, and `copy` sources are always relative to the checked-out Git context - nothing is uploaded from your local filesystem.
+Templates are typed, immutable recipes built from a Git context into private digest-addressed images. `TemplateSpec` is a fluent immutable builder: every method returns a new spec, the default base is the Luxor image `sandbox`, and `copy` sources are always relative to the checked-out Git context - nothing is uploaded from your local filesystem.
 
 ```typescript
-import { TemplateSpec } from "@tenkicloud/sandbox";
+import { TemplateSpec } from "@luxorai/sandbox";
 
 const spec = new TemplateSpec()
   .fromImage("sandbox-v2") // or .fromTemplate(parent) / .fromSnapshot(snapshot)
@@ -664,7 +670,7 @@ custom stream. It does not open a shell or execute command text itself.
 
 A custom SSH integration needs a caller-owned key pair; the private key stays
 with your application. Pass the public key in OpenSSH `authorized_keys` format
-to Tenki, then authenticate the SSH client with the matching private key and
+to Luxor, then authenticate the SSH client with the matching private key and
 returned certificate. The minimal SDK sequence is:
 
 ```typescript
@@ -689,10 +695,10 @@ For OpenSSH, save `credentials.sshCert` beside the private key as
 requires a transport adapter such as a ProxyCommand.
 
 Gateway selection is automatic. Most users should not set `gatewayAddress` or
-`TENKI_SANDBOX_GATEWAY_URL`; they are advanced overrides for environments with
+`LUXORAI_SANDBOX_GATEWAY_URL` (or `TENKI_SANDBOX_GATEWAY_URL`); they are advanced overrides for environments with
 a custom SSH gateway address. Setting either disables automatic selection.
 `sshAuthorizedKeys` installs public keys inside the sandbox, but connections
-through Tenki's SSH gateway also require a short-lived certificate from
+through Luxor's SSH gateway also require a short-lived certificate from
 `issueSandboxSSHCert`.
 
 ## Identity
@@ -710,7 +716,7 @@ console.log(
 All SDK errors extend `SandboxError`:
 
 ```typescript
-import { SandboxError } from "@tenkicloud/sandbox";
+import { SandboxError } from "@luxorai/sandbox";
 
 try {
   await session.run(["false"]);
@@ -724,7 +730,7 @@ try {
 ## Size Constants
 
 ```typescript
-import { GB, GiB, KB, KiB, MB, MiB, TB, TiB } from "@tenkicloud/sandbox";
+import { GB, GiB, KB, KiB, MB, MiB, TB, TiB } from "@luxorai/sandbox";
 ```
 
 ## Workspace secrets
@@ -732,14 +738,14 @@ import { GB, GiB, KB, KiB, MB, MiB, TB, TiB } from "@tenkicloud/sandbox";
 `WorkspaceClient` exposes workspace resources through `workspace.secrets`, independently of sandbox Sessions:
 
 ```typescript
-import { WorkspaceClient } from "@tenkicloud/sandbox";
+import { WorkspaceClient } from "@luxorai/sandbox";
 
 await using workspace = new WorkspaceClient({ workspaceId });
 const secret = await workspace.secrets.create("TOKEN", valueBytes, { description: "Deploy token", requestId });
 ```
 
-Authentication uses `TENKI_AUTH_TOKEN` or `TENKI_API_KEY`. Set `baseUrl` or
-`TENKI_CLOUD_API_URL` to override the cloud API endpoint independently of sandbox
+Authentication uses `LUXORAI_AUTH_TOKEN` or `LUXORAI_API_KEY` (`TENKI_AUTH_TOKEN` and `TENKI_API_KEY` are still accepted).
+Set `baseUrl` or `LUXORAI_CLOUD_API_URL` (or `TENKI_CLOUD_API_URL`) to override the cloud API endpoint independently of sandbox
 configuration. Set `workspaceId` once on the client. An omitted or empty workspace ID uses the authenticated workspace key's scope;
 other callers must specify one.
 
@@ -752,7 +758,7 @@ availability changes don't. An empty `description` clears it. Revoking without `
 every version. Revoking the active version revokes the secret until a new value or an unrevoked
 version is made active.
 
-`create("TOKEN", valueBytes, { repository: "acme/api" })` creates a secret that only Tenki CI jobs in
+`create("TOKEN", valueBytes, { repository: "acme/api" })` creates a secret that only Luxor CI jobs in
 that repository receive, replacing a workspace secret with the same name. The repository must be
 connected to the workspace; `listRepositories` pages through the connected repositories and can
 filter them with `search`. `update` moves a secret with `availability: "workspace"`, or with
