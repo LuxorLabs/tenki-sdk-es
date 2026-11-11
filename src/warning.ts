@@ -2,14 +2,20 @@ import {
   SandboxWarningCode as ProtoSandboxWarningCode,
   type SandboxWarning as ProtoSandboxWarning,
 } from "./internal/proto/tenki/sandbox/v1/sandbox_pb.js";
+import {
+  TemplateWarningCode as ProtoTemplateWarningCode,
+  type TemplateWarning as ProtoTemplateWarning,
+} from "./internal/proto/tenki/sandbox/v1/template_pb.js";
 
 type ProtoSandboxWarningCodeName = keyof typeof ProtoSandboxWarningCode;
+type ProtoTemplateWarningCodeName = keyof typeof ProtoTemplateWarningCode;
 
-export type SandboxWarningCode = ProtoSandboxWarningCodeName;
+// Template warning codes (e.g. SPEC_VERSION_DEPRECATED) share the sandbox warning shape.
+export type SandboxWarningCode = ProtoSandboxWarningCodeName | ProtoTemplateWarningCodeName;
 
 export const SandboxWarningCodes = Object.fromEntries(
-  Object.keys(ProtoSandboxWarningCode)
-    .filter((name): name is ProtoSandboxWarningCodeName => Number.isNaN(Number(name)))
+  [...Object.keys(ProtoSandboxWarningCode), ...Object.keys(ProtoTemplateWarningCode)]
+    .filter((name): name is SandboxWarningCode => Number.isNaN(Number(name)))
     .map((name) => [name, name]),
 ) as { readonly [Code in SandboxWarningCode]: Code };
 
@@ -39,6 +45,18 @@ export function sandboxWarningsFromProto(protoWarnings: readonly ProtoSandboxWar
     code: sandboxWarningCodeFromProto(warning.code),
     message: warning.message,
   }));
+}
+
+export function templateWarningsFromProto(
+  protoWarnings: readonly ProtoTemplateWarning[] | undefined,
+): SandboxWarning[] {
+  return (protoWarnings ?? []).map((warning) => {
+    const name = ProtoTemplateWarningCode[warning.code];
+    return {
+      code: typeof name === "string" ? (name as SandboxWarningCode) : SandboxWarningCodes.UNSPECIFIED,
+      message: warning.message,
+    };
+  });
 }
 
 function sandboxWarningCodeFromProto(code: ProtoSandboxWarningCode): SandboxWarningCode {

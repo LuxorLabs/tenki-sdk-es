@@ -107,7 +107,7 @@ export type {
   TemplateResources,
   TemplateVisibility,
 } from "./template.js";
-export { TemplateSpec, TEMPLATE_SPEC_VERSION } from "./template-spec.js";
+export { TemplateSpec, TEMPLATE_SPEC_VERSION, TEMPLATE_SPEC_VERSION_LUXOR } from "./template-spec.js";
 export type {
   GitContextOptions,
   TemplateMkdirOptions,

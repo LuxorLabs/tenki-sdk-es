@@ -195,7 +195,13 @@ import type { WorkspaceUsageLimit } from "./usage.js";
 import { workspaceUsageLimitFromProto } from "./usage.js";
 import type { Volume } from "./volume.js";
 import { volumeFromProto, volumeIsReady, volumeIsTerminal } from "./volume.js";
-import { defaultWarningHandler, emitWarnings, sandboxWarningsFromProto, type WarningHandler } from "./warning.js";
+import {
+  defaultWarningHandler,
+  emitWarnings,
+  sandboxWarningsFromProto,
+  templateWarningsFromProto,
+  type WarningHandler,
+} from "./warning.js";
 import type { Identity } from "./whoami.js";
 
 const inspectCustom = Symbol.for("nodejs.util.inspect.custom");
@@ -1365,7 +1371,9 @@ export class TenkiSandbox implements AsyncDisposable {
     }
     try {
       const resp = await this.rpcClient.createTemplate(req);
-      return templateFromProto(resp.template!);
+      const warnings = templateWarningsFromProto(resp.warnings);
+      emitWarnings(this.warningHandler, warnings);
+      return { ...templateFromProto(resp.template!), warnings };
     } catch (err) {
       throw mapError(err);
     }
@@ -1436,7 +1444,9 @@ export class TenkiSandbox implements AsyncDisposable {
     }
     try {
       const resp = await this.rpcClient.updateTemplate(req);
-      return templateFromProto(resp.template!);
+      const warnings = templateWarningsFromProto(resp.warnings);
+      emitWarnings(this.warningHandler, warnings);
+      return { ...templateFromProto(resp.template!), warnings };
     } catch (err) {
       throw mapError(err);
     }
@@ -1464,13 +1474,15 @@ export class TenkiSandbox implements AsyncDisposable {
           ...(options?.publishRawImage !== undefined ? { publishRawImage: options.publishRawImage } : {}),
         }),
       );
-      build = templateBuildFromProto(resp.build)!;
+      build = { ...templateBuildFromProto(resp.build)!, warnings: templateWarningsFromProto(resp.warnings) };
     } catch (err) {
       throw mapError(err);
     }
+    emitWarnings(this.warningHandler, build.warnings ?? []);
     if (options?.waitForCompletion) {
       // Outside the RPC error mapping: handler or abort failures must surface as-is.
-      return this.waitForTemplateBuild(build, { signal: options.signal, onEvent: options.onEvent });
+      const completed = await this.waitForTemplateBuild(build, { signal: options.signal, onEvent: options.onEvent });
+      return { ...completed, warnings: build.warnings };
     }
     return build;
   }

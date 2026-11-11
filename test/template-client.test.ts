@@ -20,10 +20,13 @@ import {
   TemplateBuildState,
   TemplateDefinitionMode,
   TemplateSchema,
+  TemplateWarningCode,
+  TemplateWarningSchema,
   UpdateTemplateResponseSchema,
 } from "../src/internal/proto/tenki/sandbox/v1/template_pb.js";
 import { TemplateSpec } from "../src/template-spec.js";
 import type { Template, TemplateBuild, TemplateBuildEvent } from "../src/template.js";
+import { SandboxWarningCodes, type SandboxWarning } from "../src/warning.js";
 
 const connectMock = vi.hoisted(() => ({
   createClient: vi.fn(),
@@ -84,6 +87,71 @@ describe("TenkiSandbox template APIs", () => {
         buildSecrets: { GIT_TOKEN: "token", NPM_TOKEN: "npm" },
       }),
     );
+  });
+
+  it("returns and emits template spec version deprecation warnings", async () => {
+    const warnings = () => [
+      create(TemplateWarningSchema, {
+        code: TemplateWarningCode.SPEC_VERSION_DEPRECATED,
+        message: "specVersion is deprecated",
+      }),
+    ];
+    const rpcClient = {
+      createTemplate: vi.fn(async () =>
+        create(CreateTemplateResponseSchema, {
+          template: create(TemplateSchema, { id: "template-1" }),
+          warnings: warnings(),
+        }),
+      ),
+      updateTemplate: vi.fn(async () =>
+        create(UpdateTemplateResponseSchema, {
+          template: create(TemplateSchema, { id: "template-1" }),
+          warnings: warnings(),
+        }),
+      ),
+      buildTemplate: vi.fn(async () =>
+        create(BuildTemplateResponseSchema, { build: buildProto(TemplateBuildState.PENDING), warnings: warnings() }),
+      ),
+      getTemplateBuild: vi.fn(async () =>
+        create(GetTemplateBuildResponseSchema, { build: buildProto(TemplateBuildState.READY) }),
+      ),
+    };
+    connectMock.createClient.mockReturnValue(rpcClient);
+    const emitted: SandboxWarning[] = [];
+    const sdk = new TenkiSandbox({
+      authToken: "tk_test",
+      transport: {} as never,
+      warningHandler: (warning) => emitted.push(warning),
+    });
+    const spec = new TemplateSpec();
+    const expected = [{ code: SandboxWarningCodes.SPEC_VERSION_DEPRECATED, message: "specVersion is deprecated" }];
+
+    const created = await sdk.createTemplate({ name: "app", spec });
+    const updated = await sdk.updateTemplate(created, { spec });
+    const build = await sdk.buildTemplate(created);
+    const completed = await sdk.buildTemplate(created, { waitForCompletion: true });
+
+    expect(created.warnings).toEqual(expected);
+    expect(updated.warnings).toEqual(expected);
+    expect(build.warnings).toEqual(expected);
+    expect(completed.state).toBe("READY");
+    expect(completed.warnings).toEqual(expected);
+    expect(emitted).toEqual([...expected, ...expected, ...expected, ...expected]);
+  });
+
+  it("maps unknown template warning codes to UNSPECIFIED", async () => {
+    const rpcClient = {
+      createTemplate: vi.fn(async () =>
+        create(CreateTemplateResponseSchema, {
+          template: create(TemplateSchema, { id: "template-1" }),
+          warnings: [create(TemplateWarningSchema, { code: 99 as TemplateWarningCode, message: "future" })],
+        }),
+      ),
+    };
+
+    const created = await makeSdk(rpcClient).createTemplate({ name: "app", spec: new TemplateSpec() });
+
+    expect(created.warnings).toEqual([{ code: SandboxWarningCodes.UNSPECIFIED, message: "future" }]);
   });
 
   it("creates a template from a typed spec", async () => {

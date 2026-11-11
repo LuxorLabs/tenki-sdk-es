@@ -41,6 +41,9 @@ import { secretFileToProto, validSecretFiles, type RuntimeSecretFile } from "./s
 
 export const TEMPLATE_SPEC_VERSION = "tenki.template.v1";
 
+/** Successor of TEMPLATE_SPEC_VERSION; accepted once enabled for the environment and defaults workdir to /home/sandbox. */
+export const TEMPLATE_SPEC_VERSION_LUXOR = "luxor.template.v1";
+
 /** Default readiness deadline applied when a shorthand check list omits one. */
 const DEFAULT_READY_TIMEOUT_SECONDS = 60;
 
@@ -445,8 +448,11 @@ export class TemplateSpec {
     const v: TemplateSpecViolation[] = [];
     const p = this.proto;
 
-    if (p.specVersion !== TEMPLATE_SPEC_VERSION) {
-      v.push({ field: "specVersion", message: `spec_version must be "${TEMPLATE_SPEC_VERSION}"` });
+    if (p.specVersion !== TEMPLATE_SPEC_VERSION && p.specVersion !== TEMPLATE_SPEC_VERSION_LUXOR) {
+      v.push({
+        field: "specVersion",
+        message: `specVersion must be "${TEMPLATE_SPEC_VERSION}" or "${TEMPLATE_SPEC_VERSION_LUXOR}"`,
+      });
     }
 
     if (!p.base || p.base.source.case === undefined) {

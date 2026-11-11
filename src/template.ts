@@ -17,6 +17,7 @@ import {
 import type { RegistryImage } from "./registry.js";
 import { registryImageFromProto } from "./registry.js";
 import { TemplateSpec } from "./template-spec.js";
+import type { SandboxWarning } from "./warning.js";
 
 export type TemplateBuildState = "UNSPECIFIED" | "PENDING" | "BUILDING" | "READY" | "FAILED";
 
@@ -66,6 +67,8 @@ export interface TemplateBuild {
   events: TemplateBuildEvent[];
   provenance?: TemplateBuildProvenance;
   failure?: TemplateBuildFailure;
+  /** Warnings returned by the buildTemplate call that started this build. */
+  warnings?: SandboxWarning[];
 }
 
 export interface TemplateBuildStepReference {
@@ -146,6 +149,8 @@ export interface Template {
   parentWorkspaceId: string;
   createdAt: Date;
   updatedAt: Date;
+  /** Warnings returned by the createTemplate or updateTemplate call that produced this value. */
+  warnings?: SandboxWarning[];
 }
 
 export function templateBuildStateFromProto(state: ProtoTemplateBuildState): TemplateBuildState {

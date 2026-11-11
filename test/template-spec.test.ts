@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { InvalidTemplateSpecError } from "../src/errors.js";
-import { TemplateSpec } from "../src/template-spec.js";
+import { TEMPLATE_SPEC_VERSION, TEMPLATE_SPEC_VERSION_LUXOR, TemplateSpec } from "../src/template-spec.js";
 
 describe("TemplateSpec", () => {
   it("defaults to the sandbox base image and v1 spec version", () => {
@@ -261,11 +261,19 @@ describe("TemplateSpec", () => {
 
   describe("validate", () => {
     it("flags unsupported spec versions from JSON", () => {
-      const spec = TemplateSpec.fromJSON({ specVersion: "tenki.template.v2", base: { image: "sandbox" } });
-      expect(spec.validate()).toContainEqual({
-        field: "specVersion",
-        message: 'spec_version must be "tenki.template.v1"',
-      });
+      const spec = TemplateSpec.fromJSON({ specVersion: "acme.template.v9", base: { image: "sandbox" } });
+      expect(spec.validate()).toEqual([
+        { field: "specVersion", message: 'specVersion must be "tenki.template.v1" or "luxor.template.v1"' },
+      ]);
+    });
+
+    it("accepts both supported spec versions while the builder still emits tenki", () => {
+      for (const specVersion of [TEMPLATE_SPEC_VERSION, TEMPLATE_SPEC_VERSION_LUXOR]) {
+        const spec = TemplateSpec.fromJSON({ specVersion, base: { image: "sandbox" } });
+        expect(spec.validate()).toEqual([]);
+        expect(spec.toProto().specVersion).toBe(specVersion);
+      }
+      expect(new TemplateSpec().toProto().specVersion).toBe(TEMPLATE_SPEC_VERSION);
     });
 
     it("requires a base source", () => {
