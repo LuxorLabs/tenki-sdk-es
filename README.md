@@ -79,7 +79,7 @@ The server may reject options from later milestones, including wake-on-connect a
 Pass an API key or service token starting with `lx_` or `tk_` explicitly, or set `LUXORAI_AUTH_TOKEN` or `LUXORAI_API_KEY` (`TENKI_AUTH_TOKEN` and `TENKI_API_KEY` are read when no `LUXORAI_*` token is set). Every `LUXORAI_*` variable takes precedence over its `TENKI_*` equivalent:
 
 ```typescript
-const sandbox = new TenkiSandbox({ authToken: "tk_..." });
+const sandbox = new TenkiSandbox({ authToken: "lx_..." });
 ```
 
 `apiKey` is an alias for `authToken`. If both are supplied, `authToken` wins.
