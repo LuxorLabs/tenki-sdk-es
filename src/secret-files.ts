@@ -19,26 +19,37 @@ export function secretFileToProto(file: RuntimeSecretFile): ProtoFile {
   return fromJson(RuntimeSecretFileSchema, file as unknown as JsonValue);
 }
 
+// Both guest homes can land in the same directory, so they conflict with each other.
+function conflictPath(path: string): string {
+  return path.startsWith("/home/sandbox/") ? "/home/tenki/" + path.slice("/home/sandbox/".length) : path;
+}
+
 export function validSecretFiles(files: ProtoFile[], count: number): boolean {
   if (files.length > 32) return false;
   for (const [index, file] of files.entries()) {
     if (
       new TextEncoder().encode(file.path).length > 4096 ||
       /[\x00-\x1f]/.test(file.path) ||
-      !/^\/(home\/tenki|workspace|app)\/.+/.test(file.path) ||
+      !/^\/(home\/tenki|home\/sandbox|workspace|app)\/.+/.test(file.path) ||
       file.path
         .split("/")
         .slice(1)
         .some((p) => !p || p === "." || p === "..")
     )
       return false;
-    if (files.some((other, j) => j !== index && (file.path === other.path || file.path.startsWith(other.path + "/"))))
+    const target = conflictPath(file.path);
+    if (
+      files.some((other, j) => {
+        const path = conflictPath(other.path);
+        return j !== index && (target === path || target.startsWith(path + "/"));
+      })
+    )
       return false;
     const refs: RuntimeSecretReference[] = [];
     switch (file.format.case) {
       case "source":
         if (
-          !/^\/(home\/tenki|workspace|app)\/.+/.test(file.format.value) ||
+          !/^\/(home\/tenki|home\/sandbox|workspace|app)\/.+/.test(file.format.value) ||
           file.format.value
             .split("/")
             .slice(1)

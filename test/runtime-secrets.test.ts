@@ -119,6 +119,25 @@ describe("runtime secret files", () => {
     expect(runtime.secretFiles[0]!.path).toBe("/app/raw");
     expect(new TemplateSpec().start("app", { secretFiles: files }).validate()).not.toEqual([]);
   });
+  it.each([
+    ["/home/tenki/.env", true],
+    ["/home/sandbox/.env", true],
+    ["/home/sandbox", false],
+    ["/home/other/.env", false],
+  ])("validates guest home destination %s", (path, valid) => {
+    const errors = new TemplateSpec().start("app", { secretFiles: [{ path, raw: { name: "RAW" } }] }).validate();
+    expect(errors.length === 0).toBe(valid);
+  });
+  it.each([
+    ["/home/tenki/.env", "/home/sandbox/.env"],
+    ["/home/sandbox/conf", "/home/tenki/conf/.env"],
+  ])("rejects alias-equivalent destinations %s and %s", (first, second) => {
+    const secretFiles = [
+      { path: first, raw: { name: "A" } },
+      { path: second, raw: { name: "B" } },
+    ];
+    expect(new TemplateSpec().start("app", { secretFiles }).validate()).not.toEqual([]);
+  });
 });
 
 it("discovers literal file references consistently", () => {
