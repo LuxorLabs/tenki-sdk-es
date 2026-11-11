@@ -369,6 +369,7 @@ export type ListSecretsRequest = Message<"tenki.cloud.workspace.v1beta1.ListSecr
 
   /**
    * Unspecified lists workspace and repository secrets.
+   * WORKSPACE lists what every CI job and sandbox receives, so it leaves out S3 storage secrets and refuses scope S3_STORAGE.
    *
    * @generated from field: tenki.cloud.workspace.v1beta1.SecretAvailability availability = 9;
    */
