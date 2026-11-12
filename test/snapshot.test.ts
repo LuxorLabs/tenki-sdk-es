@@ -1,8 +1,9 @@
 import { create } from "@bufbuild/protobuf";
+import { Code, ConnectError } from "@connectrpc/connect";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { TenkiSandbox } from "../src/client.js";
-import { SnapshotFailedError, SnapshotWaitTimeoutError } from "../src/errors.js";
+import { SnapshotFailedError, SnapshotNotFoundError, SnapshotWaitTimeoutError } from "../src/errors.js";
 import {
   CreateSnapshotResponseSchema,
   GetSnapshotResponseSchema,
@@ -117,6 +118,42 @@ describe("Snapshot client", () => {
 
     expect(err).toBeInstanceOf(SnapshotWaitTimeoutError);
     expect((err as Error).message).toContain('waitSnapshotReady("snap-001")');
+  });
+
+  it("retries not found right after a create, while the read replica catches up", async () => {
+    let calls = 0;
+    const getSnapshot = vi.fn(async () => {
+      calls++;
+      if (calls <= 2) throw new ConnectError("snapshot not found", Code.NotFound);
+      return create(GetSnapshotResponseSchema, {
+        snapshot: create(SnapshotSchema, { id: "snap-001", state: SnapshotState.READY }),
+      });
+    });
+    const client = makeClient({ getSnapshot });
+
+    const snap = await client.waitSnapshotReady("snap-001", 60_000);
+
+    expect(snap.id).toBe("snap-001");
+    expect(getSnapshot).toHaveBeenCalledTimes(3);
+  });
+
+  it("fails on not found once the grace window has passed", async () => {
+    vi.useFakeTimers();
+    try {
+      const getSnapshot = vi.fn(async () => {
+        throw new ConnectError("snapshot not found", Code.NotFound);
+      });
+      const client = makeClient({ getSnapshot });
+
+      const waiting = client.waitSnapshotReady("snap-missing", 60_000).catch((e: unknown) => e);
+      await vi.advanceTimersByTimeAsync(9_000);
+      expect(await Promise.race([waiting, Promise.resolve("pending")])).toBe("pending");
+      await vi.advanceTimersByTimeAsync(3_000);
+
+      expect(await waiting).toBeInstanceOf(SnapshotNotFoundError);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

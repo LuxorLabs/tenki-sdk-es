@@ -34,6 +34,8 @@ export const DEFAULT_DATA_PLANE_READY_TIMEOUT_MS = 60_000;
 export const DEFAULT_SESSION_CREATE_TIMEOUT_MS = 3 * 60_000;
 export const DEFAULT_TEMPLATE_SPEC_CREATE_TIMEOUT_MS = 2 * 60 * 60_000;
 export const DEFAULT_SNAPSHOT_CREATE_TIMEOUT_MS = 5 * 60_000;
+/** Snapshot waits retry "not found" this long: a lagging read replica may not have a just-created snapshot yet. */
+export const SNAPSHOT_NOT_FOUND_GRACE_MS = 10_000;
 export const DEFAULT_RESTORE_TIMEOUT_MS = 5 * 60_000;
 export const DEFAULT_EXEC_TIMEOUT_MS = 30_000;
 export const DEFAULT_VOLUME_DETACH_TIMEOUT_MS = 2 * 60_000;

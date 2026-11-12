@@ -18,6 +18,7 @@ import {
   DEFAULT_TIMEOUT_MS,
   GATEWAY_URL_ENVS,
   pollBackoffMs,
+  SNAPSHOT_NOT_FOUND_GRACE_MS,
 } from "./constants.js";
 import {
   egressPolicyFromMessage,
@@ -31,6 +32,7 @@ import {
   InvalidTemplateSpecError,
   mapError,
   SnapshotFailedError,
+  SnapshotNotFoundError,
   SnapshotWaitTimeoutError,
   TemplateBuildFailedError,
   TemplateRuntimeFailedError,
@@ -757,19 +759,24 @@ export class TenkiSandbox implements AsyncDisposable {
   }
 
   async waitSnapshotReady(snapshotId: string, timeoutMs?: number, signal?: AbortSignal): Promise<Snapshot> {
-    const deadline = Date.now() + (timeoutMs ?? DEFAULT_SNAPSHOT_CREATE_TIMEOUT_MS);
+    const started = Date.now();
+    const deadline = started + (timeoutMs ?? DEFAULT_SNAPSHOT_CREATE_TIMEOUT_MS);
     let attempt = 0;
     while (Date.now() < deadline) {
       signal?.throwIfAborted();
-      const snap = await this.getSnapshot(snapshotId);
-      if (snapshotIsReady(snap.state)) return snap;
-      if (snap.state === "FAILED") {
+      const snap = await this.getSnapshot(snapshotId).catch((err: unknown) => {
+        const retryable = err instanceof SnapshotNotFoundError && Date.now() - started < SNAPSHOT_NOT_FOUND_GRACE_MS;
+        if (!retryable) throw err;
+        return undefined;
+      });
+      if (snap && snapshotIsReady(snap.state)) return snap;
+      if (snap?.state === "FAILED") {
         const reason = snap.failureReason ? `: ${snap.failureReason}` : "";
         throw new SnapshotFailedError(`snapshot entered terminal state: FAILED${reason}`, {
           failureReason: snap.failureReason,
         });
       }
-      if (snapshotIsTerminal(snap.state)) {
+      if (snap && snapshotIsTerminal(snap.state)) {
         throw new Error(`snapshot entered terminal state: ${snap.state}`);
       }
       await sleep(pollBackoffMs(attempt), signal);
