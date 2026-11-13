@@ -5,8 +5,8 @@ import { afterEach, describe, expect, it } from "vitest";
 import { createDataPlaneClient, DataPlaneCredentialManager } from "../src/data-plane.js";
 import { REFUSED_STREAM_MAX_RETRIES } from "../src/refused-stream.js";
 
-// End-to-end exercise of Patch 1 against the REAL @connectrpc/connect-node
-// gRPC transport (h2c) — not a mocked `next`. A local HTTP/2 server refuses the
+// End-to-end exercise of the refused-stream retry against the REAL @connectrpc/connect-node
+// gRPC transport (h2c), not a mocked `next`. A local HTTP/2 server refuses the
 // first N stream opens with RST_STREAM(NGHTTP2_REFUSED_STREAM), exactly like the
 // data-plane edge (Edge) does while reloading on session churn, then answers a
 // later stream with a valid unary gRPC response.

@@ -90,8 +90,8 @@ describe("run() argv validation", () => {
 });
 
 describe("argv scalar compatibility", () => {
-  // protobuf-es silently accepted these onto the wire, so untyped JS callers may
-  // already be passing them; they must keep working, and now stringify correctly.
+  // protobuf-es accepts these onto the wire, so untyped JS callers may pass
+  // them; they must keep working and stringify correctly.
   it.each([
     ["number", 5, "5"],
     ["boolean", true, "true"],

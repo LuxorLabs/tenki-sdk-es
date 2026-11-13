@@ -281,7 +281,7 @@ describe("mapError", () => {
       expect((mapped as GitOperationFailedError).stderr).toBe(
         "fatal: unable to access 'https://github.com/x/y': Recv failure: Connection reset by peer",
       );
-      // No longer the un-actionable InvalidStateError it used to fall through to.
+      // Not the un-actionable InvalidStateError.
       expect(mapped).not.toBeInstanceOf(InvalidStateError);
     });
 
