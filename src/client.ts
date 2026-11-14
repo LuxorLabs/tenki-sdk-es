@@ -226,7 +226,6 @@ export class TenkiSandbox implements AsyncDisposable {
       options?.warningHandler === undefined ? defaultWarningHandler : (options.warningHandler ?? undefined);
     this.#authToken = resolveAuthToken(options?.authToken, options?.apiKey);
 
-    // URL resolution
     const baseUrl = options?.baseUrl?.trim() || readEnv(BASE_URL_ENVS) || DEFAULT_BASE_URL;
     this.baseUrl = baseUrl;
 
@@ -388,7 +387,6 @@ export class TenkiSandbox implements AsyncDisposable {
       req.excludedDefaultMountIds = options.excludedDefaultMountIds.map((id) => id.trim());
     }
 
-    // OpenCode provider env vars
     if (options?.openCodeProvider) {
       if (options.openCodeProvider.apiKey) req.env["OPENCODE_API_KEY"] = options.openCodeProvider.apiKey;
       if (options.openCodeProvider.baseUrl) req.env["OPENCODE_PROVIDER_BASE_URL"] = options.openCodeProvider.baseUrl;
