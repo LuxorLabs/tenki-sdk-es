@@ -166,7 +166,7 @@ export class StorageMountNotFoundError extends SandboxError {
 export class StorageMountAttachCancelledError extends SandboxError {
   name = "StorageMountAttachCancelledError";
 }
-/** Tenki disabled the storage connection; contact support to restore it. */
+/** Luxor disabled the storage connection; contact support to restore it. */
 export class StorageConnectionDisabledError extends SandboxError {
   name = "StorageConnectionDisabledError";
 }
@@ -398,7 +398,8 @@ export function mapError(err: unknown): SandboxError {
       return new QuotaExceededError(connectErr.message, { cause });
     }
     case Code.FailedPrecondition:
-      if (msg.includes("disabled by tenki")) return new StorageConnectionDisabledError(connectErr.message, { cause });
+      if (msg.includes("disabled by luxor") || msg.includes("disabled by tenki"))
+        return new StorageConnectionDisabledError(connectErr.message, { cause });
       if (msg.includes("snapshot not yet durable")) {
         return new SnapshotNotDurableError(connectErr.message, { cause });
       }

@@ -268,7 +268,7 @@ export class TemplateSpec {
     return normalizeAuthoredEnums(toJson(TemplateBuildSpecSchema, this.proto), true);
   }
 
-  /** Base on a Tenki-managed image ID or qualified Tenki registry ref. */
+  /** Base on a Luxor-managed image ID or qualified Luxor registry ref. */
   fromImage(image: string): TemplateSpec {
     return this.update((p) => {
       p.base = create(TemplateBaseSchema, { source: { case: "image", value: image.trim() } });

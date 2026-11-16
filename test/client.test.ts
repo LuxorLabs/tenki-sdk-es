@@ -197,7 +197,7 @@ describe("TenkiSandbox client TLS options", () => {
 
     expect(warn).toHaveBeenCalledOnce();
     expect(warn).toHaveBeenCalledWith(
-      `tenki sandbox warning [${SandboxWarningCodes.UNSPECIFIED}]: sticky overrides max_duration`,
+      `luxor sandbox warning [${SandboxWarningCodes.UNSPECIFIED}]: sticky overrides max_duration`,
     );
   });
 
@@ -232,7 +232,7 @@ describe("TenkiSandbox client TLS options", () => {
       { code: SandboxWarningCodes.STICKY_OVERRIDES_MAX_DURATION, message: "sticky overrides max_duration" },
     ]);
     expect(warningHandler).toHaveBeenCalledOnce();
-    expect(error).toHaveBeenCalledWith("tenki sandbox warning handler failed", warningHandlerError);
+    expect(error).toHaveBeenCalledWith("luxor sandbox warning handler failed", warningHandlerError);
   });
 
   it("maps unknown warning codes to unspecified", async () => {
@@ -336,7 +336,7 @@ describe("TenkiSandbox client TLS options", () => {
     expect(session.warnings).toEqual([
       { code: SandboxWarningCodes.STICKY_OVERRIDES_IDLE_TIMEOUT, message: "sticky overrides idle_timeout" },
     ]);
-    expect(error).toHaveBeenCalledWith("tenki sandbox warning handler failed", warningHandlerError);
+    expect(error).toHaveBeenCalledWith("luxor sandbox warning handler failed", warningHandlerError);
   });
 
   it("delivers update warnings from sessions returned by the client", async () => {

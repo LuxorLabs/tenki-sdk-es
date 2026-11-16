@@ -757,7 +757,7 @@ describe("Session update", () => {
     expect(session.warnings).toEqual([
       { code: SandboxWarningCodes.MAX_DURATION_CAPPED, message: "max_duration was capped" },
     ]);
-    expect(error).toHaveBeenCalledWith("tenki sandbox warning handler failed", warningHandlerError);
+    expect(error).toHaveBeenCalledWith("luxor sandbox warning handler failed", warningHandlerError);
   });
 
   it.each([0, -1, Number.NaN, Number.POSITIVE_INFINITY])(

@@ -18,14 +18,14 @@ import {
 
 export type StorageProvider = "UNSPECIFIED" | "AWS_S3" | "GCS" | "R2" | "S3_COMPATIBLE";
 /**
- * ACCESS_KEY reads a key pair (GCS: HMAC keys) from Tenki Secrets; AWS_OIDC_ROLE assumes an IAM role that
- * trusts Tenki's OIDC issuer; R2_TEMPORARY mints scoped short-lived R2 keys from a Cloudflare API token.
+ * ACCESS_KEY reads a key pair (GCS: HMAC keys) from Luxor Secrets; AWS_OIDC_ROLE assumes an IAM role that
+ * trusts Luxor's OIDC issuer; R2_TEMPORARY mints scoped short-lived R2 keys from a Cloudflare API token.
  */
 export type StorageAuthMethod = "UNSPECIFIED" | "ACCESS_KEY" | "AWS_OIDC_ROLE" | "R2_TEMPORARY";
 /** Omit on a new mount to use the connection's default access. */
 export type StorageAccess = "READ_ONLY" | "READ_WRITE";
 
-/** An existing s3_storage Tenki Secret by name, or a value Tenki stores as a new secret. */
+/** An existing s3_storage Luxor Secret by name, or a value Luxor stores as a new secret. */
 export type StorageSecret = { secretName: string } | { value: string };
 
 /** Omit a field on update to keep its current secret. */
@@ -37,7 +37,7 @@ export interface StorageConnectionCredentials {
   roleArn?: string;
 }
 
-/** Names of the Tenki Secrets a connection reads. */
+/** Names of the Luxor Secrets a connection reads. */
 export interface StorageConnectionSecrets {
   accessKeyId: string;
   secretAccessKey: string;
@@ -64,7 +64,7 @@ export interface StorageConnection {
   defaultMountCount: number;
   lastTestedAt?: Date;
   lastTestReason?: string;
-  /** Tenki disabled the connection: it accepts no new mounts and issues no credentials. */
+  /** Luxor disabled the connection: it accepts no new mounts and issues no credentials. */
   disabled: boolean;
   disabledAt?: Date;
 }

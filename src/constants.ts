@@ -23,7 +23,7 @@ export const RUN_TRACE_TIMING_ENVS = [ENV_LUXORAI_RUN_TRACE_TIMING, ENV_RUN_TRAC
 
 export const API_KEY_PREFIXES = ["lx_", "tk_"] as const;
 
-export const DEFAULT_BASE_URL = "https://api.tenki.cloud";
+export const DEFAULT_BASE_URL = "https://api.luxor.ai";
 
 declare const __SDK_VERSION__: string | undefined;
 export const SDK_VERSION = typeof __SDK_VERSION__ === "string" ? __SDK_VERSION__ : "unknown";

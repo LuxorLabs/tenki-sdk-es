@@ -785,7 +785,7 @@ export class TenkiSandbox implements AsyncDisposable {
     );
   }
 
-  /** Credentials go to Tenki Secrets (s3_storage scope); the connection keeps only their names. */
+  /** Credentials go to Luxor Secrets (s3_storage scope); the connection keeps only their names. */
   async createStorageConnection(options: {
     /** Defaults to the workspace of a workspace API key. */
     workspaceId?: string;
@@ -1574,7 +1574,7 @@ export class TenkiSandbox implements AsyncDisposable {
     }
   }
 
-  /** Tenki CI runner sizes for the API key's workspace, within its job-size limits, smallest first. */
+  /** Luxor CI runner sizes for the API key's workspace, within its job-size limits, smallest first. */
   async listCIRunnerSizes(): Promise<CIRunnerSizes> {
     try {
       const resp = await this.rpcClient.listCIRunnerSizes(create(ListCIRunnerSizesRequestSchema, {}));
@@ -1629,7 +1629,7 @@ function warnIdleTimeoutDeprecated(): void {
   if (idleTimeoutDeprecationWarned) return;
   idleTimeoutDeprecationWarned = true;
   console.warn(
-    "tenki sandbox: idleTimeoutMinutes is deprecated and ignored; sandboxes do not auto-pause on idle. Use maxDurationMs to bound a session's lifetime.",
+    "luxor sandbox: idleTimeoutMinutes is deprecated and ignored; sandboxes do not auto-pause on idle. Use maxDurationMs to bound a session's lifetime.",
   );
 }
 

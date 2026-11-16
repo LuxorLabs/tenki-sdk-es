@@ -87,7 +87,7 @@ export interface CreateOptions {
   metadata?: Record<string, string>;
   tags?: string[];
   env?: Record<string, string>;
-  /** Public keys installed in the sandbox; Tenki gateway auth also requires issueSandboxSSHCert. */
+  /** Public keys installed in the sandbox; Luxor gateway auth also requires issueSandboxSSHCert. */
   sshAuthorizedKeys?: string[];
   /** Registry ref string, or an image object (e.g. build.image); digestRef wins over ref. */
   image?: string | TemplateImageRef;

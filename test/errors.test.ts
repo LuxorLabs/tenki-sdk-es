@@ -148,6 +148,14 @@ describe("mapError", () => {
       );
       expect(disabled).toBeInstanceOf(StorageConnectionDisabledError);
       expect(disabled).not.toBeInstanceOf(InvalidStateError);
+      expect(
+        mapError(
+          connectErr(
+            Code.FailedPrecondition,
+            'storage connection "Build cache" was disabled by Luxor; contact support',
+          ),
+        ),
+      ).toBeInstanceOf(StorageConnectionDisabledError);
       expect(PublicStorageConnectionDisabledError).toBe(StorageConnectionDisabledError);
     });
 

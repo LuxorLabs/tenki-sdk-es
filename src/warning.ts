@@ -27,7 +27,7 @@ export interface SandboxWarning {
 export type WarningHandler = (warning: SandboxWarning) => void;
 
 export function defaultWarningHandler(warning: SandboxWarning): void {
-  console.warn(`tenki sandbox warning [${warning.code}]: ${warning.message}`);
+  console.warn(`luxor sandbox warning [${warning.code}]: ${warning.message}`);
 }
 
 export function emitWarnings(handler: WarningHandler | undefined, warnings: readonly SandboxWarning[]): void {
@@ -35,7 +35,7 @@ export function emitWarnings(handler: WarningHandler | undefined, warnings: read
     try {
       handler?.(warning);
     } catch (warningHandlerError) {
-      console.error("tenki sandbox warning handler failed", warningHandlerError);
+      console.error("luxor sandbox warning handler failed", warningHandlerError);
     }
   }
 }
