@@ -68,6 +68,7 @@ const session = await new LuxorSandbox().create({
     authKey: new TailnetAuthKey(process.env.TAILNET_AUTH_KEY!),
     tags: ["tag:sandbox"],
     exposePorts: [3000],
+    exposedPorts: [{ port: 6081, protocol: "udp" }],
     acceptRoutes: true,
     waitForOnline: true,
   },

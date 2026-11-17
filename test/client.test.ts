@@ -123,6 +123,26 @@ describe("TenkiSandbox client TLS options", () => {
     expect(createSession).not.toHaveBeenCalled();
   });
 
+  it("terminates old API allocations before returning a typed UDP handle", async () => {
+    const createSession = vi.fn(async () =>
+      create(CreateSessionResponseSchema, {
+        session: create(SandboxSessionSchema, { id: "session-udp", state: SessionState.RUNNING }),
+      }),
+    );
+    const terminateSession = vi.fn(async () => create(TerminateSessionResponseSchema));
+    connectMock.createClient.mockReturnValue({ createSession, terminateSession });
+    const client = new TenkiSandbox({ authToken: "tk_test" });
+    await expect(
+      client.create({
+        waitReady: false,
+        tailnet: { authKey: new TailnetAuthKey("sentinel"), exposedPorts: [{ port: 6081, protocol: "udp" }] },
+      }),
+    ).rejects.toThrow("session terminated");
+    expect(terminateSession).toHaveBeenCalledWith(expect.objectContaining({ sessionId: "session-udp" }), {
+      timeoutMs: 10000,
+    });
+  });
+
   it("retains and emits create warnings once", async () => {
     const createSession = vi.fn(async () =>
       create(CreateSessionResponseSchema, {

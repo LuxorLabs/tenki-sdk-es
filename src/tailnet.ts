@@ -4,6 +4,7 @@ import {
   TailnetEphemeralPausePolicy as ProtoTailnetEphemeralPausePolicy,
   TailnetExitPolicy as ProtoTailnetExitPolicy,
   TailnetAttachmentSchema,
+  TailnetPortProtocol,
   type TailnetAttachment as ProtoTailnetAttachment,
   type TailnetStatus as ProtoTailnetStatus,
 } from "./internal/proto/tenki/sandbox/v1/sandbox_pb.js";
@@ -36,6 +37,11 @@ export class TailnetAuthKey {
   }
 }
 
+export interface TailnetPort {
+  port: number;
+  protocol: "tcp" | "udp";
+}
+
 export interface TailnetAttachmentOptions {
   authKey?: TailnetAuthKey;
   profileId?: string;
@@ -49,6 +55,7 @@ export interface TailnetAttachmentOptions {
   acceptRoutes?: boolean;
   wakeOnConnect?: boolean;
   exposePorts?: number[];
+  exposedPorts?: TailnetPort[];
   waitForOnline?: boolean;
   exitPolicy?: TailnetExitPolicy;
   ephemeralPausePolicy?: TailnetEphemeralPausePolicy;
@@ -89,6 +96,12 @@ export function tailnetAttachmentToProto(options: TailnetAttachmentOptions): Pro
     acceptRoutes: options.acceptRoutes ?? false,
     wakeOnConnect: options.wakeOnConnect ?? false,
     exposePorts: [...(options.exposePorts ?? [])],
+    exposedPorts: (options.exposedPorts ?? []).map(({ port, protocol }) => {
+      if (!Number.isInteger(port) || port < 1 || port > 65535) throw new TypeError("invalid tailnet exposed port");
+      if (protocol !== "tcp" && protocol !== "udp")
+        throw new TypeError("tailnet exposed port protocol must be tcp or udp");
+      return { port, protocol: protocol === "tcp" ? TailnetPortProtocol.TCP : TailnetPortProtocol.UDP };
+    }),
     waitForOnline: options.waitForOnline ?? false,
     credential,
     profileRevision: options.profileRevision ?? 0,

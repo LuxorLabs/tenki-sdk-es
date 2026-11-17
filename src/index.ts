@@ -17,6 +17,7 @@ export { isReady, isTerminal } from "./session.js";
 export { TailnetAuthKey } from "./tailnet.js";
 export type {
   TailnetAttachmentOptions,
+  TailnetPort,
   TailnetEphemeralPausePolicy,
   TailnetExitPolicy,
   TailnetProvider,

@@ -86,6 +86,7 @@ import {
   SessionEgressPolicySchema,
   StorageDefaultsSchema,
   TemplateRuntimeFailureSchema,
+  TerminateSessionRequestSchema,
   TestStorageConnectionRequestSchema,
   UpdateEgressPolicyRequestSchema,
   UpdateSessionRequestSchema,
@@ -94,6 +95,8 @@ import {
   UpdateVolumeRequestSchema,
   VolumeMountSchema,
   WhoAmIRequestSchema,
+  type CreateSessionRequest,
+  type CreateSessionResponse,
 } from "./internal/proto/tenki/sandbox/v1/sandbox_pb.js";
 import { SSHGatewayClientService } from "./internal/proto/tenki/sandbox/v1/ssh_gateway_client_pb.js";
 import {
@@ -276,6 +279,32 @@ export class TenkiSandbox implements AsyncDisposable {
 
   // -- Sessions --
 
+  private async verifyTailnetExposure(request: CreateSessionRequest, response: CreateSessionResponse): Promise<void> {
+    if (
+      request.tailnet?.exposedPorts.some(
+        (port) =>
+          !response.session?.tailnetStatus?.exposedPorts.some(
+            (accepted) => accepted.port === port.port && accepted.protocol === port.protocol,
+          ),
+      )
+    ) {
+      try {
+        await this.rpcClient.terminateSession(
+          create(TerminateSessionRequestSchema, { sessionId: response.session!.id }),
+          {
+            timeoutMs: 10000,
+          },
+        );
+      } catch (cause) {
+        throw new Error(
+          `session ${response.session!.id}: server did not acknowledge tailnet exposed ports; cleanup failed`,
+          { cause },
+        );
+      }
+      throw new Error("server does not support requested tailnet exposed ports; session terminated");
+    }
+  }
+
   /** cpuCores is 1-128 and memoryMb 128-524288 MiB (even); the workspace's size limit may be lower. */
   async create(options?: CreateOptions): Promise<Session> {
     const req = create(CreateSessionRequestSchema, {
@@ -426,6 +455,7 @@ export class TenkiSandbox implements AsyncDisposable {
       throw mapError(err);
     }
 
+    await this.verifyTailnetExposure(req, resp);
     const warnings = sandboxWarningsFromProto(resp.warnings);
     // Match the Go SDK: skip data-plane config on terminal route failure so the first op fails fast instead of retrying a dead route for the whole readiness budget.
     const dataPlane =
