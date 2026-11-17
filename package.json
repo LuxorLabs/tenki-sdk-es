@@ -1,6 +1,6 @@
 {
   "name": "@tenkicloud/sandbox",
-  "version": "1.5.2",
+  "version": "1.5.3",
   "description": "TypeScript SDK for Luxor Sandbox: cloud sandboxes (microVMs) for AI agents on Luxor Agent Cloud",
   "keywords": [
     "luxor",

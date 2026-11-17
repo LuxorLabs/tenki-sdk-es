@@ -659,11 +659,11 @@ describe("run() trace timing", () => {
   });
 
   it.each([
-    ["LUXORAI_SDK_RUN_TRACE_TIMING", { LUXORAI_SDK_RUN_TRACE_TIMING: "1", TENKI_SDK_RUN_TRACE_TIMING: "0" }, true],
+    ["LUXOR_SDK_RUN_TRACE_TIMING", { LUXOR_SDK_RUN_TRACE_TIMING: "1", TENKI_SDK_RUN_TRACE_TIMING: "0" }, true],
     ["TENKI_SDK_RUN_TRACE_TIMING", { TENKI_SDK_RUN_TRACE_TIMING: "1" }, true],
     ["neither", {}, false],
   ])("honours %s", async (_name, env, traced) => {
-    delete process.env.LUXORAI_SDK_RUN_TRACE_TIMING;
+    delete process.env.LUXOR_SDK_RUN_TRACE_TIMING;
     delete process.env.TENKI_SDK_RUN_TRACE_TIMING;
     Object.assign(process.env, env);
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});

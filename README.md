@@ -37,7 +37,7 @@ Release does not close the shared SDK client.
 ```typescript
 import { LuxorSandbox } from "@luxorai/sandbox";
 
-const sandbox = new LuxorSandbox(); // reads LUXORAI_AUTH_TOKEN
+const sandbox = new LuxorSandbox(); // reads LUXOR_AUTH_TOKEN
 // create() waits by default via a single server-held request and returns a
 // run-ready sandbox with data-plane access primed.
 const session = await sandbox.create({
@@ -80,16 +80,17 @@ The server may reject options from later milestones, including wake-on-connect a
 
 ## Authentication
 
-Pass an API key or service token starting with `lx_` (`tk_` is still accepted) explicitly, or set `LUXORAI_AUTH_TOKEN` or `LUXORAI_API_KEY` (`TENKI_AUTH_TOKEN` and `TENKI_API_KEY` are still read when no `LUXORAI_*` token is set). Every `LUXORAI_*` variable takes precedence over its `TENKI_*` equivalent:
+Pass an API key or service token starting with `lx_` (`tk_` is still accepted) explicitly, or set `LUXOR_AUTH_TOKEN` or `LUXOR_API_KEY` (`TENKI_AUTH_TOKEN` and `TENKI_API_KEY` are still read when no `LUXOR_*` token is set). Every `LUXOR_*` variable takes precedence over its `TENKI_*` equivalent:
 
 ```typescript
 const sandbox = new LuxorSandbox({ authToken: "lx_..." });
 ```
 
 `apiKey` is an alias for `authToken`. If both are supplied, `authToken` wins.
-Set `baseUrl`, `LUXORAI_API_ENDPOINT` or `LUXORAI_API_URL` to point the client at another API host such as `https://api.luxor.ai`;
-`TENKI_API_ENDPOINT` and `TENKI_API_URL` are still read when no `LUXORAI_*` URL is set.
+Set `baseUrl`, `LUXOR_API_ENDPOINT` or `LUXOR_API_URL` to point the client at another API host such as `https://api.luxor.ai`;
+`TENKI_API_ENDPOINT` and `TENKI_API_URL` are still read when no `LUXOR_*` URL is set.
 Blank or whitespace-only values count as absent.
+`LUXOR_API_KEY` is only used when it starts with `lx_` or `tk_`; any other value is ignored.
 
 The credential determines the Workspace automatically; ordinary Sandbox calls do not require a Workspace ID.
 
@@ -695,7 +696,7 @@ For OpenSSH, save `credentials.sshCert` beside the private key as
 requires a transport adapter such as a ProxyCommand.
 
 Gateway selection is automatic. Most users should not set `gatewayAddress` or
-`LUXORAI_SANDBOX_GATEWAY_URL` (or `TENKI_SANDBOX_GATEWAY_URL`); they are advanced overrides for environments with
+`LUXOR_SANDBOX_GATEWAY_URL` (or `TENKI_SANDBOX_GATEWAY_URL`); they are advanced overrides for environments with
 a custom SSH gateway address. Setting either disables automatic selection.
 `sshAuthorizedKeys` installs public keys inside the sandbox, but connections
 through Luxor's SSH gateway also require a short-lived certificate from
@@ -744,8 +745,8 @@ await using workspace = new WorkspaceClient({ workspaceId });
 const secret = await workspace.secrets.create("TOKEN", valueBytes, { description: "Deploy token", requestId });
 ```
 
-Authentication uses `LUXORAI_AUTH_TOKEN` or `LUXORAI_API_KEY` (`TENKI_AUTH_TOKEN` and `TENKI_API_KEY` are still accepted).
-Set `baseUrl` or `LUXORAI_CLOUD_API_URL` (or `TENKI_CLOUD_API_URL`) to override the cloud API endpoint independently of sandbox
+Authentication uses `LUXOR_AUTH_TOKEN` or `LUXOR_API_KEY` (`TENKI_AUTH_TOKEN` and `TENKI_API_KEY` are still accepted).
+Set `baseUrl` or `LUXOR_CLOUD_API_URL` (or `TENKI_CLOUD_API_URL`) to override the cloud API endpoint independently of sandbox
 configuration. Set `workspaceId` once on the client. An omitted or empty workspace ID uses the authenticated workspace key's scope;
 other callers must specify one.
 

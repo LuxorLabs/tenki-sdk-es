@@ -14,7 +14,7 @@ export class PaginationStalledError extends SandboxError {
 export class MissingAuthTokenError extends SandboxError {
   constructor() {
     super(
-      "missing auth token - set LUXORAI_AUTH_TOKEN or LUXORAI_API_KEY (or TENKI_AUTH_TOKEN or TENKI_API_KEY) or use authToken option",
+      "missing auth token - set LUXOR_AUTH_TOKEN or LUXOR_API_KEY (or TENKI_AUTH_TOKEN or TENKI_API_KEY) or use authToken option",
     );
     this.name = "MissingAuthTokenError";
   }

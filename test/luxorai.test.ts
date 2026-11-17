@@ -23,12 +23,12 @@ const { version } = JSON.parse(readFileSync(new URL("../package.json", import.me
 };
 
 const ENV_NAMES = [
-  "LUXORAI_AUTH_TOKEN",
-  "LUXORAI_API_KEY",
-  "LUXORAI_API_ENDPOINT",
-  "LUXORAI_API_URL",
-  "LUXORAI_SANDBOX_GATEWAY_URL",
-  "LUXORAI_CLOUD_API_URL",
+  "LUXOR_AUTH_TOKEN",
+  "LUXOR_API_KEY",
+  "LUXOR_API_ENDPOINT",
+  "LUXOR_API_URL",
+  "LUXOR_SANDBOX_GATEWAY_URL",
+  "LUXOR_CLOUD_API_URL",
   "TENKI_AUTH_TOKEN",
   "TENKI_API_KEY",
   "TENKI_API_ENDPOINT",
@@ -49,32 +49,55 @@ function clientConfig(client: TenkiSandbox): { baseUrl: string; gatewayAddress: 
   return client as unknown as { baseUrl: string; gatewayAddress: string };
 }
 
-describe("LUXORAI_* environment", () => {
-  it("prefers LUXORAI_* over TENKI_* for the auth token", () => {
+describe("LUXOR_* environment", () => {
+  it("prefers LUXOR_* over TENKI_* for the auth token", () => {
     process.env.TENKI_AUTH_TOKEN = "tk_tenki_auth";
     process.env.TENKI_API_KEY = "tk_tenki_key";
-    process.env.LUXORAI_API_KEY = "lx_luxorai_key";
-    expect(resolveAuthToken()).toBe("lx_luxorai_key");
-    process.env.LUXORAI_AUTH_TOKEN = "lx_luxorai_auth";
-    expect(resolveAuthToken()).toBe("lx_luxorai_auth");
+    process.env.LUXOR_API_KEY = "lx_luxor_key";
+    expect(resolveAuthToken()).toBe("lx_luxor_key");
+    process.env.LUXOR_AUTH_TOKEN = "lx_luxor_auth";
+    expect(resolveAuthToken()).toBe("lx_luxor_auth");
   });
 
-  it("falls back to TENKI_* when no LUXORAI_* token is set", () => {
+  it("falls back to TENKI_* when no LUXOR_* token is set", () => {
     process.env.TENKI_API_KEY = "tk_tenki_key";
     expect(resolveAuthToken()).toBe("tk_tenki_key");
   });
 
-  it("falls back to TENKI_* when LUXORAI_AUTH_TOKEN is whitespace", () => {
-    process.env.LUXORAI_AUTH_TOKEN = " \t ";
+  it("falls back to TENKI_* when LUXOR_AUTH_TOKEN is whitespace", () => {
+    process.env.LUXOR_AUTH_TOKEN = " \t ";
     process.env.TENKI_AUTH_TOKEN = "tk_tenki_auth";
     expect(resolveAuthToken()).toBe("tk_tenki_auth");
   });
 
-  it("prefers LUXORAI_* base and gateway URLs", () => {
+  it.each(["lx_luxor_key", "tk_luxor_key"])("uses LUXOR_API_KEY=%s", (key) => {
+    process.env.TENKI_API_KEY = "tk_tenki_key";
+    process.env.LUXOR_API_KEY = ` ${key} `;
+    expect(resolveAuthToken()).toBe(key);
+  });
+
+  it("ignores a LUXOR_API_KEY without an lx_ or tk_ prefix and uses TENKI_API_KEY", () => {
+    process.env.LUXOR_API_KEY = "pool-key-123";
+    process.env.TENKI_API_KEY = "tk_tenki_key";
+    expect(resolveAuthToken()).toBe("tk_tenki_key");
+  });
+
+  it("reports a missing token when only a non-prefixed LUXOR_API_KEY is set", () => {
+    process.env.LUXOR_API_KEY = "pool-key-123";
+    expect(() => resolveAuthToken()).toThrow(MissingAuthTokenError);
+  });
+
+  it("does not apply the prefix guard to LUXOR_AUTH_TOKEN", () => {
+    process.env.LUXOR_AUTH_TOKEN = "pool-key-123";
+    process.env.TENKI_API_KEY = "tk_tenki_key";
+    expect(() => resolveAuthToken()).toThrow(InvalidAuthTokenError);
+  });
+
+  it("prefers LUXOR_* base and gateway URLs", () => {
     process.env.TENKI_API_ENDPOINT = "https://api.tenki.example";
     process.env.TENKI_SANDBOX_GATEWAY_URL = "wss://gateway.tenki.example";
-    process.env.LUXORAI_API_URL = "https://api.luxor.example";
-    process.env.LUXORAI_SANDBOX_GATEWAY_URL = "wss://gateway.luxor.example";
+    process.env.LUXOR_API_URL = "https://api.luxor.example";
+    process.env.LUXOR_SANDBOX_GATEWAY_URL = "wss://gateway.luxor.example";
     const client = new LuxorSandbox({ authToken: "lx_test", transport: {} as never });
     expect(clientConfig(client)).toMatchObject({
       baseUrl: "https://api.luxor.example",
@@ -92,9 +115,9 @@ describe("LUXORAI_* environment", () => {
     });
   });
 
-  it("derives the gateway from a LUXORAI_API_ENDPOINT on api.luxor.ai", () => {
-    process.env.LUXORAI_API_ENDPOINT = "https://api.luxor.ai";
-    process.env.LUXORAI_API_URL = "https://ignored.luxor.example";
+  it("derives the gateway from a LUXOR_API_ENDPOINT on api.luxor.ai", () => {
+    process.env.LUXOR_API_ENDPOINT = "https://api.luxor.ai";
+    process.env.LUXOR_API_URL = "https://ignored.luxor.example";
     const client = new LuxorSandbox({ authToken: "lx_test", transport: {} as never });
     expect(clientConfig(client)).toMatchObject({
       baseUrl: "https://api.luxor.ai",
@@ -109,9 +132,9 @@ describe("lx_ API keys", () => {
     expect(resolveAuthToken(token)).toBe(token);
   });
 
-  it("names LUXORAI_* first and both key prefixes in auth errors", () => {
+  it("names LUXOR_* first and both key prefixes in auth errors", () => {
     expect(() => resolveAuthToken()).toThrow(MissingAuthTokenError);
-    expect(new MissingAuthTokenError().message).toMatch(/LUXORAI_AUTH_TOKEN.*\(or TENKI_AUTH_TOKEN/);
+    expect(new MissingAuthTokenError().message).toMatch(/LUXOR_AUTH_TOKEN.*\(or TENKI_AUTH_TOKEN/);
     expect(() => resolveAuthToken("lxr_token")).toThrow(InvalidAuthTokenError);
     expect(new InvalidAuthTokenError().message).toContain("lx_ or tk_");
   });
@@ -132,7 +155,7 @@ describe("SDK identity headers", () => {
     expect(headers.get("user-agent")).toBe(`luxor-sandbox-typescript/${version} connect-es/2.1.2`);
   });
 
-  it("sends client metadata on workspace requests and reads LUXORAI_CLOUD_API_URL first", async () => {
+  it("sends client metadata on workspace requests and reads LUXOR_CLOUD_API_URL first", async () => {
     const seen: Array<{ authorization: string | null; clientFamily: string | null; userAgent: string | null }> = [];
     const server = createServer(
       connectNodeAdapter({
@@ -153,15 +176,15 @@ describe("SDK identity headers", () => {
     server.listen(0, "127.0.0.1");
     await once(server, "listening");
     process.env.TENKI_CLOUD_API_URL = "http://127.0.0.1:1";
-    process.env.LUXORAI_CLOUD_API_URL = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+    process.env.LUXOR_CLOUD_API_URL = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
     process.env.TENKI_AUTH_TOKEN = "tk_tenki";
-    process.env.LUXORAI_AUTH_TOKEN = "lx_luxorai";
+    process.env.LUXOR_AUTH_TOKEN = "lx_luxor";
     const client = new WorkspaceClient();
     try {
       await client.secrets.get("secret");
       expect(seen).toEqual([
         {
-          authorization: "Bearer lx_luxorai",
+          authorization: "Bearer lx_luxor",
           clientFamily: "typescript",
           userAgent: expect.stringMatching(/^luxor-sandbox-typescript\//),
         },
