@@ -77,6 +77,10 @@ export interface CreateOptions {
    * @deprecated Removed in the next major release; use maxDurationMs instead.
    */
   idleTimeoutMinutes?: number;
+  /**
+   * How long a paused session is kept resumable. At most the workspace's pause
+   * retention limit, which is also the default when unset or not positive; a larger value is rejected.
+   */
   pauseRetentionMs?: number;
   cpuCores?: number;
   memoryMb?: number;

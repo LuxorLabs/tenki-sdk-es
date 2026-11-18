@@ -136,6 +136,10 @@ await session.close();
 `idleTimeoutMinutes` is deprecated and ignored: sandboxes do not auto-pause on
 idle. Use `maxDurationMs`, or `session.pause()` to pause explicitly.
 
+`pauseRetentionMs` sets how long a paused session is kept resumable. It must be
+at most the workspace's pause retention limit, which is also the default when
+unset; a larger value is rejected with `InvalidArgument`.
+
 `sticky: true` discards `maxDurationMs` and runs the session until it is
 terminated. Manual pause and resume do not clear sticky. The returned
 `session.warnings` array retains the structured warning. By default,

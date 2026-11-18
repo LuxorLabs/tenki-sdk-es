@@ -335,7 +335,11 @@ export class TenkiSandbox implements AsyncDisposable {
     throw error;
   }
 
-  /** cpuCores is 1-128 and memoryMb 128-524288 MiB (even); the workspace's size limit may be lower. */
+  /**
+   * cpuCores is 1-128 and memoryMb 128-524288 MiB (even); the workspace's size limit may be lower.
+   * pauseRetentionMs must be at most the workspace's pause retention limit, which applies when it is unset or
+   * not positive; a larger value is rejected.
+   */
   async create(options?: CreateOptions): Promise<Session> {
     const req = create(CreateSessionRequestSchema, {
       ownerType: "SERVICE",
