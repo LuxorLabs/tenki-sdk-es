@@ -924,3 +924,44 @@ describe("TenkiSandbox client TLS options", () => {
     expect(createTemplate).not.toHaveBeenCalled();
   });
 });
+
+describe("managed tailnet DNS compatibility", () => {
+  it("rejects a missing session without trying to terminate it", async () => {
+    const createSession = vi.fn().mockResolvedValue(create(CreateSessionResponseSchema));
+    const terminateSession = vi.fn();
+    connectMock.createClient.mockReturnValue({ createSession, terminateSession });
+    const client = new TenkiSandbox({ authToken: "tk_test" });
+
+    await expect(
+      client.create({
+        waitReady: false,
+        tailnet: { authKey: new TailnetAuthKey("sentinel"), acceptDns: true },
+      }),
+    ).rejects.toThrow("did not acknowledge managed tailnet DNS configuration");
+
+    expect(terminateSession).not.toHaveBeenCalled();
+  });
+
+  it.each([false, true])("cleans up when the API drops acceptDns=%s", async (acceptDns) => {
+    const createSession = vi.fn().mockResolvedValue(
+      create(CreateSessionResponseSchema, {
+        session: { id: "dns-session", state: SessionState.RUNNING },
+      }),
+    );
+    const terminateSession = vi.fn().mockResolvedValue(create(TerminateSessionResponseSchema));
+    connectMock.createClient.mockReturnValue({ createSession, terminateSession });
+    const client = new TenkiSandbox({ authToken: "tk_test" });
+    await expect(
+      client.create({
+        waitReady: false,
+        tailnet: {
+          authKey: new TailnetAuthKey("sentinel"),
+          acceptDns,
+        },
+      }),
+    ).rejects.toThrow("did not acknowledge");
+    expect(terminateSession).toHaveBeenCalledWith(expect.objectContaining({ sessionId: "dns-session" }), {
+      timeoutMs: 10000,
+    });
+  });
+});

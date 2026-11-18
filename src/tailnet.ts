@@ -53,6 +53,7 @@ export interface TailnetAttachmentOptions {
   controlUrl?: string;
   exitNode?: string;
   acceptRoutes?: boolean;
+  acceptDns?: boolean;
   wakeOnConnect?: boolean;
   exposePorts?: number[];
   exposedPorts?: TailnetPort[];
@@ -71,6 +72,7 @@ export interface TailnetStatus {
   owner: string;
   error: string;
   deviceRetained: boolean;
+  acceptDns?: boolean;
 }
 
 export function tailnetAttachmentToProto(options: TailnetAttachmentOptions): ProtoTailnetAttachment {
@@ -94,6 +96,7 @@ export function tailnetAttachmentToProto(options: TailnetAttachmentOptions): Pro
     controlUrl: options.controlUrl ?? "",
     exitNode: options.exitNode ?? "",
     acceptRoutes: options.acceptRoutes ?? false,
+    acceptDns: options.acceptDns,
     wakeOnConnect: options.wakeOnConnect ?? false,
     exposePorts: [...(options.exposePorts ?? [])],
     exposedPorts: (options.exposedPorts ?? []).map(({ port, protocol }) => {
@@ -122,6 +125,7 @@ export function tailnetStatusFromProto(status?: ProtoTailnetStatus): TailnetStat
     owner: status.owner,
     error: status.error,
     deviceRetained: status.deviceRetained,
+    acceptDns: status.acceptDns,
   };
 }
 

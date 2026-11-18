@@ -305,6 +305,21 @@ export class TenkiSandbox implements AsyncDisposable {
     }
   }
 
+  private async verifyTailnetDNS(requested: boolean | undefined, response: CreateSessionResponse): Promise<void> {
+    if (requested === undefined || response.session?.tailnetStatus?.acceptDns === requested) return;
+    const error = new Error("API did not acknowledge managed tailnet DNS configuration");
+    const sessionId = response.session?.id;
+    if (!sessionId) throw error;
+    try {
+      await this.rpcClient.terminateSession(create(TerminateSessionRequestSchema, { sessionId }), {
+        timeoutMs: 10000,
+      });
+    } catch (cleanupError) {
+      throw new AggregateError([error, cleanupError], "Managed tailnet DNS is unsupported and session cleanup failed");
+    }
+    throw error;
+  }
+
   /** cpuCores is 1-128 and memoryMb 128-524288 MiB (even); the workspace's size limit may be lower. */
   async create(options?: CreateOptions): Promise<Session> {
     const req = create(CreateSessionRequestSchema, {
@@ -456,6 +471,7 @@ export class TenkiSandbox implements AsyncDisposable {
     }
 
     await this.verifyTailnetExposure(req, resp);
+    await this.verifyTailnetDNS(options?.tailnet?.acceptDns, resp);
     const warnings = sandboxWarningsFromProto(resp.warnings);
     // Match the Go SDK: skip data-plane config on terminal route failure so the first op fails fast instead of retrying a dead route for the whole readiness budget.
     const dataPlane =
