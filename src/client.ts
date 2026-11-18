@@ -23,6 +23,7 @@ import {
 import {
   egressPolicyFromMessage,
   egressPolicySpecToProto,
+  publicEgressAcknowledged,
   workspaceScope,
   type EgressPolicy,
   type EgressPolicySpec,
@@ -55,7 +56,9 @@ import {
 } from "./internal/proto/tenki/sandbox/v1/registry_pb.js";
 import {
   CreateEgressPolicyRequestSchema,
+  CreateEgressPolicyWithPublicEgressRequestSchema,
   CreateSessionRequestSchema,
+  CreateSessionWithPublicEgressRequestSchema,
   CreateSnapshotRequestSchema,
   CreateStorageConnectionRequestSchema,
   CreateVolumeRequestSchema,
@@ -89,6 +92,7 @@ import {
   TerminateSessionRequestSchema,
   TestStorageConnectionRequestSchema,
   UpdateEgressPolicyRequestSchema,
+  UpdateEgressPolicyWithPublicEgressRequestSchema,
   UpdateSessionRequestSchema,
   UpdateSnapshotRequestSchema,
   UpdateStorageConnectionRequestSchema,
@@ -305,6 +309,17 @@ export class TenkiSandbox implements AsyncDisposable {
     }
   }
 
+  // Unsupported APIs must release their allocation before exposing a handle.
+  private async verifyPublicEgress(session: Session, requested: EgressPolicySpec["publicEgress"]): Promise<void> {
+    if (publicEgressAcknowledged(requested, session.egress.publicEgress)) return;
+    try {
+      await session.close();
+    } catch (error) {
+      throw new Error("Server does not support public egress restrictions; session cleanup failed", { cause: error });
+    }
+    throw new Error("Server does not support public egress restrictions");
+  }
+
   private async verifyTailnetDNS(requested: boolean | undefined, response: CreateSessionResponse): Promise<void> {
     if (requested === undefined || response.session?.tailnetStatus?.acceptDns === requested) return;
     const error = new Error("API did not acknowledge managed tailnet DNS configuration");
@@ -346,21 +361,7 @@ export class TenkiSandbox implements AsyncDisposable {
     if (!validSecretFiles(req.secretFiles, 0) || req.secretFiles.some((file) => file.format.case === "source")) {
       throw new Error("Invalid direct secret files; image source paths require a template build");
     }
-    if (
-      options?.allowDomains?.length ||
-      options?.allowCidrs?.length ||
-      options?.interceptHttps ||
-      options?.allowedPorts?.length ||
-      options?.httpRules?.length
-    ) {
-      req.egress = create(SessionEgressPolicySchema, {
-        allowDomains: options?.allowDomains ?? [],
-        allowCidrs: options?.allowCidrs ?? [],
-        interceptHttps: options?.interceptHttps ?? false,
-        allowedPorts: [...(options?.allowedPorts ?? [])],
-        httpRules: (options?.httpRules ?? []).map(egressHttpRuleToProto),
-      });
-    }
+    req.egress = sessionEgressPolicy(options ?? {});
 
     const image = registryRefOf(options?.image);
     const templateSpecId = options?.fromTemplateSpec ? resourceIdOf(options.fromTemplateSpec) : "";
@@ -448,7 +449,14 @@ export class TenkiSandbox implements AsyncDisposable {
 
     let resp;
     try {
-      resp = await this.rpcClient.createSession(req);
+      resp =
+        options?.publicEgress !== undefined
+          ? (
+              await this.rpcClient.createSessionWithPublicEgress(
+                create(CreateSessionWithPublicEgressRequestSchema, { request: req }),
+              )
+            ).response!
+          : await this.rpcClient.createSession(req);
     } catch (err) {
       const runtimeFailure = ConnectError.from(err).findDetails(TemplateRuntimeFailureSchema)[0];
       if (runtimeFailure?.session) {
@@ -463,6 +471,7 @@ export class TenkiSandbox implements AsyncDisposable {
           [],
           this.warningHandler,
         );
+        await this.verifyPublicEgress(session, options?.publicEgress);
         throw new TemplateRuntimeFailedError(runtimeFailure.reason || "template runtime failed", session, {
           cause: err instanceof Error ? err : undefined,
         });
@@ -489,6 +498,7 @@ export class TenkiSandbox implements AsyncDisposable {
       warnings,
       this.warningHandler,
     );
+    await this.verifyPublicEgress(session, options?.publicEgress);
     emitWarnings(this.warningHandler, warnings);
     if (!waitReady) return session;
     if (isReady(session.state)) return session;
@@ -974,10 +984,19 @@ export class TenkiSandbox implements AsyncDisposable {
   ): Promise<EgressPolicy> {
     const egress = egressPolicySpecToProto(spec);
     try {
-      const resp = await this.rpcClient.createEgressPolicy(
-        create(CreateEgressPolicyRequestSchema, { workspaceId: workspaceScope(options), name, egress }),
-      );
-      return egressPolicyFromMessage(resp.policy);
+      const request = create(CreateEgressPolicyRequestSchema, { workspaceId: workspaceScope(options), name, egress });
+      const resp =
+        spec.publicEgress !== undefined
+          ? (
+              await this.rpcClient.createEgressPolicyWithPublicEgress(
+                create(CreateEgressPolicyWithPublicEgressRequestSchema, { request }),
+              )
+            ).response!
+          : await this.rpcClient.createEgressPolicy(request);
+      const policy = egressPolicyFromMessage(resp.policy);
+      if (!publicEgressAcknowledged(spec.publicEgress, policy.egress.publicEgress))
+        throw new Error("Server does not support public egress restrictions");
+      return policy;
     } catch (err) {
       throw mapError(err);
     }
@@ -992,15 +1011,24 @@ export class TenkiSandbox implements AsyncDisposable {
   ): Promise<EgressPolicy> {
     const egress = egressPolicySpecToProto(spec);
     try {
-      const resp = await this.rpcClient.updateEgressPolicy(
-        create(UpdateEgressPolicyRequestSchema, {
-          workspaceId: workspaceScope(options),
-          policyId: nameOrId,
-          expectedRevision,
-          egress,
-        }),
-      );
-      return egressPolicyFromMessage(resp.policy);
+      const request = create(UpdateEgressPolicyRequestSchema, {
+        workspaceId: workspaceScope(options),
+        policyId: nameOrId,
+        expectedRevision,
+        egress,
+      });
+      const resp =
+        spec.publicEgress !== undefined
+          ? (
+              await this.rpcClient.updateEgressPolicyWithPublicEgress(
+                create(UpdateEgressPolicyWithPublicEgressRequestSchema, { request }),
+              )
+            ).response!
+          : await this.rpcClient.updateEgressPolicy(request);
+      const policy = egressPolicyFromMessage(resp.policy);
+      if (!publicEgressAcknowledged(spec.publicEgress, policy.egress.publicEgress))
+        throw new Error("Server does not support public egress restrictions");
+      return policy;
     } catch (err) {
       throw mapError(err);
     }
@@ -1748,3 +1776,24 @@ function sleep(ms: number, signal?: AbortSignal): Promise<void> {
 /** Luxor Sandbox client; the same class as {@link TenkiSandbox}. */
 export const LuxorSandbox = TenkiSandbox;
 export type LuxorSandbox = TenkiSandbox;
+
+function sessionEgressPolicy(options: CreateOptions): CreateSessionRequest["egress"] {
+  if (
+    options.allowDomains?.length ||
+    options.allowCidrs?.length ||
+    options.interceptHttps ||
+    options.allowedPorts?.length ||
+    options.publicEgress !== undefined ||
+    options.httpRules?.length
+  ) {
+    return create(SessionEgressPolicySchema, {
+      allowDomains: options.allowDomains ?? [],
+      allowCidrs: options.allowCidrs ?? [],
+      interceptHttps: options.interceptHttps ?? false,
+      allowedPorts: [...(options.allowedPorts ?? [])],
+      publicEgress: options.publicEgress,
+      httpRules: (options.httpRules ?? []).map(egressHttpRuleToProto),
+    });
+  }
+  return undefined;
+}

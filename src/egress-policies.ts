@@ -16,6 +16,7 @@ export interface EgressPolicySpec {
   interceptHttps?: boolean;
   /** Extra public TCP ports bypass HTTP inspection and still require an allowed destination. */
   allowedPorts?: number[];
+  publicEgress?: { tcpPorts?: number[]; udpPorts?: number[] };
   httpRules?: EgressHttpRule[];
 }
 
@@ -40,6 +41,7 @@ export function egressPolicySpecToProto(spec: EgressPolicySpec): SessionEgressPo
     allowCidrs: [...(spec.allowCidrs ?? [])],
     interceptHttps: spec.interceptHttps ?? false,
     allowedPorts: [...(spec.allowedPorts ?? [])],
+    publicEgress: spec.publicEgress,
     httpRules: (spec.httpRules ?? []).map(egressHttpRuleToProto),
   });
 }
@@ -61,4 +63,16 @@ export function egressPolicyFromMessage(policy: EgressPolicyMessage | undefined)
 
 export function workspaceScope(options?: WorkspaceScopeOptions): string | undefined {
   return options?.workspaceId?.trim() || undefined;
+}
+
+export function publicEgressAcknowledged(
+  requested: EgressPolicySpec["publicEgress"],
+  actual: SessionEgressPolicy["publicEgress"],
+): boolean {
+  if (requested === undefined) return true;
+  return (
+    actual !== undefined &&
+    actual.tcpPorts.every((port) => (requested.tcpPorts ?? []).includes(port)) &&
+    actual.udpPorts.every((port) => (requested.udpPorts ?? []).includes(port))
+  );
 }

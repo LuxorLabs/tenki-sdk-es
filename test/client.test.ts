@@ -1,4 +1,5 @@
 import { create, toBinary } from "@bufbuild/protobuf";
+import { Code, ConnectError } from "@connectrpc/connect";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { TenkiSandbox } from "../src/client.js";
@@ -103,6 +104,40 @@ describe("TenkiSandbox client TLS options", () => {
     await expect(client.create({ diskSizeGb: 3 })).rejects.toThrow(InvalidResourceConfigError);
 
     expect(createSession).not.toHaveBeenCalled();
+  });
+
+  it("does not allocate on an API without public egress support", async () => {
+    const createSession = vi.fn();
+    connectMock.createClient.mockReturnValue({
+      createSession,
+      createSessionWithPublicEgress: vi.fn(async () => {
+        throw new ConnectError("unsupported compatibility route", Code.Unimplemented);
+      }),
+    });
+    const client = new TenkiSandbox({ authToken: "tk_test" });
+    await expect(client.create({ publicEgress: {}, waitReady: false })).rejects.toThrow(
+      "unsupported compatibility route",
+    );
+    expect(createSession).not.toHaveBeenCalled();
+  });
+
+  it("terminates an allocation when an old API drops public restrictions", async () => {
+    const createSession = vi.fn(async () =>
+      create(CreateSessionResponseSchema, {
+        session: { id: "unsupported-public-egress", state: SessionState.RUNNING },
+      }),
+    );
+    const terminateSession = vi.fn(async () => create(TerminateSessionResponseSchema, {}));
+    connectMock.createClient.mockReturnValue({
+      createSession,
+      terminateSession,
+      createSessionWithPublicEgress: vi.fn(async () => ({ response: await createSession() })),
+    });
+    const client = new TenkiSandbox({ authToken: "tk_test" });
+    await expect(client.create({ publicEgress: {}, waitReady: false })).rejects.toThrow(
+      "does not support public egress",
+    );
+    expect(terminateSession).toHaveBeenCalledWith(expect.objectContaining({ sessionId: "unsupported-public-egress" }));
   });
 
   it("allows an explicit opt-out of the workspace Tailscale default without credentials", async () => {

@@ -179,6 +179,7 @@ export interface SessionEgressPolicy {
   allowCidrs: string[];
   interceptHttps: boolean;
   allowedPorts: number[];
+  publicEgress?: { tcpPorts: number[]; udpPorts: number[] };
   httpRules: EgressHttpRule[];
   /** Named workspace egress policies pinned at create; the other fields hold their merged expansion. */
   policyNames: string[];
@@ -197,6 +198,9 @@ export function egressPolicyFromProto(
     allowCidrs: [...(egress?.allowCidrs ?? [])],
     interceptHttps: egress?.interceptHttps ?? false,
     allowedPorts: [...(egress?.allowedPorts ?? [])],
+    publicEgress: egress?.publicEgress
+      ? { tcpPorts: [...egress.publicEgress.tcpPorts], udpPorts: [...egress.publicEgress.udpPorts] }
+      : undefined,
     httpRules: (egress?.httpRules ?? []).map(egressHttpRuleFromProto),
     policyNames: [...policyNames],
   };

@@ -17,6 +17,7 @@ import {
   EgressPolicySchema,
   GetEgressPolicyResponseSchema,
   ListEgressPoliciesResponseSchema,
+  PublicEgressSchema,
   UpdateEgressPolicyResponseSchema,
 } from "../src/internal/proto/tenki/sandbox/v1/sandbox_pb.js";
 
@@ -56,6 +57,44 @@ function policy(name: string) {
 describe("egress policy CRUD", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  it("unwraps acknowledged public restriction responses", async () => {
+    const saved = policy("ports");
+    saved.egress!.publicEgress = create(PublicEgressSchema, { tcpPorts: [443] });
+    connectMock.createClient.mockReturnValue({
+      createEgressPolicyWithPublicEgress: vi.fn(async () => ({ response: { policy: saved } })),
+      updateEgressPolicyWithPublicEgress: vi.fn(async () => ({ response: { policy: saved } })),
+    });
+    const client = new TenkiSandbox({ authToken: "tk_test" });
+    const created = await client.createEgressPolicy("ports", { publicEgress: { tcpPorts: [443] } });
+    const updated = await client.updateEgressPolicy("ports", 3, { publicEgress: { tcpPorts: [443] } });
+    expect(created.egress.publicEgress?.tcpPorts).toEqual([443]);
+    expect(updated.egress.publicEgress?.tcpPorts).toEqual([443]);
+  });
+
+  it("uses compatibility routes without falling back to old policy mutations", async () => {
+    const createEgressPolicy = vi.fn();
+    const updateEgressPolicy = vi.fn();
+    const unsupported = vi.fn(async () => {
+      throw new ConnectError("unsupported compatibility route", Code.Unimplemented);
+    });
+    connectMock.createClient.mockReturnValue({
+      createEgressPolicy,
+      updateEgressPolicy,
+      createEgressPolicyWithPublicEgress: unsupported,
+      updateEgressPolicyWithPublicEgress: unsupported,
+    });
+    const client = new TenkiSandbox({ authToken: "tk_test" });
+    await expect(client.createEgressPolicy("ports", { publicEgress: {} })).rejects.toThrow(
+      "unsupported compatibility route",
+    );
+    await expect(client.updateEgressPolicy("ports", 1, { publicEgress: {} })).rejects.toThrow(
+      "unsupported compatibility route",
+    );
+    expect(createEgressPolicy).not.toHaveBeenCalled();
+    expect(updateEgressPolicy).not.toHaveBeenCalled();
+    expect(unsupported).toHaveBeenCalledTimes(2);
   });
 
   it("sends the wire fields and maps the stored policy", async () => {
