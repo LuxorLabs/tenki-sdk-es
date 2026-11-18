@@ -378,10 +378,11 @@ export function mapError(err: unknown): SandboxError {
       if (msg.includes("template build")) return new TemplateBuildNotFoundError(connectErr.message, { cause });
       if (msg.includes("template")) return new TemplateNotFoundError(connectErr.message, { cause });
       if (msg.includes("registry image")) return new RegistryImageNotFoundError(connectErr.message, { cause });
+      if (msg.includes("no such file or directory")) return new FileNotFoundError(connectErr.message, { cause });
+      if (msg.includes("session")) return new SessionNotFoundError(connectErr.message, { cause });
       if (msg.includes("snapshot")) return new SnapshotNotFoundError(connectErr.message, { cause });
       if (msg.includes("volume")) return new VolumeNotFoundError(connectErr.message, { cause });
       if (msg.includes("artifact")) return new SessionExpiredError(connectErr.message, { cause });
-      if (msg.includes("no such file or directory")) return new FileNotFoundError(connectErr.message, { cause });
       return new SessionNotFoundError(connectErr.message, { cause });
     case Code.AlreadyExists:
       if (msg.includes("template")) return new TemplateExistsError(connectErr.message, { cause });

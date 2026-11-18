@@ -5,6 +5,7 @@ import {
   CapacityUnavailableError,
   CommandTimeoutError,
   DataPlaneNotReadyError,
+  FileNotFoundError,
   GitOperationFailedError,
   InboundDisabledError,
   InvalidStateError,
@@ -121,6 +122,7 @@ describe("mapError", () => {
 
     it("maps NotFound to SessionNotFoundError by default", () => {
       expect(mapError(connectErr(Code.NotFound, "session not found"))).toBeInstanceOf(SessionNotFoundError);
+      expect(mapError(connectErr(Code.NotFound, ""))).toBeInstanceOf(SessionNotFoundError);
     });
 
     it("maps a missing storage connection or mount to its own error, not SessionNotFoundError", () => {
@@ -173,6 +175,17 @@ describe("mapError", () => {
       expect(mapError(connectErr(Code.NotFound, "registry image version not found"))).toBeInstanceOf(
         RegistryImageNotFoundError,
       );
+    });
+
+    it.each([
+      ["registry image for snapshot abc not found", RegistryImageNotFoundError],
+      ["open /mnt/volume/a.txt: no such file or directory", FileNotFoundError],
+      ["stat /data/snapshot/x: no such file or directory", FileNotFoundError],
+      ["snapshot not found for session abc", SessionNotFoundError],
+      ["volume not found for session abc", SessionNotFoundError],
+      ["volume for snapshot abc not found", SnapshotNotFoundError],
+    ])("classifies multi-keyword NotFound %j like the Go SDK", (message, want) => {
+      expect(mapError(connectErr(Code.NotFound, message))).toBeInstanceOf(want);
     });
 
     it("maps NotFound with 'snapshot' to SnapshotNotFoundError", () => {
@@ -237,6 +250,9 @@ describe("mapError", () => {
       expect(mapError(connectErr(Code.FailedPrecondition, "template build already in progress"))).toBeInstanceOf(
         TemplateBuildInProgressError,
       );
+      expect(
+        mapError(connectErr(Code.FailedPrecondition, "template build already in progress; session terminated")),
+      ).toBeInstanceOf(TemplateBuildInProgressError);
     });
 
     it("maps FailedPrecondition with 'sync_pending'", () => {
