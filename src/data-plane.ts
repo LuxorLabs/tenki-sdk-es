@@ -231,6 +231,41 @@ export async function warmDataPlaneConnection(client: Client<typeof SandboxSessi
   await dataPlaneSessionManagers.get(client)?.manager.connect();
 }
 
+const DATA_PLANE_WARM_MAX_ENDPOINTS = 8;
+const DATA_PLANE_WARM_HOLD_MS = 30_000;
+
+// Opens the shared connections a session on any of these hosts will reuse; nothing is sent on them.
+export function warmDataPlaneEndpoints(endpoints: readonly string[]): void {
+  for (const endpoint of endpoints.slice(0, DATA_PLANE_WARM_MAX_ENDPOINTS)) {
+    let origin: string;
+    try {
+      const url = new URL(endpoint);
+      if (url.protocol !== "https:") continue;
+      origin = url.origin;
+    } catch {
+      continue;
+    }
+    let sharedSessionManager = sharedDataPlaneSessionManagers.get(origin);
+    if (!sharedSessionManager) {
+      sharedSessionManager = {
+        manager: new DrainingHttp2SessionManager(origin, KEEPALIVE_PING_OPTIONS),
+        origin,
+        references: 0,
+      };
+      sharedDataPlaneSessionManagers.set(origin, sharedSessionManager);
+      const warmed = sharedSessionManager;
+      // Drop a warmed connection no session claimed, as the Go and Python SDKs do.
+      const timer = setTimeout(() => {
+        if (warmed.references > 0) return;
+        if (sharedDataPlaneSessionManagers.get(origin) === warmed) sharedDataPlaneSessionManagers.delete(origin);
+        warmed.manager.abort();
+      }, DATA_PLANE_WARM_HOLD_MS);
+      timer.unref?.();
+    }
+    void sharedSessionManager.manager.connect().catch(() => {});
+  }
+}
+
 export function closeDataPlaneConnection(client?: Client<typeof SandboxSessionDataPlaneService>) {
   if (!client) return;
   const sharedSessionManager = dataPlaneSessionManagers.get(client);

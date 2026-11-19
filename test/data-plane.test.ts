@@ -6,6 +6,7 @@ import {
   createDataPlaneClient,
   DataPlaneCredentialManager,
   DataPlaneEndpointHints,
+  warmDataPlaneEndpoints,
 } from "../src/data-plane.js";
 import { InvalidStateError } from "../src/errors.js";
 
@@ -47,6 +48,39 @@ describe("DataPlaneCredentialManager", () => {
 
     closeDataPlaneConnection(second);
     expect(abort).toHaveBeenCalledOnce();
+  });
+
+  it("warms candidate origins in the shared pool a later client reuses", () => {
+    const connect = vi.spyOn(Http2SessionManager.prototype, "connect").mockResolvedValue("open");
+    const abort = vi.spyOn(Http2SessionManager.prototype, "abort");
+
+    warmDataPlaneEndpoints(["https://warm.example.com", "http://plain.example.com", "not a url"]);
+    expect(connect).toHaveBeenCalledOnce();
+
+    const client = createDataPlaneClient(
+      "https://warm.example.com/",
+      { current: () => "credential" } as never,
+      "session-1",
+    );
+    closeDataPlaneConnection(client);
+    expect(abort).toHaveBeenCalledOnce();
+  });
+
+  it("drops a warmed connection no session claimed", () => {
+    vi.useFakeTimers();
+    vi.spyOn(Http2SessionManager.prototype, "connect").mockResolvedValue("open");
+    const abort = vi.spyOn(Http2SessionManager.prototype, "abort");
+    try {
+      warmDataPlaneEndpoints(["https://unclaimed.example.com"]);
+      vi.advanceTimersByTime(30_000);
+      expect(abort).toHaveBeenCalledOnce();
+
+      warmDataPlaneEndpoints(Array.from({ length: 12 }, (_, i) => `https://host-${i}.example.com`));
+      vi.advanceTimersByTime(30_000);
+      expect(abort).toHaveBeenCalledTimes(9);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("backs off when credential renewal returns false", async () => {

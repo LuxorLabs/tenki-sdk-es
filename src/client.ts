@@ -20,6 +20,7 @@ import {
   pollBackoffMs,
   SNAPSHOT_NOT_FOUND_GRACE_MS,
 } from "./constants.js";
+import { warmDataPlaneEndpoints } from "./data-plane.js";
 import {
   egressPolicyFromMessage,
   egressPolicySpecToProto,
@@ -485,6 +486,7 @@ export class TenkiSandbox implements AsyncDisposable {
 
     await this.verifyTailnetExposure(req, resp);
     await this.verifyTailnetDNS(options?.tailnet?.acceptDns, resp);
+    warmDataPlaneEndpoints(resp.dataPlaneWarmEndpoints);
     const warnings = sandboxWarningsFromProto(resp.warnings);
     // Match the Go SDK: skip data-plane config on terminal route failure so the first op fails fast instead of retrying a dead route for the whole readiness budget.
     const dataPlane =
