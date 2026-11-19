@@ -68,10 +68,12 @@ describe("writeFileStream privileged", () => {
     const starts: WriteFileStreamRequest[] = [];
     const dataPlane = {
       writeFileStream: vi.fn(async (frames: AsyncIterable<{ frame?: WriteFileStreamRequest }>) => {
+        let received = 0n;
         for await (const request of frames) {
           if (request.frame?.payload.case === "start") starts.push(request.frame);
+          if (request.frame?.payload.case === "data") received += BigInt(request.frame.payload.value.byteLength);
         }
-        return {};
+        return { response: { bytesWritten: received } };
       }),
     };
     const session = { id: "session-1", requireDataPlane: async () => dataPlane } as unknown as Session;

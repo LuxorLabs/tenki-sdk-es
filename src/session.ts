@@ -16,11 +16,13 @@ import {
   CommandTimeoutError,
   DataPlaneNotReadyError,
   dataPlaneNotReadyError,
+  ensureFullWrite,
   ForkFailedError,
   InvalidStateError,
   isDataPlaneEdgeNotReady,
   isPausedSessionStateError,
   mapError,
+  mapWriteError,
   PauseFailedError,
   ResumeFailedError,
   ResumeWaitTimeoutError,
@@ -766,9 +768,10 @@ export class Session implements SessionHandle, AsyncDisposable {
         content,
       });
       const dataPlane = await this.requireDataPlane();
-      await dataPlane.writeFile(create(SandboxSessionDataPlaneServiceWriteFileRequestSchema, { request }));
+      const resp = await dataPlane.writeFile(create(SandboxSessionDataPlaneServiceWriteFileRequestSchema, { request }));
+      ensureFullWrite(path, BigInt(content.byteLength), resp.response?.sizeBytes);
     } catch (err) {
-      throw mapError(err);
+      throw mapWriteError(err);
     }
   }
 

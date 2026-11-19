@@ -243,6 +243,18 @@ export class ForkFailedError extends SandboxError {
   }
 }
 
+/** The sandbox acknowledged a write without saving every byte sent. */
+export class IncompleteWriteError extends SandboxError {
+  name = "IncompleteWriteError";
+}
+
+export function ensureFullWrite(path: string, sent: bigint, written: bigint | undefined): void {
+  const saved = written ?? 0n;
+  if (saved !== sent) {
+    throw new IncompleteWriteError(`write incomplete: ${path}: sent ${sent} bytes, sandbox wrote ${saved}`);
+  }
+}
+
 export class CapabilityUnavailableError extends SandboxError {
   name = "CapabilityUnavailableError";
 
@@ -435,4 +447,12 @@ export function mapError(err: unknown): SandboxError {
     default:
       return new SandboxError(connectErr.message, { cause });
   }
+}
+
+/** Maps errors from write RPCs, the only RPCs whose data_loss means an incomplete write. */
+export function mapWriteError(err: unknown): SandboxError {
+  if (err instanceof ConnectError && err.code === Code.DataLoss) {
+    return new IncompleteWriteError(err.message, { cause: err });
+  }
+  return mapError(err);
 }

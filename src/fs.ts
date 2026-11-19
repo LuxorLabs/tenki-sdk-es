@@ -1,6 +1,6 @@
 import { create } from "@bufbuild/protobuf";
 
-import { FileNotFoundError, mapError, StreamClosedError } from "./errors.js";
+import { ensureFullWrite, FileNotFoundError, mapError, mapWriteError, StreamClosedError } from "./errors.js";
 import {
   ListRequestSchema,
   MkdirRequestSchema,
@@ -120,6 +120,7 @@ export async function writeFileStream(
     response.then(settle, settle);
   });
   const reader = data.getReader();
+  let sent = 0n;
   try {
     for (;;) {
       const next = rpcSettled ? RPC_DONE : await Promise.race([rpcDone, reader.read()]);
@@ -130,14 +131,15 @@ export async function writeFileStream(
         throw new StreamClosedError("server ended the write stream before all data was sent");
       }
       if (next.done) break;
+      sent += BigInt(next.value.byteLength);
       outbound.push(create(WriteFileStreamRequestSchema, { payload: { case: "data", value: next.value } }));
     }
     outbound.close();
-    await response;
+    ensureFullWrite(path, sent, (await response).response?.bytesWritten);
   } catch (err) {
     abort.abort(); // cancel the RPC so the server sees an abort, not a clean half-close (SC-012)
     outbound.fail(err);
-    throw mapError(err);
+    throw mapWriteError(err);
   } finally {
     reader.releaseLock();
   }

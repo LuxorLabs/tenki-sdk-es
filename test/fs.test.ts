@@ -1,9 +1,10 @@
+import { Code, ConnectError } from "@connectrpc/connect";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { FileNotFoundError, StreamClosedError } from "../src/errors.js";
+import { FileNotFoundError, IncompleteWriteError, mapError, mapWriteError, StreamClosedError } from "../src/errors.js";
 import { stat, writeFileStream } from "../src/fs.js";
 import type { WriteFileStreamRequest } from "../src/internal/proto/tenki/sandbox/v1/sandbox_pb.js";
-import type { Session } from "../src/session.js";
+import { Session } from "../src/session.js";
 
 describe("writeFileStream abort handling", () => {
   afterEach(() => {
@@ -110,7 +111,7 @@ describe("writeFileStream abort handling", () => {
           frames++;
           if (req.frame?.payload.case === "data") received.push(...req.frame.payload.value);
         }
-        return {};
+        return { response: { bytesWritten: BigInt(received.length) } };
       }),
     };
     const chunks = [1, 2, 3].map((n) => new Uint8Array([n]));
@@ -150,6 +151,58 @@ describe("writeFileStream abort handling", () => {
     await expect(writeFileStream(makeSession(dataPlane), "/w/f", source)).rejects.toThrow();
     expect(consumerError).toBeInstanceOf(Error);
     expect((consumerError as Error).message).toBe("source blew up");
+  });
+});
+
+describe("write byte accounting", () => {
+  const chunks = [new TextEncoder().encode("hello "), new TextEncoder().encode("world")];
+
+  function skewedDataPlane(delta: bigint) {
+    return {
+      writeFileStream: vi.fn(
+        async (frames: AsyncIterable<{ frame?: { payload: { case?: string; value?: unknown } } }>) => {
+          let received = 0n;
+          for await (const { frame } of frames) {
+            if (frame?.payload.case === "data") received += BigInt((frame.payload.value as Uint8Array).byteLength);
+          }
+          return { response: { bytesWritten: received + delta, path: "/w/f" } };
+        },
+      ),
+      writeFile: vi.fn(async (req: { request?: { content: Uint8Array } }) => ({
+        response: { sizeBytes: BigInt(req.request?.content.byteLength ?? 0) + delta, path: "/w/f" },
+      })),
+    };
+  }
+
+  function source(): ReadableStream<Uint8Array> {
+    return new ReadableStream({
+      start(controller) {
+        for (const chunk of chunks) controller.enqueue(chunk);
+        controller.close();
+      },
+    });
+  }
+
+  it.each([0n, -1n, 1n, -11n])("rejects stream and unary writes when the sandbox saves %s bytes off", async (delta) => {
+    const session = makeSession(skewedDataPlane(delta));
+    const writes = [
+      () => writeFileStream(session, "/w/f", source()),
+      () => Session.prototype.writeFile.call(session, "/w/f", "hello world"),
+    ];
+    for (const write of writes) {
+      if (delta === 0n) {
+        await expect(write()).resolves.toBeUndefined();
+      } else {
+        await expect(write()).rejects.toThrow(IncompleteWriteError);
+        await expect(write()).rejects.toThrow("sent 11 bytes");
+      }
+    }
+  });
+
+  it("maps data_loss to IncompleteWriteError only for writes", () => {
+    const dataLoss = new ConnectError("incomplete write: sandbox wrote 2 of 4 bytes", Code.DataLoss);
+    expect(mapWriteError(dataLoss)).toBeInstanceOf(IncompleteWriteError);
+    expect(mapError(dataLoss)).not.toBeInstanceOf(IncompleteWriteError);
   });
 });
 

@@ -210,6 +210,7 @@ export {
   TemplateRuntimeFailedError,
   WaitReadyFailedError,
   ForkFailedError,
+  IncompleteWriteError,
   CapabilityUnavailableError,
   DataPlaneNotReadyError,
   PrimitiveTimeoutError,
