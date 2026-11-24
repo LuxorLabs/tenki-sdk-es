@@ -63,6 +63,8 @@ import {
   ListExposedPortsRequestSchema,
   ListStorageMountsRequestSchema,
   PauseSessionRequestSchema,
+  SessionNetworkMode as ProtoSessionNetworkMode,
+  SessionNetworkRestrictionReason as ProtoSessionNetworkRestrictionReason,
   SessionState as ProtoSessionState,
   WildcardStatus as ProtoWildcardStatus,
   ReadFileRequestSchema,
@@ -138,6 +140,10 @@ export type SessionState =
   | "TERMINATED";
 
 export type RuntimeState = "UNSPECIFIED" | "STARTING" | "READY" | "FAILED" | "STOPPED";
+/** RESTRICTED limits outbound traffic to the platform's allowlist of developer services. */
+export type NetworkMode = "UNSPECIFIED" | "FULL" | "RESTRICTED";
+/** NEVER_PURCHASED means the workspace has not purchased credits. */
+export type NetworkRestrictionReason = "UNSPECIFIED" | "NEVER_PURCHASED";
 
 /**
  * Readiness of the workspace wildcard domain backing a wildcard-scheme
@@ -278,6 +284,9 @@ export class Session implements SessionHandle, AsyncDisposable {
   public readonly sourceTemplateId?: string;
   public readonly warnings: SandboxWarning[];
   tailnetStatus?: TailnetStatus;
+  networkMode: NetworkMode;
+  /** UNSPECIFIED unless networkMode is RESTRICTED. */
+  networkRestrictionReason: NetworkRestrictionReason;
 
   #authToken: string;
   private gatewayAddress: string;
@@ -361,6 +370,8 @@ export class Session implements SessionHandle, AsyncDisposable {
     this.sourceTemplateId = proto.sourceTemplateId || undefined;
     this.warnings = [...warnings];
     this.tailnetStatus = tailnetStatusFromProto(proto.tailnetStatus);
+    this.networkMode = networkModeFromProto(proto.networkMode);
+    this.networkRestrictionReason = networkRestrictionReasonFromProto(proto.networkRestrictionReason);
 
     this.git = new Git(this);
     this.fs = {
@@ -412,6 +423,8 @@ export class Session implements SessionHandle, AsyncDisposable {
       sourceTemplateId: this.sourceTemplateId,
       warnings: this.warnings,
       tailnetStatus: this.tailnetStatus,
+      networkMode: this.networkMode,
+      networkRestrictionReason: this.networkRestrictionReason,
     };
   }
 
@@ -652,6 +665,8 @@ export class Session implements SessionHandle, AsyncDisposable {
     this.runtimeError = proto.runtimeError || undefined;
     this.sticky = proto.sticky;
     this.tailnetStatus = tailnetStatusFromProto(proto.tailnetStatus);
+    this.networkMode = networkModeFromProto(proto.networkMode);
+    this.networkRestrictionReason = networkRestrictionReasonFromProto(proto.networkRestrictionReason);
   }
 
   async exec(command: string | string[], options?: ExecOptions): Promise<ExecResult> {
@@ -1412,6 +1427,21 @@ export function wildcardStatusFromProto(status: ProtoWildcardStatus | undefined)
     default:
       return "UNSPECIFIED";
   }
+}
+
+function networkModeFromProto(mode: ProtoSessionNetworkMode): NetworkMode {
+  switch (mode) {
+    case ProtoSessionNetworkMode.FULL:
+      return "FULL";
+    case ProtoSessionNetworkMode.RESTRICTED:
+      return "RESTRICTED";
+    default:
+      return "UNSPECIFIED";
+  }
+}
+
+function networkRestrictionReasonFromProto(reason: ProtoSessionNetworkRestrictionReason): NetworkRestrictionReason {
+  return reason === ProtoSessionNetworkRestrictionReason.NEVER_PURCHASED ? "NEVER_PURCHASED" : "UNSPECIFIED";
 }
 
 function templateRuntimeStateFromProto(state: ProtoTemplateRuntimeState): RuntimeState {

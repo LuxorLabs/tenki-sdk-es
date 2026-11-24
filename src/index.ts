@@ -3,6 +3,8 @@ export { Session } from "./session.js";
 export type {
   SessionState,
   RuntimeState,
+  NetworkMode,
+  NetworkRestrictionReason,
   WildcardStatus,
   ExposedPort,
   SessionHandle,

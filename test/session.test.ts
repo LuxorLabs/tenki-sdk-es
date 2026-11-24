@@ -19,6 +19,8 @@ import {
   SandboxWarningCode,
   SandboxWarningSchema,
   SessionCredentialSchema,
+  SessionNetworkMode,
+  SessionNetworkRestrictionReason,
   SessionState,
   UpdateSessionResponseSchema,
   WaitSessionResponseSchema,
@@ -709,6 +711,41 @@ describe("Session streaming", () => {
 
     const running = new Session(makeRpcClient() as never, makeSessionProto(), "tk_test", "wss://gateway.tenki.test");
     expect(running.pauseExpiresAt).toBeUndefined();
+  });
+});
+
+describe("Session network mode", () => {
+  const futureEnumValue = 99;
+
+  it.each([
+    { name: "older server", fields: {}, mode: "UNSPECIFIED", reason: "UNSPECIFIED" },
+    { name: "full", fields: { networkMode: SessionNetworkMode.FULL }, mode: "FULL", reason: "UNSPECIFIED" },
+    {
+      name: "restricted",
+      fields: {
+        networkMode: SessionNetworkMode.RESTRICTED,
+        networkRestrictionReason: SessionNetworkRestrictionReason.NEVER_PURCHASED,
+      },
+      mode: "RESTRICTED",
+      reason: "NEVER_PURCHASED",
+    },
+    {
+      name: "newer server",
+      fields: { networkMode: futureEnumValue, networkRestrictionReason: futureEnumValue },
+      mode: "UNSPECIFIED",
+      reason: "UNSPECIFIED",
+    },
+  ])("reads $name", ({ fields, mode, reason }) => {
+    const proto = create(SandboxSessionSchema, { id: "session-1", state: SessionState.RUNNING, ...fields });
+    const session = new Session(makeRpcClient() as never, proto, "tk_test", "wss://gateway.tenki.test");
+
+    expect(session.networkMode).toBe(mode);
+    expect(session.networkRestrictionReason).toBe(reason);
+    expect(session.toJSON()).toMatchObject({ networkMode: mode, networkRestrictionReason: reason });
+  });
+
+  it("names the restricted network warning", () => {
+    expect(SandboxWarningCodes.RESTRICTED_NETWORK).toBe("RESTRICTED_NETWORK");
   });
 });
 
