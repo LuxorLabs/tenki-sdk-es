@@ -130,6 +130,14 @@ export type {
 export type { Identity, IdentityWorkspace } from "./whoami.js";
 export type { CIRunnerSize, CIRunnerSizes } from "./ci-runner-sizes.js";
 export type { WorkspaceUsageLimit, WorkspaceUsageUnit } from "./usage.js";
+export type {
+  SessionCost,
+  SessionCostBatch,
+  SessionCostItem,
+  SessionCostLine,
+  SessionCostStatus,
+  SessionCostUnit,
+} from "./cost.js";
 export type { SessionCPUUsageAverage, SessionMemoryUsageAverage, SessionMetrics } from "./metrics.js";
 
 export type {

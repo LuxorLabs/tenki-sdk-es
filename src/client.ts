@@ -20,6 +20,8 @@ import {
   pollBackoffMs,
   SNAPSHOT_NOT_FOUND_GRACE_MS,
 } from "./constants.js";
+import type { SessionCost, SessionCostBatch } from "./cost.js";
+import { sessionCostBatchFromProto, sessionCostFromProto } from "./cost.js";
 import { warmDataPlaneEndpoints } from "./data-plane.js";
 import {
   egressPolicyFromMessage,
@@ -56,6 +58,7 @@ import {
   UnshareRegistryImageRequestSchema,
 } from "./internal/proto/tenki/sandbox/v1/registry_pb.js";
 import {
+  BatchGetSessionCostsRequestSchema,
   CreateEgressPolicyRequestSchema,
   CreateEgressPolicyWithPublicEgressRequestSchema,
   CreateSessionRequestSchema,
@@ -69,6 +72,7 @@ import {
   DeleteStorageConnectionRequestSchema,
   DeleteVolumeRequestSchema,
   GetEgressPolicyRequestSchema,
+  GetSessionCostRequestSchema,
   GetSessionMetricsRequestSchema,
   GetSessionRequestSchema,
   GetSnapshotDownloadURLRequestSchema,
@@ -574,6 +578,29 @@ export class TenkiSandbox implements AsyncDisposable {
     if (windowMs !== undefined && windowMs !== 0) req.window = durationFromMs(windowMs);
     try {
       return sessionMetricsFromProto(await this.rpcClient.getSessionMetrics(req));
+    } catch (err) {
+      throw mapError(err);
+    }
+  }
+
+  async getSessionCost(sessionId: string): Promise<SessionCost> {
+    const id = sessionId.trim();
+    try {
+      const resp = await this.rpcClient.getSessionCost(create(GetSessionCostRequestSchema, { sessionId: id }));
+      return sessionCostFromProto(resp.cost, id);
+    } catch (err) {
+      throw mapError(err);
+    }
+  }
+
+  /** Returns the costs of up to 100 sessions in `options.workspaceId`, or in the API key's workspace when omitted. */
+  async batchGetSessionCosts(sessionIds: string[], options?: WorkspaceScopeOptions): Promise<SessionCostBatch> {
+    const req = create(BatchGetSessionCostsRequestSchema, {
+      workspaceId: workspaceScope(options),
+      sessionIds: sessionIds.map((id) => id.trim()),
+    });
+    try {
+      return sessionCostBatchFromProto(await this.rpcClient.batchGetSessionCosts(req));
     } catch (err) {
       throw mapError(err);
     }

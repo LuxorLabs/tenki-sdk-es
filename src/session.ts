@@ -3,6 +3,8 @@ import { durationFromMs, timestampDate, timestampFromDate } from "@bufbuild/prot
 import { Code, ConnectError, type Client } from "@connectrpc/connect";
 
 import { DEFAULT_VOLUME_DETACH_TIMEOUT_MS, pollBackoffMs } from "./constants.js";
+import type { SessionCost } from "./cost.js";
+import { sessionCostFromProto } from "./cost.js";
 import {
   closeDataPlaneConnection,
   createDataPlaneClient,
@@ -54,6 +56,7 @@ import {
   ExtendSessionRequestSchema,
   ForkSessionRequestSchema,
   ForkSessionResponseSchema,
+  GetSessionCostRequestSchema,
   GetSessionMetricsRequestSchema,
   GetSessionRequestSchema,
   GitOperationRequestSchema,
@@ -1026,6 +1029,15 @@ export class Session implements SessionHandle, AsyncDisposable {
     if (windowMs !== undefined && windowMs !== 0) req.window = durationFromMs(windowMs);
     try {
       return sessionMetricsFromProto(await this.rpcClient.getSessionMetrics(req));
+    } catch (err) {
+      throw mapError(err);
+    }
+  }
+
+  async cost(): Promise<SessionCost> {
+    try {
+      const resp = await this.rpcClient.getSessionCost(create(GetSessionCostRequestSchema, { sessionId: this.id }));
+      return sessionCostFromProto(resp.cost, this.id);
     } catch (err) {
       throw mapError(err);
     }
