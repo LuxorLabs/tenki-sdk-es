@@ -2,7 +2,7 @@ import http2 from "node:http2";
 import type { AddressInfo } from "node:net";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { createDataPlaneClient, DataPlaneCredentialManager } from "../src/data-plane.js";
+import { closeDataPlaneConnection, createDataPlaneClient, DataPlaneCredentialManager } from "../src/data-plane.js";
 import { REFUSED_STREAM_MAX_RETRIES } from "../src/refused-stream.js";
 
 // End-to-end exercise of the refused-stream retry against the REAL @connectrpc/connect-node
@@ -38,7 +38,11 @@ async function startServer(failures: number): Promise<FakeServer> {
     stream.end(Buffer.from([0, 0, 0, 0, 0]));
   });
 
-  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  // Reject on a bind error so a failure surfaces as itself, not a hook timeout.
+  await new Promise<void>((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", resolve);
+  });
   const port = (server.address() as AddressInfo).port;
 
   return {
@@ -54,15 +58,19 @@ function fakeCredentials(): DataPlaneCredentialManager {
 
 describe("refusedStreamRetry (integration, real connect-node transport)", () => {
   let server: FakeServer | undefined;
+  let client: ReturnType<typeof createDataPlaneClient> | undefined;
 
   afterEach(async () => {
+    // Close the client first; its cached HTTP/2 session keeps server.close() waiting until it idles out.
+    closeDataPlaneConnection(client);
+    client = undefined;
     await server?.close();
     server = undefined;
   });
 
   it("transparently recovers from REFUSED_STREAM on stream open", async () => {
     server = await startServer(2); // refuse twice, then succeed
-    const client = createDataPlaneClient(server.url, fakeCredentials(), "session-1");
+    client = createDataPlaneClient(server.url, fakeCredentials(), "session-1");
 
     await expect(client.stat({ request: { sessionId: "session-1", path: "/" } })).resolves.toBeDefined();
     expect(server.streamCount()).toBe(3); // 2 refusals + 1 success
@@ -70,7 +78,7 @@ describe("refusedStreamRetry (integration, real connect-node transport)", () => 
 
   it("gives up after the retry cap when REFUSED_STREAM never clears", async () => {
     server = await startServer(Number.POSITIVE_INFINITY); // always refuse
-    const client = createDataPlaneClient(server.url, fakeCredentials(), "session-1");
+    client = createDataPlaneClient(server.url, fakeCredentials(), "session-1");
 
     await expect(client.stat({ request: { sessionId: "session-1", path: "/" } })).rejects.toThrow();
     expect(server.streamCount()).toBe(REFUSED_STREAM_MAX_RETRIES + 1); // initial + 3 retries

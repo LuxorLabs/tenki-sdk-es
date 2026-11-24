@@ -2,7 +2,7 @@ import http2 from "node:http2";
 import type { AddressInfo } from "node:net";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { createDataPlaneClient, DataPlaneCredentialManager } from "../src/data-plane.js";
+import { closeDataPlaneConnection, createDataPlaneClient, DataPlaneCredentialManager } from "../src/data-plane.js";
 import { run } from "../src/process.js";
 import type { Session } from "../src/session.js";
 
@@ -39,15 +39,19 @@ const settleWithin = <T>(promise: Promise<T>, ms = 5_000) =>
 
 describe("stream closed without a response (integration, real connect-node transport)", () => {
   let server: FakeServer | undefined;
+  let client: ReturnType<typeof createDataPlaneClient> | undefined;
 
   afterEach(async () => {
+    // Close the client first; its cached HTTP/2 session keeps server.close() waiting until it idles out.
+    closeDataPlaneConnection(client);
+    client = undefined;
     await server?.close();
     server = undefined;
   });
 
   it("rejects a unary call instead of hanging", async () => {
     server = await startServer();
-    const client = createDataPlaneClient(server.url, fakeCredentials(), "session-1");
+    client = createDataPlaneClient(server.url, fakeCredentials(), "session-1");
 
     const outcome = await settleWithin(
       client.writeFile({ request: { sessionId: "session-1", path: "/home/tenki/a", content: new Uint8Array(4) } }).then(
@@ -63,6 +67,7 @@ describe("stream closed without a response (integration, real connect-node trans
   it("rejects a command run instead of hanging", async () => {
     server = await startServer();
     const dataPlane = createDataPlaneClient(server.url, fakeCredentials(), "session-1");
+    client = dataPlane;
     const session = {
       id: "session-1",
       dataPlaneReadyBudgetMs: () => 2_000,
