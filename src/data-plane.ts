@@ -6,7 +6,7 @@ import { setSdkIdentityHeaders } from "./auth.js";
 import { setClientMetadataHeaders } from "./client-metadata.js";
 import { pollBackoffMs } from "./constants.js";
 import { DataPlaneNotReadyError, InvalidStateError, isPausedSessionStateError } from "./errors.js";
-import { DrainingHttp2SessionManager, KEEPALIVE_PING_OPTIONS } from "./http2-drain.js";
+import { DATA_PLANE_SESSION_OPTIONS, DrainingHttp2SessionManager, KEEPALIVE_PING_OPTIONS } from "./http2-drain.js";
 import {
   DataPlaneRouteStatus,
   SandboxSessionDataPlaneService,
@@ -180,7 +180,7 @@ export function createDataPlaneClient(
   let sharedSessionManager = sharedDataPlaneSessionManagers.get(origin);
   if (!sharedSessionManager) {
     sharedSessionManager = {
-      manager: new DrainingHttp2SessionManager(origin, KEEPALIVE_PING_OPTIONS),
+      manager: new DrainingHttp2SessionManager(origin, KEEPALIVE_PING_OPTIONS, DATA_PLANE_SESSION_OPTIONS),
       origin,
       references: 0,
     };
@@ -248,7 +248,7 @@ export function warmDataPlaneEndpoints(endpoints: readonly string[]): void {
     let sharedSessionManager = sharedDataPlaneSessionManagers.get(origin);
     if (!sharedSessionManager) {
       sharedSessionManager = {
-        manager: new DrainingHttp2SessionManager(origin, KEEPALIVE_PING_OPTIONS),
+        manager: new DrainingHttp2SessionManager(origin, KEEPALIVE_PING_OPTIONS, DATA_PLANE_SESSION_OPTIONS),
         origin,
         references: 0,
       };

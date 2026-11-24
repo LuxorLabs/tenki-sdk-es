@@ -6,6 +6,11 @@ export const isBunRuntime = typeof (process.versions as { bun?: string }).bun ==
 // Matches the Go SDK's HTTP/2 ReadIdleTimeout/PingTimeout so a dead connection fails within ~35s.
 export const KEEPALIVE_PING_OPTIONS = { pingIntervalMs: 30_000, pingTimeoutMs: 5_000 };
 
+// Sessions on a data-plane host share one connection; Node and Bun count queued request bodies
+// against maxSessionMemory (10 MB default) and reset responses past it with ENHANCE_YOUR_CALM.
+// 320 MB fits eight max-size (32 MiB) unary writes queued at once (~268 MB) plus framing overhead.
+export const DATA_PLANE_SESSION_OPTIONS = { maxSessionMemory: 320 };
+
 // Bun's node:http2 client destroys a stream as soon as END_STREAM arrives, even when
 // DATA frames coalesced into the same socket read are still buffered, so the reader
 // fails with ERR_STREAM_PREMATURE_CLOSE (oven-sh/bun#14249; still present in Bun 1.4.0).
