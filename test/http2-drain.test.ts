@@ -3,7 +3,7 @@ import { PassThrough } from "node:stream";
 import { Http2SessionManager } from "@connectrpc/connect-node";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { deferDestroyUntilDrained, DrainingHttp2SessionManager } from "../src/http2-drain.js";
+import { deferDestroyUntilDrained, DrainingHttp2SessionManager, failCloseWithoutResponse } from "../src/http2-drain.js";
 
 // A PassThrough stands in for a ClientHttp2Stream: same Duplex semantics, plus rstCode.
 function fakeStream(rstCode?: number): http2.ClientHttp2Stream & PassThrough {
@@ -184,3 +184,37 @@ it("delivers all bytes on 100 concurrent HTTP/2 streams", async () => {
     await new Promise<void>((resolve) => server.close(() => resolve()));
   }
 }, 15_000);
+
+describe("failCloseWithoutResponse", () => {
+  function closedWith(
+    rstCode: number | undefined,
+    beforeClose: (stream: http2.ClientHttp2Stream & PassThrough) => void,
+  ) {
+    const stream = fakeStream(rstCode);
+    failCloseWithoutResponse(stream);
+    const errors: unknown[] = [];
+    stream.on("error", (err) => errors.push(err));
+    beforeClose(stream);
+    stream.emit("close");
+    return errors;
+  }
+
+  it("fails a stream that closes cleanly before any response", () => {
+    const errors = closedWith(0, () => {});
+    expect(errors).toHaveLength(1);
+    expect(String(errors[0])).toMatch(/closed without a response \(rstCode 0\)/);
+  });
+
+  it("leaves a stream that received a response alone", () => {
+    expect(closedWith(0, (stream) => stream.emit("response", { ":status": 200 }))).toEqual([]);
+  });
+
+  it("leaves non-zero reset codes to connect-node", () => {
+    expect(closedWith(8, () => {})).toEqual([]);
+    expect(closedWith(11, () => {})).toEqual([]);
+  });
+
+  it("does not add a second error after the stream already failed", () => {
+    expect(closedWith(0, (stream) => stream.emit("error", new Error("boom")))).toHaveLength(1);
+  });
+});

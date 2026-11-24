@@ -1,4 +1,5 @@
 import type http2 from "node:http2";
+import { Code, ConnectError } from "@connectrpc/connect";
 import { Http2SessionManager } from "@connectrpc/connect-node";
 
 export const isBunRuntime = typeof (process.versions as { bun?: string }).bun === "string";
@@ -26,6 +27,27 @@ export function deferDestroyUntilDrained(stream: http2.ClientHttp2Stream): void 
     stream.read(0);
     return stream;
   }) as typeof stream.destroy;
+}
+
+// connect-node rejects only on non-zero reset codes, so a stream that ends cleanly before any
+// response (an early RST_STREAM(NO_ERROR), or Node dropping headers over maxSessionMemory) would
+// leave the RPC pending forever. Internal, not Unavailable: the server may already have run it.
+export function failCloseWithoutResponse(stream: http2.ClientHttp2Stream): void {
+  let answered = false;
+  stream.once("response", () => {
+    answered = true;
+  });
+  stream.once("error", () => {
+    answered = true;
+  });
+  stream.once("close", () => {
+    const rstCode = stream.rstCode ?? 0;
+    if (answered || (rstCode !== 0 && rstCode !== 5)) return;
+    stream.emit(
+      "error",
+      new ConnectError(`http/2 stream closed without a response (rstCode ${rstCode})`, Code.Internal),
+    );
+  });
 }
 
 // Runtime-compatibility boundary: every stream the connect-node transport opens goes
@@ -66,6 +88,7 @@ export class DrainingHttp2SessionManager extends Http2SessionManager {
         }
       }
     }
+    failCloseWithoutResponse(stream);
     if (this.drain) deferDestroyUntilDrained(stream);
     return stream;
   }
