@@ -8,7 +8,7 @@ TypeScript SDK for [Luxor Sandbox](https://luxor.ai/docs/sandbox/sdk), programma
 npm install @luxorai/sandbox
 ```
 
-Requires Node.js 18 or newer. Bun 1.3 or newer also works.
+Requires Node.js 22 or newer. Bun 1.3 or newer also works.
 
 > This package was published as `@tenkicloud/sandbox`. That name keeps working and
 > publishes the same code at the same version, and `TenkiSandbox` remains an alias
