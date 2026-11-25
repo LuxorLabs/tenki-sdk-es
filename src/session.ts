@@ -29,6 +29,7 @@ import {
   ResumeFailedError,
   ResumeWaitTimeoutError,
   SessionNotFoundError,
+  TemplateRuntimeFailedError,
   terminalDataPlaneNotReadyError,
 } from "./errors.js";
 import {
@@ -44,6 +45,15 @@ import {
   type WriteStreamOptions,
 } from "./fs.js";
 import { Git } from "./git.js";
+import { githubInjectionCredentials } from "./github-token.js";
+import {
+  InjectionCredentialInput,
+  injectionInput,
+  injectionMetadata,
+  injectionRevision,
+  safeInjectionError,
+  type InjectionCredentialMetadata,
+} from "./injection-credentials.js";
 import type { SandboxSession, SessionEgressHttpRule } from "./internal/proto/tenki/sandbox/v1/sandbox_pb.js";
 import {
   AttachStorageMountRequestSchema,
@@ -77,6 +87,7 @@ import {
   SandboxSessionDataPlaneServiceWriteFileRequestSchema,
   SessionEgressHttpRuleSchema,
   StatRequestSchema,
+  TemplateRuntimeFailureSchema,
   TerminateSessionRequestSchema,
   UnexposePortRequestSchema,
   UpdateSessionRequestSchema,
@@ -85,6 +96,10 @@ import {
   WaitSessionRequestSchema,
   WriteFileRequestSchema,
 } from "./internal/proto/tenki/sandbox/v1/sandbox_pb.js";
+import {
+  RevokeSessionInjectionCredentialRequestSchema,
+  SetSessionInjectionCredentialRequestSchema,
+} from "./internal/proto/tenki/sandbox/v1/session_injection_credentials_pb.js";
 import { TemplateRuntimeState as ProtoTemplateRuntimeState } from "./internal/proto/tenki/sandbox/v1/template_pb.js";
 import type { SessionMetrics } from "./metrics.js";
 import { sessionMetricsFromProto } from "./metrics.js";
@@ -271,6 +286,7 @@ export class Session implements SessionHandle, AsyncDisposable {
   lastResumeError?: string;
   terminalError?: string;
   runtimeState: RuntimeState;
+  guestControlDenied: boolean;
   private runtimeSecretsPresent: boolean;
   get hasRuntimeSecrets(): boolean {
     return this.runtimeSecretsPresent;
@@ -360,6 +376,7 @@ export class Session implements SessionHandle, AsyncDisposable {
     this.lastResumeError = proto.lastResumeError || undefined;
     this.terminalError = proto.terminalError || undefined;
     this.runtimeState = templateRuntimeStateFromProto(proto.runtimeState);
+    this.guestControlDenied = proto.guestControlDenied ?? false;
     this.runtimeSecretsPresent = proto.hasRuntimeSecrets;
     this.runtimeError = proto.runtimeError || undefined;
     this.sticky = proto.sticky;
@@ -413,6 +430,7 @@ export class Session implements SessionHandle, AsyncDisposable {
       lastResumeError: this.lastResumeError,
       terminalError: this.terminalError,
       runtimeState: this.runtimeState,
+      guestControlDenied: this.guestControlDenied,
       hasRuntimeSecrets: this.hasRuntimeSecrets,
       runtimeError: this.runtimeError,
       sticky: this.sticky,
@@ -661,6 +679,7 @@ export class Session implements SessionHandle, AsyncDisposable {
     this.lastResumeError = proto.lastResumeError || undefined;
     this.terminalError = proto.terminalError || undefined;
     this.runtimeState = templateRuntimeStateFromProto(proto.runtimeState);
+    this.guestControlDenied = proto.guestControlDenied ?? false;
     this.runtimeSecretsPresent = proto.hasRuntimeSecrets;
     this.runtimeError = proto.runtimeError || undefined;
     this.sticky = proto.sticky;
@@ -1122,6 +1141,77 @@ export class Session implements SessionHandle, AsyncDisposable {
       );
     } catch (err) {
       throw mapError(err);
+    }
+  }
+
+  /** Updates API then Git credentials sequentially; errors identify partial completion. */
+  async rotateGitHubToken(token: string): Promise<void> {
+    const inputs = githubInjectionCredentials(token);
+    for (const [i, input] of inputs.entries()) {
+      try {
+        await this.setInjectionCredential(input);
+      } catch (err) {
+        if (err instanceof Error) {
+          const partial = i > 0 ? ` (${inputs[0]!.name} already rotated)` : "";
+          err.message = `rotate ${input.name} failed${partial}: ${err.message}`;
+        }
+        throw err;
+      }
+    }
+  }
+
+  /** Creates or rotates a session injection credential. */
+  async setInjectionCredential(
+    input: InjectionCredentialInput,
+    expectedRevision?: number,
+  ): Promise<InjectionCredentialMetadata> {
+    const req = create(SetSessionInjectionCredentialRequestSchema, {
+      sessionId: this.id,
+      credential: injectionInput(input),
+      expectedRevision: injectionRevision(expectedRevision),
+    });
+    try {
+      return injectionMetadata((await this.rpcClient.setSessionInjectionCredential(req)).credential);
+    } catch (err) {
+      const safe = safeInjectionError(err);
+      const failure = ConnectError.from(safe.cause).findDetails(TemplateRuntimeFailureSchema)[0];
+      if (failure?.session) {
+        const session = new Session(
+          this.rpcClient,
+          failure.session,
+          this.#authToken,
+          this.gatewayAddress,
+          this.sshOptions,
+        );
+        throw new TemplateRuntimeFailedError("template runtime failed", session, { cause: safe });
+      }
+      throw safe;
+    }
+  }
+
+  /** Revokes a session injection credential by name. */
+  async revokeInjectionCredential(name: string, expectedRevision?: number): Promise<InjectionCredentialMetadata> {
+    const req = create(RevokeSessionInjectionCredentialRequestSchema, {
+      sessionId: this.id,
+      name,
+      expectedRevision: injectionRevision(expectedRevision),
+    });
+    try {
+      return injectionMetadata((await this.rpcClient.revokeSessionInjectionCredential(req)).credential);
+    } catch (err) {
+      const safe = safeInjectionError(err);
+      const failure = ConnectError.from(safe.cause).findDetails(TemplateRuntimeFailureSchema)[0];
+      if (failure?.session) {
+        const session = new Session(
+          this.rpcClient,
+          failure.session,
+          this.#authToken,
+          this.gatewayAddress,
+          this.sshOptions,
+        );
+        throw new TemplateRuntimeFailedError("template runtime failed", session, { cause: safe });
+      }
+      throw safe;
     }
   }
 

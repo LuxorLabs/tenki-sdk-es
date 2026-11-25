@@ -43,7 +43,15 @@ import {
   VolumeSyncPendingError,
   WaitReadyFailedError,
 } from "./errors.js";
+import { githubInjectionCredentials, githubInjectionEnv } from "./github-token.js";
 import { DrainingHttp2SessionManager, KEEPALIVE_PING_OPTIONS } from "./http2-drain.js";
+import {
+  InjectionCredentialInput,
+  injectionInput,
+  injectionMetadata,
+  safeInjectionError,
+  type InjectionCredentialMetadata,
+} from "./injection-credentials.js";
 import {
   DeleteRegistryImageRequestSchema,
   DeleteRegistryImageVersionRequestSchema,
@@ -62,6 +70,7 @@ import {
   CreateEgressPolicyRequestSchema,
   CreateEgressPolicyWithPublicEgressRequestSchema,
   CreateSessionRequestSchema,
+  CreateSessionWithInjectionCredentialsRequestSchema,
   CreateSessionWithPublicEgressRequestSchema,
   CreateSnapshotRequestSchema,
   CreateStorageConnectionRequestSchema,
@@ -315,14 +324,29 @@ export class TenkiSandbox implements AsyncDisposable {
   }
 
   // Unsupported APIs must release their allocation before exposing a handle.
-  private async verifyPublicEgress(session: Session, requested: EgressPolicySpec["publicEgress"]): Promise<void> {
+  private async verifyPublicEgress(
+    session: Session,
+    requested: EgressPolicySpec["publicEgress"],
+    credentials: InjectionCredentialMetadata[] | undefined,
+    runtimeFailure: TemplateRuntimeFailedError | undefined,
+  ): Promise<void> {
     if (publicEgressAcknowledged(requested, session.egress.publicEgress)) return;
     try {
       await session.close();
     } catch (error) {
-      throw new Error("Server does not support public egress restrictions; session cleanup failed", { cause: error });
+      throw Object.assign(
+        new Error("Server does not support public egress restrictions; session cleanup failed", {
+          cause: error,
+        }),
+        credentials === undefined ? {} : { credentials },
+        runtimeFailure === undefined ? {} : { runtimeFailure },
+      );
     }
-    throw new Error("Server does not support public egress restrictions");
+    throw Object.assign(
+      new Error("Server does not support public egress restrictions", { cause: runtimeFailure }),
+      credentials === undefined ? {} : { credentials },
+      runtimeFailure === undefined ? {} : { runtimeFailure },
+    );
   }
 
   private async verifyTailnetDNS(requested: boolean | undefined, response: CreateSessionResponse): Promise<void> {
@@ -346,6 +370,21 @@ export class TenkiSandbox implements AsyncDisposable {
    * not positive; a larger value is rejected.
    */
   async create(options?: CreateOptions): Promise<Session> {
+    return (await this.createSession(undefined, options)).session;
+  }
+
+  async createWithInjectionCredentials(
+    credentials: InjectionCredentialInput[],
+    options?: CreateOptions,
+  ): Promise<{ session: Session; credentials: InjectionCredentialMetadata[] }> {
+    if (!Array.isArray(credentials)) throw new TypeError("credentials must be an array");
+    return this.createSession(credentials, options);
+  }
+
+  private async createSession(
+    credentials: InjectionCredentialInput[] | undefined,
+    options?: CreateOptions,
+  ): Promise<{ session: Session; credentials: InjectionCredentialMetadata[] }> {
     const req = create(CreateSessionRequestSchema, {
       ownerType: "SERVICE",
       ownerId: "self",
@@ -451,23 +490,47 @@ export class TenkiSandbox implements AsyncDisposable {
       req.env["GIT_TOKEN"] = options.githubToken.trim();
     }
 
+    if (options?.githubTokenInjection) {
+      const inputs = githubInjectionCredentials(options.githubToken ?? "");
+      if (options.cloneRepoUrl) throw new Error("GitHub token injection requires cloning after creation");
+      githubInjectionEnv(req.env);
+      credentials = [...(credentials ?? []), ...inputs];
+    }
+
     for (const target of Object.keys(req.runtime?.secretEnv ?? {})) {
       if (Object.hasOwn(req.env, target))
         throw new InvalidTemplateSpecError("secret target conflicts with session environment");
     }
 
+    const credentialRequest =
+      credentials === undefined
+        ? undefined
+        : create(CreateSessionWithInjectionCredentialsRequestSchema, {
+            session: req,
+            credentials: credentials.map(injectionInput),
+          });
     let resp;
+    let metadata: InjectionCredentialMetadata[] = [];
     try {
-      resp =
-        options?.publicEgress !== undefined
-          ? (
-              await this.rpcClient.createSessionWithPublicEgress(
-                create(CreateSessionWithPublicEgressRequestSchema, { request: req }),
-              )
-            ).response!
-          : await this.rpcClient.createSession(req);
-    } catch (err) {
-      const runtimeFailure = ConnectError.from(err).findDetails(TemplateRuntimeFailureSchema)[0];
+      if (credentials === undefined) {
+        resp =
+          options?.publicEgress !== undefined
+            ? (
+                await this.rpcClient.createSessionWithPublicEgress(
+                  create(CreateSessionWithPublicEgressRequestSchema, { request: req }),
+                )
+              ).response!
+            : await this.rpcClient.createSession(req);
+      } else {
+        const result = await this.rpcClient.createSessionWithInjectionCredentials(credentialRequest!);
+        resp = result.created!;
+        metadata = result.credentials.map(injectionMetadata);
+      }
+    } catch (caught) {
+      const err = credentials === undefined ? caught : safeInjectionError(caught);
+      const runtimeFailure = ConnectError.from(credentials === undefined ? err : (err as Error).cause).findDetails(
+        TemplateRuntimeFailureSchema,
+      )[0];
       if (runtimeFailure?.session) {
         const session = new Session(
           this.rpcClient,
@@ -480,11 +543,21 @@ export class TenkiSandbox implements AsyncDisposable {
           [],
           this.warningHandler,
         );
-        await this.verifyPublicEgress(session, options?.publicEgress);
-        throw new TemplateRuntimeFailedError(runtimeFailure.reason || "template runtime failed", session, {
-          cause: err instanceof Error ? err : undefined,
-        });
+        const failure = Object.assign(
+          new TemplateRuntimeFailedError(runtimeFailure.reason || "template runtime failed", session, {
+            cause: err instanceof Error ? err : undefined,
+          }),
+          credentials === undefined ? {} : { credentials: metadata },
+        );
+        await this.verifyPublicEgress(
+          session,
+          options?.publicEgress,
+          credentials === undefined ? undefined : metadata,
+          failure,
+        );
+        throw failure;
       }
+      if (credentials !== undefined) throw err;
       throw mapError(err);
     }
 
@@ -508,10 +581,15 @@ export class TenkiSandbox implements AsyncDisposable {
       warnings,
       this.warningHandler,
     );
-    await this.verifyPublicEgress(session, options?.publicEgress);
+    await this.verifyPublicEgress(
+      session,
+      options?.publicEgress,
+      credentials === undefined ? undefined : metadata,
+      undefined,
+    );
     emitWarnings(this.warningHandler, warnings);
-    if (!waitReady) return session;
-    if (isReady(session.state)) return session;
+    if (!waitReady) return { session, credentials: metadata };
+    if (isReady(session.state)) return { session, credentials: metadata };
     if (isTerminal(session.state)) {
       const suffix = session.terminalError ? `: ${session.terminalError}` : "";
       throw mapError(new Error(`session entered terminal state: ${session.state}${suffix}`));
@@ -523,11 +601,14 @@ export class TenkiSandbox implements AsyncDisposable {
       );
     } catch (waitErr) {
       if (isTerminal(session.state)) throw mapError(waitErr);
-      throw new WaitReadyFailedError(`session ${session.id} created but not ready within wait budget`, session, {
-        cause: waitErr instanceof Error ? waitErr : undefined,
-      });
+      throw Object.assign(
+        new WaitReadyFailedError(`session ${session.id} created but not ready within wait budget`, session, {
+          cause: waitErr instanceof Error ? waitErr : undefined,
+        }),
+        credentials === undefined ? {} : { credentials: metadata },
+      );
     }
-    return session;
+    return { session, credentials: metadata };
   }
 
   async createAndWait(options?: CreateOptions & { timeoutMs?: number }): Promise<Session> {

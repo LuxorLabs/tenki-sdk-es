@@ -1,3 +1,8 @@
+export {
+  InjectionCredentialInput,
+  type InjectionRule,
+  type InjectionCredentialMetadata,
+} from "./injection-credentials.js";
 export { TenkiSandbox, LuxorSandbox } from "./client.js";
 export { Session } from "./session.js";
 export type {

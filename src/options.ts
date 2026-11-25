@@ -121,6 +121,8 @@ export interface CreateOptions {
   excludedDefaultMountIds?: string[];
   openCodeProvider?: OpenCodeProviderConfig;
   githubToken?: string;
+  /** Deliver githubToken through session injection credentials instead of guest secrets. */
+  githubTokenInjection?: boolean;
   sticky?: boolean;
   /** Wait until RUNNING with data-plane fields primed before returning. Defaults to true. */
   waitReady?: boolean;
