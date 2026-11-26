@@ -501,6 +501,10 @@ export class TenkiSandbox implements AsyncDisposable {
       if (Object.hasOwn(req.env, target))
         throw new InvalidTemplateSpecError("secret target conflicts with session environment");
     }
+    for (const target of Object.keys(req.runtime?.variableEnv ?? {})) {
+      if (Object.hasOwn(req.env, target))
+        throw new InvalidTemplateSpecError("variable target conflicts with session environment");
+    }
 
     const credentialRequest =
       credentials === undefined

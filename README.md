@@ -804,6 +804,11 @@ runtime-only `TemplateSpec` and starts at boot; use create options for the image
 and resources. Secret targets cannot also appear in ordinary runtime/session env.
 `session.hasRuntimeSecrets` and `snapshot.hasRuntimeSecrets` are read-only markers.
 
+`variableEnv` maps targets to workspace variables of the launching workspace the
+same way, for example `{ API_BASE_URL: "PROD_API_BASE_URL" }`. Variable values are
+not secret, so keep sensitive values in `secretEnv`. A target can come from only
+one of the runtime env, the session env, `secretEnv`, and `variableEnv`.
+
 ## Runtime secret files
 
 Put `secrets://API_TOKEN` in any text file, regardless of filename or extension. Built templates capture unresolved source text from the guest image; direct launches supply content read on the caller. Values resolve from the launching workspace before managed startup.

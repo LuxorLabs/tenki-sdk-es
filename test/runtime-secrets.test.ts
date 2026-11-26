@@ -3,12 +3,14 @@ import { createRouterTransport } from "@connectrpc/connect";
 import { describe, expect, it } from "vitest";
 
 import { TenkiSandbox } from "../src/client.js";
+import { RegistryImageDetailSchema } from "../src/internal/proto/tenki/sandbox/v1/registry_pb.js";
 import {
   CreateSessionRequestSchema,
   SandboxService,
   SessionState,
   SnapshotSchema,
 } from "../src/internal/proto/tenki/sandbox/v1/sandbox_pb.js";
+import { registryImageDetailFromProto } from "../src/registry.js";
 import { secretFileNames } from "../src/secret-files.js";
 import { snapshotFromProto } from "../src/snapshot.js";
 import { TemplateSpec } from "../src/template-spec.js";
@@ -93,6 +95,52 @@ describe("runtime workspace secret references", () => {
       });
       expect(seen[1].runtime).toBeUndefined();
       expect(seen[1].secretOverrides).toEqual({ "shared-token": "local-token" });
+    } finally {
+      await client.close();
+    }
+  });
+});
+
+describe("runtime workspace variable references", () => {
+  const vars = { API_URL: "PROD_API_URL" };
+  it.each(["start", "argv", "compose"])("preserves %s refs through builder and authored roundtrips", (kind) => {
+    const spec =
+      kind === "compose"
+        ? new TemplateSpec().processCompose("compose.yaml", { variableEnv: vars })
+        : kind === "argv"
+          ? new TemplateSpec().startArgs(["app"], { variableEnv: vars })
+          : new TemplateSpec().start("app", { variableEnv: vars });
+    expect(spec.validate()).toEqual([]);
+    expect(TemplateSpec.fromJSON(spec.toJSON()).toDirectRuntimeProto().variableEnv).toEqual(vars);
+  });
+  it("validates references, target conflicts and the shared limit", () => {
+    const tooMany = Object.fromEntries(Array.from({ length: 65 }, (_, i) => [`VARIABLE_${i}`, "NAME"]));
+    for (const spec of [
+      new TemplateSpec().start("app", { variableEnv: { "BAD-TARGET": "NAME" } }),
+      new TemplateSpec().start("app", { variableEnv: { API_URL: "not a name" } }),
+      new TemplateSpec().start("app", { secretEnv: { API_URL: "TOKEN" }, variableEnv: vars }),
+      new TemplateSpec().runtimeEnv({ API_URL: "plain" }).start("app", { variableEnv: vars }),
+      new TemplateSpec().start("app", { variableEnv: tooMany }),
+    ]) {
+      expect(spec.validate()).not.toEqual([]);
+    }
+    expect(
+      registryImageDetailFromProto(create(RegistryImageDetailSchema, { runtimeVariableEnv: vars })).runtimeVariableEnv,
+    ).toEqual(vars);
+  });
+  it("refuses a session environment that sets a variable target", async () => {
+    const client = new TenkiSandbox({
+      authToken: "tk_test",
+      transport: createRouterTransport((router) => router.service(SandboxService, {})),
+    });
+    try {
+      await expect(
+        client.create({
+          directRuntime: new TemplateSpec().start("app", { variableEnv: vars }),
+          env: { API_URL: "plain" },
+          waitReady: false,
+        }),
+      ).rejects.toThrow(/variable target conflicts with session environment/);
     } finally {
       await client.close();
     }

@@ -69,6 +69,7 @@ export interface RegistryImageDetail {
   runtimeSecretEnv: Record<string, string>;
   runtimeSecretPolicies: string[];
   runtimeSecretFiles: RuntimeSecretFile[];
+  runtimeVariableEnv: Record<string, string>;
   image?: RegistryImage;
   resolvedSnapshotId?: string;
   resolvedRef?: string;
@@ -248,6 +249,7 @@ export function registryImageDetailFromProto(proto: ProtoRegistryImageDetail | u
     runtimeSecretFiles: (proto?.runtimeSecretFiles ?? []).map(
       (file) => toJson(RuntimeSecretFileSchema, file) as unknown as RuntimeSecretFile,
     ),
+    runtimeVariableEnv: { ...(proto?.runtimeVariableEnv ?? {}) },
     resolvedSnapshotId: proto?.resolvedSnapshotId,
     resolvedRef: proto?.resolvedRef,
     workspaceActive: proto?.workspaceActive ?? false,

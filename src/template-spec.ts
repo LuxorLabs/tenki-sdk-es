@@ -104,6 +104,8 @@ export interface TemplateRuntimeOptions {
   /** Environment targets mapped to secret names in the launching workspace. */
   secretEnv?: Record<string, string>;
   secretFiles?: RuntimeSecretFile[];
+  /** Environment targets mapped to workspace variable names in the launching workspace. */
+  variableEnv?: Record<string, string>;
   runAt?: TemplateRunAt;
   restartPolicy?: TemplateRestartPolicyOption;
   snapshotMode?: TemplateSnapshotModeOption;
@@ -585,6 +587,7 @@ function applyRuntimeOptions(runtime: ProtoTemplateRuntime, options?: TemplateRu
   if (options.secretFiles !== undefined) runtime.secretFiles = options.secretFiles.map(secretFileToProto);
   if (options.secretPolicies !== undefined) runtime.secretPolicies = [...options.secretPolicies];
   if (options.secretEnv !== undefined) runtime.secretEnv = { ...options.secretEnv };
+  if (options.variableEnv !== undefined) runtime.variableEnv = { ...options.variableEnv };
   if (options.runAt !== undefined) {
     runtime.runAt =
       options.runAt === "boot"
@@ -773,10 +776,11 @@ function validateStep(step: TemplateStep, index: number, hasContext: boolean, v:
 }
 
 function validateRuntime(runtime: ProtoTemplateRuntime, v: TemplateSpecViolation[]): void {
-  if (!validSecretFiles(runtime.secretFiles, Object.keys(runtime.secretEnv).length))
+  const secretCount = Object.keys(runtime.secretEnv).length;
+  const variableCount = Object.keys(runtime.variableEnv).length;
+  if (!validSecretFiles(runtime.secretFiles, secretCount + variableCount))
     v.push({ field: "runtime.secretFiles", message: "invalid secret file declaration" });
-  if (Object.keys(runtime.secretEnv).length > 64)
-    v.push({ field: "runtime.secretEnv", message: "at most 64 secret references are supported" });
+  if (secretCount > 64) v.push({ field: "runtime.secretEnv", message: "at most 64 secret references are supported" });
   for (const [target, name] of Object.entries(runtime.secretEnv)) {
     if (!/^[A-Za-z_][A-Za-z0-9_]{0,127}$/.test(target))
       v.push({ field: "runtime.secretEnv", message: "invalid environment target" });
@@ -784,6 +788,18 @@ function validateRuntime(runtime: ProtoTemplateRuntime, v: TemplateSpecViolation
       v.push({ field: "runtime.secretEnv", message: "invalid workspace secret name" });
     if (Object.hasOwn(runtime.env, target))
       v.push({ field: "runtime.secretEnv", message: "secret target conflicts with runtime environment" });
+  }
+  if (variableCount > 0 && secretCount + variableCount > 64)
+    v.push({ field: "runtime.variableEnv", message: "at most 64 secret and variable references are supported" });
+  for (const [target, name] of Object.entries(runtime.variableEnv)) {
+    if (!/^[A-Za-z_][A-Za-z0-9_]{0,127}$/.test(target))
+      v.push({ field: "runtime.variableEnv", message: "invalid environment target" });
+    if (!/^[A-Za-z_][A-Za-z0-9_-]{0,127}$/.test(name))
+      v.push({ field: "runtime.variableEnv", message: "invalid workspace variable name" });
+    if (Object.hasOwn(runtime.env, target))
+      v.push({ field: "runtime.variableEnv", message: "variable target conflicts with runtime environment" });
+    if (Object.hasOwn(runtime.secretEnv, target))
+      v.push({ field: "runtime.variableEnv", message: "variable target conflicts with secretEnv" });
   }
   if (Object.keys(runtime.env).length > 256) {
     v.push({ field: "runtime.env", message: "at most 256 runtime environment variables are supported" });

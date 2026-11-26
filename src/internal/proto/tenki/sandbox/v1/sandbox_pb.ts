@@ -6670,7 +6670,7 @@ export const RefreshSessionSecretsRequestSchema: GenMessage<RefreshSessionSecret
  */
 export type RefreshSessionSecretsResponse = Message<"tenki.sandbox.v1.RefreshSessionSecretsResponse"> & {
   /**
-   * False when every binding already used the current version; the runtime environment is re-delivered either way.
+   * False when no secret version or variable value changed; the runtime environment is re-delivered either way.
    *
    * @generated from field: bool changed = 1;
    */
