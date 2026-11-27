@@ -10,7 +10,11 @@ export const KEEPALIVE_PING_OPTIONS = { pingIntervalMs: 30_000, pingTimeoutMs: 5
 // Sessions on a data-plane host share one connection; Node and Bun count queued request bodies
 // against maxSessionMemory (10 MB default) and reset responses past it with ENHANCE_YOUR_CALM.
 // 320 MB fits eight max-size (32 MiB) unary writes queued at once (~268 MB) plus framing overhead.
-export const DATA_PLANE_SESSION_OPTIONS = { maxSessionMemory: 320 };
+// Node's default 64 KiB stream window caps one response at 64 KiB per round trip (~1 MB/s at 65 ms).
+export const DATA_PLANE_SESSION_OPTIONS = {
+  maxSessionMemory: 320,
+  ...(isBunRuntime ? {} : { settings: { initialWindowSize: 16 * 1024 * 1024 } }),
+};
 
 // Bun's node:http2 client destroys a stream as soon as END_STREAM arrives, even when
 // DATA frames coalesced into the same socket read are still buffered, so the reader

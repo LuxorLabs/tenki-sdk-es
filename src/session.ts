@@ -19,6 +19,8 @@ import {
   DataPlaneNotReadyError,
   dataPlaneNotReadyError,
   ensureFullWrite,
+  FileNotFoundError,
+  FileTooLargeError,
   ForkFailedError,
   InvalidStateError,
   isDataPlaneEdgeNotReady,
@@ -254,6 +256,21 @@ export function egressHttpRuleToProto(rule: EgressHttpRule): SessionEgressHttpRu
 
 // Caps one GetSession so a stalled connection cannot consume the whole readiness budget.
 const WAIT_POLL_ATTEMPT_TIMEOUT_MS = 10_000;
+// The data plane refuses unary ReadFile/WriteFile above this, so larger content goes over the stream RPCs.
+const MAX_UNARY_FILE_BYTES = 32 * 1024 * 1024;
+const WRITE_STREAM_CHUNK_BYTES = 1024 * 1024;
+
+// Keeps an existing file's permission bits, which unary WriteFile preserves but WriteFileStream's
+// temp-and-rename replaces with the requested mode.
+async function overwriteMode(session: Session, path: string): Promise<number> {
+  try {
+    const info = await statFs(session, path);
+    return info.isDir ? 0o644 : info.mode & 0o777;
+  } catch (err) {
+    if (err instanceof FileNotFoundError) return 0o644;
+    throw err;
+  }
+}
 
 export class Session implements SessionHandle, AsyncDisposable {
   readonly id: string;
@@ -795,9 +812,22 @@ export class Session implements SessionHandle, AsyncDisposable {
     return exposeHostPortResilient(this, hostAddr, options);
   }
 
-  // Writes up to 32 MiB; larger content throws FileTooLargeError, so write it with writeFileStream.
   async writeFile(path: string, data: Uint8Array | string): Promise<void> {
     const content = typeof data === "string" ? new TextEncoder().encode(data) : data;
+    if (content.byteLength > MAX_UNARY_FILE_BYTES) {
+      let offset = 0;
+      const source = new ReadableStream<Uint8Array>({
+        pull(controller) {
+          if (offset >= content.byteLength) {
+            controller.close();
+            return;
+          }
+          controller.enqueue(content.subarray(offset, offset + WRITE_STREAM_CHUNK_BYTES));
+          offset += WRITE_STREAM_CHUNK_BYTES;
+        },
+      });
+      return writeFileStream(this, path, source, { mode: await overwriteMode(this, path) });
+    }
     try {
       const request = create(WriteFileRequestSchema, {
         sessionId: this.id,
@@ -812,7 +842,6 @@ export class Session implements SessionHandle, AsyncDisposable {
     }
   }
 
-  // Reads up to 32 MiB; larger files throw FileTooLargeError, so read them with readFileStream.
   async readFile(path: string): Promise<Uint8Array> {
     try {
       const request = create(ReadFileRequestSchema, { sessionId: this.id, path });
@@ -821,8 +850,25 @@ export class Session implements SessionHandle, AsyncDisposable {
         .response!;
       return new Uint8Array(resp.content);
     } catch (err) {
-      throw mapError(err);
+      const mapped = mapError(err);
+      if (!(mapped instanceof FileTooLargeError)) throw mapped;
     }
+    const chunks: Uint8Array[] = [];
+    let total = 0;
+    const reader = (await readFileStream(this, path)).getReader();
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      chunks.push(value);
+      total += value.byteLength;
+    }
+    const content = new Uint8Array(total);
+    let offset = 0;
+    for (const chunk of chunks) {
+      content.set(chunk, offset);
+      offset += chunk.byteLength;
+    }
+    return content;
   }
 
   async waitReady(timeoutMs?: number, signal?: AbortSignal): Promise<void> {
