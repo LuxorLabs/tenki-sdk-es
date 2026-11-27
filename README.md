@@ -955,6 +955,6 @@ with explicit injection credentials.
 ## Managed tailnet DNS
 
 Set `tailnet.acceptDns: true` to resolve short MagicDNS names through the attachment.
-This requires a guest with the unchanged Tenki systemd-resolved configuration.
+This requires a guest with the unchanged Luxor systemd-resolved configuration.
 Omitting the option preserves existing DNS behavior; explicit `false` disables managed short-name search.
 Managed DNS must be enabled for your workspace.

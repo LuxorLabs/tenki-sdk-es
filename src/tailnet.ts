@@ -9,7 +9,8 @@ import {
   type TailnetStatus as ProtoTailnetStatus,
 } from "./internal/proto/tenki/sandbox/v1/sandbox_pb.js";
 
-export type TailnetExitPolicy = "tenki_allowlist" | "exit_node_managed";
+/** `"tenki_allowlist"` is the earlier name of `"luxor_allowlist"` and selects the same policy. */
+export type TailnetExitPolicy = "luxor_allowlist" | "tenki_allowlist" | "exit_node_managed";
 export type TailnetEphemeralPausePolicy = "reject" | "recreate_on_resume";
 export type TailnetState = "pending" | "joining" | "online" | "offline" | "error" | "detached";
 export type TailnetProvider = "tailscale";
@@ -133,6 +134,7 @@ function exitPolicyToProto(policy: TailnetExitPolicy | undefined): ProtoTailnetE
   switch (policy) {
     case undefined:
       return ProtoTailnetExitPolicy.UNSPECIFIED;
+    case "luxor_allowlist":
     case "tenki_allowlist":
       return ProtoTailnetExitPolicy.TENKI_ALLOWLIST;
     case "exit_node_managed":

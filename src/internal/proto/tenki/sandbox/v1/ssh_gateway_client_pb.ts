@@ -248,8 +248,8 @@ export type ActiveSSHGateway = Message<"tenki.sandbox.v1.ActiveSSHGateway"> & {
   healthy: boolean;
 
   /**
-   * Tenki Edge-fronted WebSocket bridge URL for `tenki sandbox ssh`. Empty when
-   * the gateway has no Tenki Edge bridge. The SDK constructs the per-session URL
+   * Luxor Edge-fronted WebSocket bridge URL for `tenki sandbox ssh`. Empty when
+   * the gateway has no Luxor Edge bridge. The SDK constructs the per-session URL
    * by appending "/v1/ssh/<session_id>".
    *
    * @generated from field: string ws_bridge_endpoint = 7;

@@ -804,7 +804,7 @@ export type ListRegistryImagesRequest = Message<"tenki.sandbox.v1.ListRegistryIm
   workspaceId?: string;
 
   /**
-   * System (Tenki-curated) images are excluded unless set, or unless
+   * System (Luxor-curated) images are excluded unless set, or unless
    * workspace_slug names a system namespace.
    *
    * @generated from field: bool include_system_images = 9;

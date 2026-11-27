@@ -865,6 +865,25 @@ describe("TenkiSandbox client TLS options", () => {
     );
   });
 
+  it.each(["luxor_allowlist", "tenki_allowlist"] as const)(
+    "sends %s as the allowlist exit policy",
+    async (exitPolicy) => {
+      const createSession = vi.fn(async () =>
+        create(CreateSessionResponseSchema, {
+          session: create(SandboxSessionSchema, { id: "session-1", state: SessionState.RUNNING }),
+        }),
+      );
+      connectMock.createClient.mockReturnValue({ createSession });
+
+      await new TenkiSandbox({ authToken: "tk_test" }).create({
+        waitReady: false,
+        tailnet: { authKey: new TailnetAuthKey("tskey-auth-secret"), exitPolicy },
+      });
+
+      expect(createSession.mock.calls[0]?.[0].tailnet?.exitPolicy).toBe(TailnetExitPolicy.TENKI_ALLOWLIST);
+    },
+  );
+
   it("inherits workspace tailnet policies when options are omitted", async () => {
     const createSession = vi.fn(async () =>
       create(CreateSessionResponseSchema, {

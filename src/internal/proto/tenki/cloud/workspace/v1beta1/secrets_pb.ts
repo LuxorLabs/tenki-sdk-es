@@ -1274,14 +1274,14 @@ export enum SecretAvailability {
   UNSPECIFIED = 0,
 
   /**
-   * Every Tenki CI job in the workspace, and sandboxes.
+   * Every Luxor CI job in the workspace, and sandboxes.
    *
    * @generated from enum value: SECRET_AVAILABILITY_WORKSPACE = 1;
    */
   WORKSPACE = 1,
 
   /**
-   * Only Tenki CI jobs in one repository.
+   * Only Luxor CI jobs in one repository.
    *
    * @generated from enum value: SECRET_AVAILABILITY_REPOSITORY = 2;
    */
@@ -1381,7 +1381,7 @@ export enum SkippedSecretCode {
   UNSPECIFIED = 0,
 
   /**
-   * The repository already has a secret of this name in Tenki.
+   * The repository already has a secret of this name in Luxor.
    *
    * @generated from enum value: SKIPPED_SECRET_CODE_ALREADY_EXISTS = 1;
    */
@@ -1489,7 +1489,7 @@ export const WorkspaceSecretsService: GenService<{
     output: typeof ListSecretRepositoriesResponseSchema;
   },
   /**
-   * Pushes a temporary branch whose workflow sends the repository's secrets back to Tenki.
+   * Pushes a temporary branch whose workflow sends the repository's secrets back to Luxor.
    *
    * @generated from rpc tenki.cloud.workspace.v1beta1.WorkspaceSecretsService.StartSecretImport
    */

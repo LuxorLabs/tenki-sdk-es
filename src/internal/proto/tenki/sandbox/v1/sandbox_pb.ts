@@ -110,7 +110,7 @@ export const VolumeMountSchema: GenMessage<VolumeMount> = /*@__PURE__*/
   messageDesc(file_tenki_sandbox_v1_sandbox, 1);
 
 /**
- * A credential field: the name of an existing Tenki Secret, or a value Tenki stores as a new secret.
+ * A credential field: the name of an existing Luxor Secret, or a value Luxor stores as a new secret.
  *
  * @generated from message tenki.sandbox.v1.StorageSecretValue
  */
@@ -178,7 +178,7 @@ export const StorageConnectionCredentialsSchema: GenMessage<StorageConnectionCre
   messageDesc(file_tenki_sandbox_v1_sandbox, 3);
 
 /**
- * Names of the Tenki Secrets a connection reads; empty when unused.
+ * Names of the Luxor Secrets a connection reads; empty when unused.
  *
  * @generated from message tenki.sandbox.v1.StorageConnectionSecrets
  */
@@ -313,7 +313,7 @@ export type StorageConnection = Message<"tenki.sandbox.v1.StorageConnection"> & 
   lastTestReason: StorageTestReason;
 
   /**
-   * Tenki disabled this connection; it accepts no new mounts and issues no credentials.
+   * Luxor disabled this connection; it accepts no new mounts and issues no credentials.
    *
    * @generated from field: bool disabled = 20;
    */
@@ -8522,21 +8522,21 @@ export enum StorageAuthMethod {
   UNSPECIFIED = 0,
 
   /**
-   * Access key pair held in Tenki Secrets; GCS uses HMAC keys.
+   * Access key pair held in Luxor Secrets; GCS uses HMAC keys.
    *
    * @generated from enum value: STORAGE_AUTH_METHOD_ACCESS_KEY = 1;
    */
   ACCESS_KEY = 1,
 
   /**
-   * Keyless: Tenki's OIDC token assumes the connection's AWS IAM role.
+   * Keyless: Luxor's OIDC token assumes the connection's AWS IAM role.
    *
    * @generated from enum value: STORAGE_AUTH_METHOD_AWS_OIDC_ROLE = 2;
    */
   AWS_OIDC_ROLE = 2,
 
   /**
-   * A Cloudflare API token in Tenki Secrets mints scoped short-lived R2 keys.
+   * A Cloudflare API token in Luxor Secrets mints scoped short-lived R2 keys.
    *
    * @generated from enum value: STORAGE_AUTH_METHOD_R2_TEMPORARY = 3;
    */
@@ -10122,7 +10122,7 @@ export const SandboxService: GenService<{
     output: typeof WhoAmIResponseSchema;
   },
   /**
-   * Linux x64 runner sizes Tenki CI can run for the workspace, within its job-size limits.
+   * Linux x64 runner sizes Luxor CI can run for the workspace, within its job-size limits.
    *
    * @generated from rpc tenki.sandbox.v1.SandboxService.ListCIRunnerSizes
    */
