@@ -3,6 +3,7 @@ import { Code, ConnectError } from "@connectrpc/connect";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { TenkiSandbox } from "../src/client.js";
+import { snapshotReadyPollDelayMs } from "../src/constants.js";
 import { SnapshotFailedError, SnapshotNotFoundError, SnapshotWaitTimeoutError } from "../src/errors.js";
 import {
   CreateSnapshotResponseSchema,
@@ -135,6 +136,40 @@ describe("Snapshot client", () => {
 
     expect(snap.id).toBe("snap-001");
     expect(getSnapshot).toHaveBeenCalledTimes(3);
+  });
+
+  it.each([
+    [0, 100],
+    [2_999, 100],
+    [3_000, 250],
+    [14_999, 250],
+    [15_000, 1_000],
+    [60_000, 1_000],
+  ])("%dms into a snapshot wait, polls again after %dms", (elapsedMs, want) => {
+    expect(snapshotReadyPollDelayMs(elapsedMs)).toBe(want);
+  });
+
+  it("notices a snapshot within one short poll of it becoming ready", async () => {
+    vi.useFakeTimers();
+    try {
+      const readyAt = Date.now() + 1_300;
+      const getSnapshot = vi.fn(async () =>
+        create(GetSnapshotResponseSchema, {
+          snapshot: create(SnapshotSchema, {
+            id: "snap-001",
+            state: Date.now() >= readyAt ? SnapshotState.READY : SnapshotState.CREATING,
+          }),
+        }),
+      );
+      const client = makeClient({ getSnapshot });
+
+      const waiting = client.waitSnapshotReady("snap-001", 60_000);
+      await vi.advanceTimersByTimeAsync(1_400);
+
+      expect(await Promise.race([waiting, Promise.resolve("pending")])).not.toBe("pending");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("fails on not found once the grace window has passed", async () => {

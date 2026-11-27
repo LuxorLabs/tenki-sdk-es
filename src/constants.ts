@@ -58,6 +58,14 @@ export function pollBackoffMs(attempt: number): number {
   return 2_000;
 }
 
+// snapshotReadyPollDelayMs is the delay before the next snapshot readiness poll.
+// Most snapshots are ready within a few seconds, so poll tightly then back off.
+export function snapshotReadyPollDelayMs(elapsedMs: number): number {
+  if (elapsedMs < 3_000) return 100;
+  if (elapsedMs < 15_000) return 250;
+  return 1_000;
+}
+
 // Size helpers
 export const Byte = 1;
 export const KB = 1_000;

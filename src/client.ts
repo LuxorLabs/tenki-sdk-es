@@ -19,6 +19,7 @@ import {
   GATEWAY_URL_ENVS,
   pollBackoffMs,
   SNAPSHOT_NOT_FOUND_GRACE_MS,
+  snapshotReadyPollDelayMs,
 } from "./constants.js";
 import type { SessionCost, SessionCostBatch } from "./cost.js";
 import { sessionCostBatchFromProto, sessionCostFromProto } from "./cost.js";
@@ -933,7 +934,6 @@ export class TenkiSandbox implements AsyncDisposable {
   async waitSnapshotReady(snapshotId: string, timeoutMs?: number, signal?: AbortSignal): Promise<Snapshot> {
     const started = Date.now();
     const deadline = started + (timeoutMs ?? DEFAULT_SNAPSHOT_CREATE_TIMEOUT_MS);
-    let attempt = 0;
     while (Date.now() < deadline) {
       signal?.throwIfAborted();
       const snap = await this.getSnapshot(snapshotId).catch((err: unknown) => {
@@ -951,8 +951,7 @@ export class TenkiSandbox implements AsyncDisposable {
       if (snap && snapshotIsTerminal(snap.state)) {
         throw new Error(`snapshot entered terminal state: ${snap.state}`);
       }
-      await sleep(pollBackoffMs(attempt), signal);
-      attempt++;
+      await sleep(snapshotReadyPollDelayMs(Date.now() - started), signal);
     }
     throw new SnapshotWaitTimeoutError(
       `timeout waiting for snapshot ${snapshotId} to become ready; it is still being created, call waitSnapshotReady("${snapshotId}") to keep waiting`,
