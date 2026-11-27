@@ -23,19 +23,24 @@
   "type": "module",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.mjs",
-      "require": "./dist/index.cjs"
+      "import": {
+        "types": "./dist/esm/index.d.ts",
+        "default": "./dist/esm/index.js"
+      },
+      "require": {
+        "types": "./dist/cjs/index.d.ts",
+        "default": "./dist/cjs/index.js"
+      }
     }
   },
-  "main": "./dist/index.cjs",
-  "module": "./dist/index.mjs",
-  "types": "./dist/index.d.ts",
+  "main": "./dist/cjs/index.js",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/cjs/index.d.ts",
   "files": [
     "dist"
   ],
   "scripts": {
-    "build": "rm -rf dist && tsup && tsc --emitDeclarationOnly --declarationMap false",
+    "build": "node scripts/build.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit"
@@ -50,8 +55,6 @@
     "@types/node": "24.19.2",
     "@types/ws": "8.18.1",
     "@typescript/native": "npm:typescript@7.0.2",
-    "tsup": "9.0.0",
-    "typescript": "npm:@typescript/typescript6@6.0.2",
     "vitest": "4.1.12"
   },
   "engines": {
@@ -59,7 +62,6 @@
   },
   "license": "MIT",
   "allowScripts": {
-    "esbuild": false,
     "fsevents": false
   }
 }

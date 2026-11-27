@@ -1,3 +1,7 @@
+import { SDK_VERSION } from "./version.js";
+
+export { SDK_VERSION };
+
 export const ENV_LUXOR_AUTH_TOKEN = "LUXOR_AUTH_TOKEN";
 export const ENV_LUXOR_API_KEY = "LUXOR_API_KEY";
 export const ENV_LUXOR_API_ENDPOINT = "LUXOR_API_ENDPOINT";
@@ -25,8 +29,6 @@ export const API_KEY_PREFIXES = ["lx_", "tk_"] as const;
 
 export const DEFAULT_BASE_URL = "https://api.luxor.ai";
 
-declare const __SDK_VERSION__: string | undefined;
-export const SDK_VERSION = typeof __SDK_VERSION__ === "string" ? __SDK_VERSION__ : "unknown";
 export const SDK_USER_AGENT = `luxor-sandbox-typescript/${SDK_VERSION}`;
 export const DEFAULT_TIMEOUT_MS = 30_000;
 export const DEFAULT_DATA_PLANE_READY_TIMEOUT_MS = 60_000;

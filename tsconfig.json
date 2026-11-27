@@ -10,9 +10,10 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "declaration": true,
-    "declarationMap": true,
+    "declarationMap": false,
     "sourceMap": true,
-    "outDir": "dist",
+    "inlineSources": true,
+    "outDir": "dist/esm",
     "rootDir": "src"
   },
   "include": ["src/**/*.ts"],

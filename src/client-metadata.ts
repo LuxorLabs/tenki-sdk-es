@@ -1,4 +1,4 @@
-declare const __TENKI_SDK_VERSION__: string;
+import { SDK_VERSION } from "./version.js";
 
 const CLIENT_GENERATION = "1";
 
@@ -12,7 +12,7 @@ function runtime(): string {
 
 const clientMetadata: ReadonlyArray<readonly [string, string]> = [
   ["x-luxor-client-family", "typescript"],
-  ["x-luxor-client-version", __TENKI_SDK_VERSION__],
+  ["x-luxor-client-version", SDK_VERSION],
   ["x-luxor-client-generation", CLIENT_GENERATION],
   ["x-luxor-client-runtime", runtime()],
 ];
